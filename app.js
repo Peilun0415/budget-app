@@ -1356,21 +1356,35 @@ function renderAccountList() {
   accountsTotalAsset.textContent     = `$${formatMoney(totalAsset)}`;
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
 
-  // 依類型分組顯示
-  const groups = {};
+  // 依 typeOrder → typeName 分組，組內依 order 排序
+  const groupMap = {};
   allAccounts.forEach(a => {
     const key = a.typeName || '其他';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(a);
+    if (!groupMap[key]) groupMap[key] = { typeOrder: a.typeOrder ?? 999, accounts: [] };
+    groupMap[key].accounts.push(a);
   });
+  // 類別依 typeOrder 排序
+  const sortedGroups = Object.entries(groupMap)
+    .sort((a, b) => a[1].typeOrder - b[1].typeOrder);
 
-  Object.entries(groups).forEach(([typeName, accounts]) => {
+  sortedGroups.forEach(([typeName, { accounts }]) => {
+    // 類別標頭（可拖曳整個類別）
     const header = document.createElement('div');
-    header.className = 'date-group-header';
-    header.textContent = typeName;
+    header.className = 'account-group-header';
+    header.dataset.typeName = typeName;
+    header.innerHTML = `
+      <span class="drag-handle group-drag-handle" title="拖曳移動類別">⠿</span>
+      <span class="account-group-label">${typeName}</span>
+    `;
     accountList.appendChild(header);
 
-    accounts.forEach(a => {
+    // 類別容器（包住該類別所有帳戶，方便整組拖曳）
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'account-group-wrap';
+    groupWrap.dataset.typeName = typeName;
+
+    // 組內依 order 排序
+    accounts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(a => {
       const curBal   = calcAccountBalance(a);
       const balColor = curBal < 0 ? 'var(--red-main)' : 'var(--purple-main)';
       const balText  = curBal < 0
@@ -1381,7 +1395,7 @@ function renderAccountList() {
       item.className = 'account-item';
       item.dataset.docId = a.docId;
       item.innerHTML = `
-        <span class="drag-handle" title="拖曳排序">⠿</span>
+        <span class="drag-handle item-drag-handle" title="拖曳排序">⠿</span>
         <div class="account-type-icon">${a.emoji}</div>
         <div class="account-info">
           <div class="account-name">${a.name}</div>
@@ -1406,9 +1420,12 @@ function renderAccountList() {
         e.stopPropagation();
         if (confirm(`確定要刪除「${a.name}」嗎？`)) deleteAccount(a.docId);
       });
-      initDragHandle(item, item.querySelector('.drag-handle'));
-      accountList.appendChild(item);
+      initItemDragHandle(item, item.querySelector('.item-drag-handle'), groupWrap);
+      groupWrap.appendChild(item);
     });
+
+    accountList.appendChild(groupWrap);
+    initGroupDragHandle(header, groupWrap);
   });
 }
 
@@ -1533,84 +1550,160 @@ shakeStyle.textContent = `
 document.head.appendChild(shakeStyle);
 
 // ===== 帳戶拖曳排序 =====
-let dragSrcItem = null;
 
-function initDragHandle(item, handle) {
-  // --- Mouse（電腦）---
+// ---- 通用拖曳啟動器 ----
+function makeDraggable(handle, onMove, onEnd) {
   handle.addEventListener('mousedown', (e) => {
     e.preventDefault();
-    dragSrcItem = item;
-    item.classList.add('dragging');
-
-    const onMouseMove = (e) => {
-      const target = getAccountItemAt(e.clientX, e.clientY);
-      highlightDragOver(target);
+    const mm = (e) => onMove(e.clientX, e.clientY);
+    const mu = (e) => {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      onEnd(e.clientX, e.clientY);
     };
-    const onMouseUp = (e) => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      const target = getAccountItemAt(e.clientX, e.clientY);
-      finishDrag(target);
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
   });
-
-  // --- Touch（手機）---
   handle.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    dragSrcItem = item;
-    item.classList.add('dragging');
-
-    const onTouchMove = (e) => {
-      const t = e.touches[0];
-      const target = getAccountItemAt(t.clientX, t.clientY);
-      highlightDragOver(target);
-    };
-    const onTouchEnd = (e) => {
-      handle.removeEventListener('touchmove', onTouchMove);
-      handle.removeEventListener('touchend', onTouchEnd);
+    const tm = (e) => { const t = e.touches[0]; onMove(t.clientX, t.clientY); };
+    const te = (e) => {
+      handle.removeEventListener('touchmove', tm);
+      handle.removeEventListener('touchend', te);
       const t = e.changedTouches[0];
-      const target = getAccountItemAt(t.clientX, t.clientY);
-      finishDrag(target);
+      onEnd(t.clientX, t.clientY);
     };
-    handle.addEventListener('touchmove', onTouchMove, { passive: false });
-    handle.addEventListener('touchend', onTouchEnd);
+    handle.addEventListener('touchmove', tm, { passive: false });
+    handle.addEventListener('touchend', te);
   }, { passive: false });
 }
 
-function getAccountItemAt(x, y) {
-  const el = document.elementFromPoint(x, y);
-  return el ? el.closest('.account-item') : null;
+// ---- 類別群組拖曳 ----
+let dragSrcGroup = null;
+
+function initGroupDragHandle(header, groupWrap) {
+  const handle = header.querySelector('.group-drag-handle');
+  if (!handle) return;
+
+  makeDraggable(handle,
+    (x, y) => {
+      const target = getGroupAt(x, y);
+      highlightGroupDragOver(target);
+    },
+    (x, y) => {
+      const target = getGroupAt(x, y);
+      finishGroupDrag(header, target);
+    }
+  );
+
+  handle.addEventListener('mousedown', () => {
+    dragSrcGroup = header;
+    header.classList.add('dragging');
+    groupWrap.classList.add('dragging');
+  });
+  handle.addEventListener('touchstart', () => {
+    dragSrcGroup = header;
+    header.classList.add('dragging');
+    groupWrap.classList.add('dragging');
+  }, { passive: false });
 }
 
-function highlightDragOver(target) {
-  document.querySelectorAll('.account-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+function getGroupAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('.account-group-header') : null;
+}
+
+function highlightGroupDragOver(target) {
+  document.querySelectorAll('.account-group-header.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (target && target !== dragSrcGroup) target.classList.add('drag-over');
+}
+
+async function finishGroupDrag(srcHeader, targetHeader) {
+  document.querySelectorAll('.account-group-header, .account-group-wrap')
+    .forEach(el => el.classList.remove('dragging', 'drag-over'));
+  dragSrcGroup = null;
+  if (!targetHeader || targetHeader === srcHeader) return;
+
+  const allHeaders = [...accountList.querySelectorAll('.account-group-header')];
+  const srcIdx = allHeaders.indexOf(srcHeader);
+  const dstIdx = allHeaders.indexOf(targetHeader);
+  if (srcIdx === -1 || dstIdx === -1) return;
+
+  // 取得目前類別順序
+  const typeOrder = allHeaders.map(h => h.dataset.typeName);
+  const [moved] = typeOrder.splice(srcIdx, 1);
+  typeOrder.splice(dstIdx, 0, moved);
+
+  // 把新的 typeOrder 寫回所有帳戶
+  try {
+    await Promise.all(allAccounts.map(a => {
+      const newTypeOrder = typeOrder.indexOf(a.typeName ?? '其他');
+      return updateDoc(doc(db, 'accounts', a.docId), { typeOrder: newTypeOrder });
+    }));
+  } catch (err) { console.error(err); }
+}
+
+// ---- 類別內帳戶項目拖曳 ----
+let dragSrcItem = null;
+
+function initItemDragHandle(item, handle, groupWrap) {
+  if (!handle) return;
+
+  handle.addEventListener('mousedown', () => {
+    dragSrcItem = item;
+    item.classList.add('dragging');
+  });
+  handle.addEventListener('touchstart', () => {
+    dragSrcItem = item;
+    item.classList.add('dragging');
+  }, { passive: false });
+
+  makeDraggable(handle,
+    (x, y) => {
+      const target = getItemInGroupAt(x, y, groupWrap);
+      highlightItemDragOver(target, groupWrap);
+    },
+    (x, y) => {
+      const target = getItemInGroupAt(x, y, groupWrap);
+      finishItemDrag(item, target, groupWrap);
+    }
+  );
+}
+
+function getItemInGroupAt(x, y, groupWrap) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const item = el.closest('.account-item');
+  // 只接受同一個 groupWrap 內的項目
+  return item && groupWrap.contains(item) ? item : null;
+}
+
+function highlightItemDragOver(target, groupWrap) {
+  groupWrap.querySelectorAll('.account-item.drag-over').forEach(el => el.classList.remove('drag-over'));
   if (target && target !== dragSrcItem) target.classList.add('drag-over');
 }
 
-async function finishDrag(target) {
-  document.querySelectorAll('.account-item').forEach(el => {
-    el.classList.remove('dragging', 'drag-over');
-  });
-  if (!target || target === dragSrcItem || !dragSrcItem) { dragSrcItem = null; return; }
-
-  // 取得目前畫面上所有帳戶卡片的 docId 順序
-  const items = [...accountList.querySelectorAll('.account-item')];
-  const srcIdx = items.indexOf(dragSrcItem);
-  const dstIdx = items.indexOf(target);
-  if (srcIdx === -1 || dstIdx === -1) { dragSrcItem = null; return; }
-
-  // 重排陣列
-  const ordered = [...allAccounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const [moved] = ordered.splice(srcIdx, 1);
-  ordered.splice(dstIdx, 0, moved);
-
+async function finishItemDrag(srcItem, targetItem, groupWrap) {
+  groupWrap.querySelectorAll('.account-item').forEach(el => el.classList.remove('dragging', 'drag-over'));
   dragSrcItem = null;
+  if (!targetItem || targetItem === srcItem) return;
 
-  // 批次寫入新 order
+  const items = [...groupWrap.querySelectorAll('.account-item')];
+  const srcIdx = items.indexOf(srcItem);
+  const dstIdx = items.indexOf(targetItem);
+  if (srcIdx === -1 || dstIdx === -1) return;
+
+  // 取出該群組的帳戶，依畫面順序重排
+  const typeName = groupWrap.dataset.typeName;
+  const groupAccounts = allAccounts
+    .filter(a => (a.typeName || '其他') === typeName)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const [moved] = groupAccounts.splice(srcIdx, 1);
+  groupAccounts.splice(dstIdx, 0, moved);
+
   try {
-    await Promise.all(ordered.map((a, i) =>
+    await Promise.all(groupAccounts.map((a, i) =>
       updateDoc(doc(db, 'accounts', a.docId), { order: i })
     ));
   } catch (err) { console.error(err); }

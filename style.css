@@ -1292,6 +1292,60 @@ input[type="text"]:not(#amount):focus {
   background: var(--pink-light);
 }
 
+/* 帳戶類別群組標頭 */
+.account-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.account-group-header .group-drag-handle {
+  cursor: grab;
+  font-size: 16px;
+  color: var(--text-light);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.account-group-header .group-drag-handle:hover {
+  background: var(--pink-mid);
+  color: var(--pink-dark);
+}
+
+.account-group-header .group-drag-handle:active {
+  cursor: grabbing;
+}
+
+.account-group-label {
+  flex: 1;
+}
+
+.account-group-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.account-group-header.dragging,
+.account-group-wrap.dragging {
+  opacity: 0.4;
+}
+
+.account-group-header.drag-over {
+  background: var(--pink-light);
+  border-radius: var(--radius-sm);
+  border: 2px dashed var(--pink-main);
+  padding: 8px 4px;
+}
+
 /* ===== 分類選擇彈窗 ===== */
 .cat-picker-modal {
   max-height: 75vh;

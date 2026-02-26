@@ -152,6 +152,9 @@ let allAccounts    = [];
 let allCategories  = [];
 let allTemplates   = [];
 let allRecurring   = [];
+let allBudgets     = []; // { docId, type:'month'|'category', amount, categoryId?, categoryName?, categoryEmoji? }
+let unsubBudgets   = null;
+let editingCatBudgetId = null; // 目前編輯的類別預算 docId
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
 let recSelectedSubCategory = null;
@@ -286,9 +289,38 @@ const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 const pageCategories    = document.getElementById('pageCategories');
 const pageSettings      = document.getElementById('pageSettings');
 const pageRecurring     = document.getElementById('pageRecurring');
+const pageBudget        = document.getElementById('pageBudget');
 const navSettingsBtn    = document.getElementById('navSettings');
+const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
+// 主頁預算小卡 DOM
+const homeBudgetWidget     = document.getElementById('homeBudgetWidget');
+const homeBudgetContent    = document.getElementById('homeBudgetContent');
+const homeBudgetMoreBtn    = document.getElementById('homeBudgetMoreBtn');
+// 預算 DOM
+const editMonthBudgetBtn   = document.getElementById('editMonthBudgetBtn');
+const budgetMonthEmpty     = document.getElementById('budgetMonthEmpty');
+const budgetMonthInfo      = document.getElementById('budgetMonthInfo');
+const budgetMonthSpent     = document.getElementById('budgetMonthSpent');
+const budgetMonthLimit     = document.getElementById('budgetMonthLimit');
+const budgetMonthBar       = document.getElementById('budgetMonthBar');
+const budgetMonthPct       = document.getElementById('budgetMonthPct');
+const monthBudgetOverlay   = document.getElementById('monthBudgetOverlay');
+const closeMonthBudgetBtn  = document.getElementById('closeMonthBudgetBtn');
+const monthBudgetInput     = document.getElementById('monthBudgetInput');
+const saveMonthBudgetBtn   = document.getElementById('saveMonthBudgetBtn');
+const deleteMonthBudgetBtn = document.getElementById('deleteMonthBudgetBtn');
+const addCatBudgetBtn      = document.getElementById('addCatBudgetBtn');
+const catBudgetList        = document.getElementById('catBudgetList');
+const catBudgetEmpty       = document.getElementById('catBudgetEmpty');
+const catBudgetOverlay     = document.getElementById('catBudgetOverlay');
+const catBudgetModalTitle  = document.getElementById('catBudgetModalTitle');
+const closeCatBudgetBtn    = document.getElementById('closeCatBudgetBtn');
+const catBudgetCatSelect   = document.getElementById('catBudgetCatSelect');
+const catBudgetAmtInput    = document.getElementById('catBudgetAmtInput');
+const saveCatBudgetBtn     = document.getElementById('saveCatBudgetBtn');
+const deleteCatBudgetBtn   = document.getElementById('deleteCatBudgetBtn');
 const clearAllDataBtn      = document.getElementById('clearAllDataBtn');
 const clearDataOverlay     = document.getElementById('clearDataOverlay');
 const closeClearDataBtn    = document.getElementById('closeClearDataBtn');
@@ -362,6 +394,7 @@ onAuthStateChanged(auth, (user) => {
     subscribeCategories();
     subscribeTemplates();
     subscribeRecurring();
+    subscribeBudgets();
   } else {
     currentUser = null;
     showLogin();
@@ -370,11 +403,13 @@ onAuthStateChanged(auth, (user) => {
     if (unsubCategories)  { unsubCategories();  unsubCategories  = null; }
     if (unsubTemplates)   { unsubTemplates();   unsubTemplates   = null; }
     if (unsubRecurring)   { unsubRecurring();   unsubRecurring   = null; }
+    if (unsubBudgets)     { unsubBudgets();     unsubBudgets     = null; }
     allRecords    = [];
     allAccounts   = [];
     allTemplates  = [];
     allRecurring  = [];
     allCategories = [];
+    allBudgets    = [];
   }
 });
 
@@ -507,24 +542,31 @@ function switchPage(page) {
   pageCategories.style.display    = page === 'categories'    ? 'block' : 'none';
   pageSettings.style.display      = page === 'settings'      ? 'block' : 'none';
   pageRecurring.style.display     = page === 'recurring'     ? 'block' : 'none';
+  pageBudget.style.display        = page === 'budget'        ? 'block' : 'none';
   pageReport.style.display        = page === 'report'        ? 'block' : 'none';
   navHome.classList.toggle('active',        page === 'home');
   navAccountsBtn.classList.toggle('active', page === 'accounts' || page === 'accountDetail');
   navReportBtn.classList.toggle('active',   page === 'report');
-  navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring');
+  navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring' || page === 'budget');
   if (page === 'home')          pageTitle.textContent = '我的記帳本';
   if (page === 'accounts')      pageTitle.textContent = '帳戶管理';
   if (page === 'accountDetail') pageTitle.textContent = '帳戶明細';
   if (page === 'categories')    pageTitle.textContent = '分類管理';
   if (page === 'settings')      pageTitle.textContent = '設定';
   if (page === 'recurring')     pageTitle.textContent = '固定收支';
+  if (page === 'budget')        pageTitle.textContent = '預算管理';
   if (page === 'report')        pageTitle.textContent = '報表';
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
+  if (page === 'budget')        renderBudgetPage();
   if (page === 'report')        renderReport();
 }
 
+// ===== 主頁預算小卡 =====
+homeBudgetMoreBtn.addEventListener('click', () => switchPage('budget'));
+
 // ===== 設定頁按鈕 =====
+goBudgetBtn.addEventListener('click', () => switchPage('budget'));
 goRecurringBtn.addEventListener('click', () => switchPage('recurring'));
 goCategoriesBtn.addEventListener('click', () => switchPage('categories'));
 
@@ -556,7 +598,7 @@ confirmClearDataBtn.addEventListener('click', async () => {
   // 設 flag 防止 subscribeCategories 在刪除後自動補回預設分類
   window._clearingData = true;
 
-  const collections = ['records', 'accounts', 'categories', 'templates', 'recurring'];
+  const collections = ['records', 'accounts', 'categories', 'templates', 'recurring', 'budgets'];
   for (const col of collections) {
     const q = query(collection(db, col), where('uid', '==', currentUser.uid));
     const snap = await new Promise((res, rej) => {
@@ -572,6 +614,200 @@ confirmClearDataBtn.addEventListener('click', async () => {
     closeClearModal();
     clearDataProgress.textContent = '刪除中...';
   }, 1200);
+});
+
+// ===== 預算管理 =====
+function subscribeBudgets() {
+  const q = query(collection(db, 'budgets'), where('uid', '==', currentUser.uid));
+  unsubBudgets = onSnapshot(q, snap => {
+    allBudgets = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    if (currentPage === 'budget') renderBudgetPage();
+    if (currentPage === 'home')   renderHomeBudget();
+  });
+}
+
+function renderBudgetPage() {
+  renderMonthBudget();
+  renderCatBudgetList();
+}
+
+function renderMonthBudget() {
+  const budget = allBudgets.find(b => b.type === 'month');
+  if (!budget) {
+    budgetMonthEmpty.style.display = '';
+    budgetMonthInfo.style.display  = 'none';
+    deleteMonthBudgetBtn.style.display = 'none';
+    return;
+  }
+  budgetMonthEmpty.style.display = 'none';
+  budgetMonthInfo.style.display  = '';
+
+  // 計算本月支出
+  const now = new Date();
+  const ym  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const spent = allRecords
+    .filter(r => r.type === 'expense' && r.date?.startsWith(ym))
+    .reduce((s, r) => s + r.amount, 0);
+
+  const limit = budget.amount;
+  const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
+  const over  = spent > limit;
+  const warn  = pct >= 80;
+
+  budgetMonthSpent.textContent = `$${formatMoney(spent)}`;
+  budgetMonthSpent.style.color = over ? 'var(--red-main)' : warn ? '#e8830a' : 'var(--text-dark)';
+  budgetMonthLimit.textContent = `$${formatMoney(limit)}`;
+  budgetMonthBar.style.width   = `${pct}%`;
+  budgetMonthBar.className     = `budget-progress-bar${over ? ' danger' : warn ? ' warning' : ''}`;
+  const pctLabel = over ? `已超支 $${formatMoney(spent - limit)}` : `已使用 ${pct}%`;
+  budgetMonthPct.textContent   = pctLabel;
+  budgetMonthPct.className     = `budget-month-pct${over ? ' danger' : warn ? ' warning' : ''}`;
+}
+
+function renderCatBudgetList() {
+  const catBudgets = allBudgets.filter(b => b.type === 'category');
+  catBudgetEmpty.style.display = catBudgets.length === 0 ? '' : 'none';
+
+  // 清除舊項目（保留 empty）
+  Array.from(catBudgetList.children).forEach(el => {
+    if (!el.classList.contains('budget-empty')) el.remove();
+  });
+  if (catBudgets.length === 0) return;
+
+  // 計算今年各類別支出
+  const thisYear = new Date().getFullYear();
+  const yearPrefix = `${thisYear}-`;
+  const spentMap = {};
+  allRecords
+    .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
+    .forEach(r => {
+      const key = r.categoryId || '__none__';
+      spentMap[key] = (spentMap[key] || 0) + r.amount;
+    });
+
+  catBudgets.forEach(b => {
+    const spent = spentMap[b.categoryId] || 0;
+    const limit = b.amount;
+    const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
+    const over  = spent > limit;
+    const warn  = pct >= 80;
+
+    const item = document.createElement('div');
+    item.className = 'cat-budget-item';
+    item.innerHTML = `
+      <div class="cat-budget-emoji">${b.categoryEmoji || '📦'}</div>
+      <div class="cat-budget-info">
+        <div class="cat-budget-name">${b.categoryName || '未知分類'}</div>
+        <div class="cat-budget-bar-row">
+          <div class="cat-budget-progress-wrap">
+            <div class="cat-budget-progress-bar${over ? ' danger' : warn ? ' warning' : ''}" style="width:${pct}%"></div>
+          </div>
+          <span class="cat-budget-pct${over ? ' danger' : warn ? ' warning' : ''}">${pct}%</span>
+        </div>
+      </div>
+      <div class="cat-budget-amount">
+        <span style="color:${over ? 'var(--red-main)' : warn ? '#e8830a' : 'var(--text-dark)'}">$${formatMoney(spent)}</span>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px">/ $${formatMoney(limit)}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => openCatBudgetModal(b));
+    catBudgetList.appendChild(item);
+  });
+}
+
+// 月預算 modal
+editMonthBudgetBtn.addEventListener('click', () => {
+  const budget = allBudgets.find(b => b.type === 'month');
+  monthBudgetInput.value = budget ? budget.amount : '';
+  deleteMonthBudgetBtn.style.display = budget ? '' : 'none';
+  monthBudgetOverlay.classList.add('active');
+  setTimeout(() => monthBudgetInput.focus(), 100);
+});
+const closeMonthBudgetModal = () => monthBudgetOverlay.classList.remove('active');
+closeMonthBudgetBtn.addEventListener('click', closeMonthBudgetModal);
+monthBudgetOverlay.addEventListener('click', e => { if (e.target === monthBudgetOverlay) closeMonthBudgetModal(); });
+
+saveMonthBudgetBtn.addEventListener('click', async () => {
+  const amount = parseInt(monthBudgetInput.value, 10);
+  if (!amount || amount <= 0) { monthBudgetInput.focus(); return; }
+  const existing = allBudgets.find(b => b.type === 'month');
+  if (existing) {
+    await updateDoc(doc(db, 'budgets', existing.docId), { amount });
+  } else {
+    await addDoc(collection(db, 'budgets'), { uid: currentUser.uid, type: 'month', amount });
+  }
+  closeMonthBudgetModal();
+});
+
+deleteMonthBudgetBtn.addEventListener('click', async () => {
+  const existing = allBudgets.find(b => b.type === 'month');
+  if (existing && confirm('確定要刪除月預算設定？')) {
+    await deleteDoc(doc(db, 'budgets', existing.docId));
+    closeMonthBudgetModal();
+  }
+});
+
+// 類別預算 modal
+function openCatBudgetModal(budget = null) {
+  editingCatBudgetId = budget?.docId || null;
+  catBudgetModalTitle.textContent = budget ? '編輯類別預算' : '新增類別預算';
+  catBudgetAmtInput.value = budget ? budget.amount : '';
+  deleteCatBudgetBtn.style.display = budget ? '' : 'none';
+
+  // 填入支出主分類選項
+  catBudgetCatSelect.innerHTML = '';
+  const expenseCats = allCategories.filter(c => c.type === 'expense' && !c.parentId);
+  expenseCats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.docId;
+    opt.textContent = `${c.emoji} ${c.name}`;
+    if (budget && c.docId === budget.categoryId) opt.selected = true;
+    catBudgetCatSelect.appendChild(opt);
+  });
+
+  catBudgetOverlay.classList.add('active');
+  setTimeout(() => catBudgetAmtInput.focus(), 100);
+}
+
+addCatBudgetBtn.addEventListener('click', () => openCatBudgetModal());
+const closeCatBudgetModal = () => { catBudgetOverlay.classList.remove('active'); editingCatBudgetId = null; };
+closeCatBudgetBtn.addEventListener('click', closeCatBudgetModal);
+catBudgetOverlay.addEventListener('click', e => { if (e.target === catBudgetOverlay) closeCatBudgetModal(); });
+
+saveCatBudgetBtn.addEventListener('click', async () => {
+  const amount = parseInt(catBudgetAmtInput.value, 10);
+  if (!amount || amount <= 0) { catBudgetAmtInput.focus(); return; }
+  const selCat = allCategories.find(c => c.docId === catBudgetCatSelect.value);
+  if (!selCat) return;
+
+  const data = {
+    uid: currentUser.uid,
+    type: 'category',
+    amount,
+    categoryId:    selCat.docId,
+    categoryName:  selCat.name,
+    categoryEmoji: selCat.emoji,
+  };
+
+  if (editingCatBudgetId) {
+    await updateDoc(doc(db, 'budgets', editingCatBudgetId), data);
+  } else {
+    // 若同分類已有預算則覆蓋
+    const existing = allBudgets.find(b => b.type === 'category' && b.categoryId === selCat.docId);
+    if (existing) {
+      await updateDoc(doc(db, 'budgets', existing.docId), data);
+    } else {
+      await addDoc(collection(db, 'budgets'), data);
+    }
+  }
+  closeCatBudgetModal();
+});
+
+deleteCatBudgetBtn.addEventListener('click', async () => {
+  if (editingCatBudgetId && confirm('確定要刪除此類別預算？')) {
+    await deleteDoc(doc(db, 'budgets', editingCatBudgetId));
+    closeCatBudgetModal();
+  }
 });
 
 // ===== 帳戶明細 =====
@@ -2545,6 +2781,7 @@ function renderAccountList() {
 function renderAll() {
   renderMonthLabel();
   renderSummary();
+  renderHomeBudget();
   renderList();
 }
 
@@ -2566,6 +2803,98 @@ function renderSummary() {
   totalExpense.textContent = `$${formatMoney(expense)}`;
   totalBalance.textContent = `$${formatMoney(balance)}`;
   totalBalance.style.color = balance >= 0 ? 'var(--purple-main)' : 'var(--red-main)';
+}
+
+function renderHomeBudget() {
+  const monthBudget = allBudgets.find(b => b.type === 'month');
+  const catBudgets  = allBudgets.filter(b => b.type === 'category');
+  if (!monthBudget && catBudgets.length === 0) {
+    homeBudgetWidget.style.display = 'none';
+    return;
+  }
+  homeBudgetWidget.style.display = '';
+
+  const now            = new Date();
+  const isCurrentMonth = (viewYear === now.getFullYear() && viewMonth === now.getMonth());
+  const ym             = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+  const thisYear       = now.getFullYear();
+
+  // 水位卡片產生器
+  function makeTankCard(opts) {
+    const { icon, label, spent, limit, pct, over, wide } = opts;
+    const fillPct   = Math.min(pct, 100);
+    const statusTxt = over
+      ? `<span class="tank-status-over">超支 $${formatMoney(spent - limit)}</span>`
+      : `<span class="tank-status-pct">${pct}%</span>`;
+    return `
+      <div class="hb-tank-card${wide ? ' hb-tank-wide' : ''}">
+        <div class="tank-status">${statusTxt}</div>
+        <div class="tank-fill-wrap">
+          <div class="tank-fill" style="height:${fillPct}%"></div>
+          <div class="tank-content">
+            <div class="tank-icon">${icon}</div>
+            <div class="tank-label">${label}</div>
+            <div class="tank-spent">$${formatMoney(spent)}</div>
+            <div class="tank-limit">/ $${formatMoney(limit)}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  let html = '<div class="hb-grid">';
+
+  // ── 月預算（佔整列）──
+  if (monthBudget) {
+    const spent = allRecords
+      .filter(r => r.type === 'expense' && r.date?.startsWith(ym))
+      .reduce((s, r) => s + r.amount, 0);
+    const limit = monthBudget.amount;
+    const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
+    const over  = spent > limit;
+    const monthLabel = isCurrentMonth ? '本月預算' : `${viewMonth + 1}月預算`;
+    html += makeTankCard({ icon: '💰', label: monthLabel, spent, limit, pct, over, wide: false });
+  }
+
+  // ── 類別預算（兩個一排，最多顯示 4 項）──
+  if (catBudgets.length > 0) {
+    const yearPrefix = `${thisYear}-`;
+    const spentMap = {};
+    allRecords
+      .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
+      .forEach(r => {
+        const key = r.categoryId || '__none__';
+        spentMap[key] = (spentMap[key] || 0) + r.amount;
+      });
+
+    const sorted = [...catBudgets]
+      .map(b => {
+        const spent = spentMap[b.categoryId] || 0;
+        const pct   = b.amount > 0 ? Math.round(spent / b.amount * 100) : 0;
+        return { ...b, spent, pct, over: spent > b.amount };
+      })
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 4);
+
+    sorted.forEach(b => {
+      html += makeTankCard({
+        icon: b.categoryEmoji || '📦',
+        label: b.categoryName || '未知',
+        spent: b.spent,
+        limit: b.amount,
+        pct: Math.min(b.pct, 100),
+        over: b.over,
+        wide: false,
+      });
+    });
+
+    const extraCount = catBudgets.length - sorted.length;
+    if (extraCount > 0) {
+      html += `<div class="hb-extra-card">還有 ${extraCount} 項…</div>`;
+    }
+  }
+
+  html += '</div>';
+  homeBudgetContent.innerHTML = html;
 }
 
 function matchesSearch(r, kw) {

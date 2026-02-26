@@ -341,6 +341,155 @@ body {
 .expense-card .summary-amount { color: var(--red-main); }
 .balance-card .summary-amount { color: var(--pink-main); }
 
+/* ===== 主頁預算小卡（水位圖） ===== */
+#homeBudgetWidget {
+  margin: 14px 16px 0;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.home-budget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--pink-light);
+}
+
+.home-budget-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.home-budget-more {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pink-main);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.home-budget-more:hover { background: var(--pink-light); }
+
+/* Grid 容器：兩欄 */
+.hb-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* 水位卡片 */
+.hb-tank-card {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fce8f0;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+/* 水位填充區 */
+.tank-fill-wrap {
+  position: relative;
+  height: 110px;
+  overflow: hidden;
+}
+
+/* 水位：從底部往上，深粉色 */
+.tank-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(0deg, #e8638e 0%, #f4a0bf 100%);
+  transition: height 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+/* 水面波紋（偽元素） */
+.tank-fill::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -50%;
+  width: 200%;
+  height: 12px;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.45) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: wave 2.4s ease-in-out infinite;
+}
+@keyframes wave {
+  0%, 100% { transform: translateX(0); }
+  50%       { transform: translateX(18%); }
+}
+
+/* 文字層（疊在水位上） */
+.tank-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 8px 6px;
+  pointer-events: none;
+}
+
+.tank-icon  { font-size: 20px; line-height: 1; }
+.tank-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90%;
+}
+.tank-spent {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(255,255,255,0.6);
+}
+.tank-limit {
+  font-size: 10px;
+  color: var(--text-mid);
+  font-weight: 500;
+}
+
+/* 頂部百分比列 */
+.tank-status {
+  padding: 6px 8px 5px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(255,255,255,0.7);
+  letter-spacing: 0.5px;
+}
+.tank-status-pct  { color: var(--text-mid); }
+.tank-status-over { color: var(--text-mid); }
+
+/* 「還有 N 項」佔位卡 */
+.hb-extra-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--pink-light);
+  font-size: 12px;
+  color: var(--text-light);
+  font-weight: 600;
+  min-height: 80px;
+}
+
 /* ===== 新增按鈕 ===== */
 .add-btn-wrap {
   padding: 18px 16px 0;
@@ -2059,6 +2208,251 @@ input[type=number]::-webkit-outer-spin-button {
 .settings-item-danger:hover { background: #ffe0e0; }
 .settings-item-danger .settings-item-title { color: var(--red-main); }
 .settings-item-danger .settings-item-desc  { color: #e57373; }
+
+/* ===== 表單通用輸入框 ===== */
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-mid);
+  margin-bottom: 8px;
+}
+
+.form-input {
+  width: 100%;
+  background: var(--pink-light);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--text-dark);
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b0a0b0' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+input.form-input {
+  background-image: none;
+  padding-right: 14px;
+}
+
+.form-input:focus {
+  border-color: var(--pink-main);
+}
+
+/* ===== Modal 底部動作按鈕列 ===== */
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-save {
+  width: 100%;
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
+  transition: transform 0.15s;
+  letter-spacing: 1px;
+  font-family: inherit;
+}
+
+.btn-save:active {
+  transform: scale(0.97);
+}
+
+.btn-delete {
+  width: 100%;
+  background: var(--red-light);
+  color: var(--red-main);
+  border: 1.5px solid #ffd0d0;
+  border-radius: var(--radius);
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  font-family: inherit;
+}
+
+.btn-delete:active {
+  background: #ffd0d0;
+  transform: scale(0.97);
+}
+
+/* ===== 預算管理頁面 ===== */
+.budget-section {
+  margin: 16px 16px 0;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.budget-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--pink-light);
+}
+.budget-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.budget-edit-btn {
+  background: var(--pink-light);
+  border: none;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pink-main);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.budget-edit-btn:hover { background: var(--pink-mid); }
+
+/* 月預算卡片 */
+.budget-month-card {
+  padding: 16px;
+}
+.budget-month-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: 14px;
+  padding: 8px 0;
+}
+.budget-month-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.budget-month-label {
+  font-size: 14px;
+  color: var(--text-mid);
+}
+.budget-month-vals {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.budget-month-sep {
+  color: var(--text-light);
+  margin: 0 4px;
+  font-weight: 400;
+}
+.budget-progress-wrap {
+  height: 10px;
+  background: var(--pink-light);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.budget-progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #4a90e2, #2563c7);
+  transition: width 0.4s ease;
+}
+.budget-progress-bar.warning { background: linear-gradient(90deg, #f5a623, #e8830a); }
+.budget-progress-bar.danger  { background: linear-gradient(90deg, #f05a5a, #c0392b); }
+.budget-month-pct {
+  font-size: 12px;
+  color: var(--text-mid);
+  text-align: right;
+}
+.budget-month-pct.warning { color: #e8830a; }
+.budget-month-pct.danger  { color: var(--red-main); }
+
+/* 類別預算列表 */
+.cat-budget-list {
+  padding: 8px 0;
+}
+.budget-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: 14px;
+  padding: 16px;
+}
+.cat-budget-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cat-budget-item:hover { background: var(--pink-light); }
+.cat-budget-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+.cat-budget-info {
+  flex: 1;
+  min-width: 0;
+}
+.cat-budget-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 5px;
+}
+.cat-budget-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cat-budget-progress-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--pink-light);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.cat-budget-progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #4a90e2, #2563c7);
+  transition: width 0.4s ease;
+}
+.cat-budget-progress-bar.warning { background: linear-gradient(90deg, #f5a623, #e8830a); }
+.cat-budget-progress-bar.danger  { background: linear-gradient(90deg, #f05a5a, #c0392b); }
+.cat-budget-pct {
+  font-size: 12px;
+  color: var(--text-mid);
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+.cat-budget-pct.warning { color: #e8830a; }
+.cat-budget-pct.danger  { color: var(--red-main); }
+.cat-budget-amount {
+  font-size: 13px;
+  color: var(--text-mid);
+  flex-shrink: 0;
+  text-align: right;
+}
+.cat-budget-amount span {
+  color: var(--text-dark);
+  font-weight: 600;
+}
 
 .clear-data-modal {
   display: flex;

@@ -89,6 +89,15 @@
         </div>
       </section>
 
+      <!-- 主頁預算小卡 -->
+      <div id="homeBudgetWidget" style="display:none">
+        <div class="home-budget-header">
+          <span class="home-budget-title">📊 預算狀況</span>
+          <button class="home-budget-more" id="homeBudgetMoreBtn">管理 ›</button>
+        </div>
+        <div id="homeBudgetContent"></div>
+      </div>
+
       <!-- 新增按鈕 -->
       <div class="add-btn-wrap">
         <button class="add-btn" id="openFormBtn">＋ 新增記帳</button>
@@ -238,6 +247,14 @@
     <!-- ===== 設定頁面 ===== -->
     <div id="pageSettings" style="display:none">
       <div class="settings-list">
+        <button class="settings-item" id="goBudget">
+          <span class="settings-item-icon">🎯</span>
+          <div class="settings-item-info">
+            <div class="settings-item-title">預算管理</div>
+            <div class="settings-item-desc">設定每月總預算與各分類年度預算</div>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
         <button class="settings-item" id="goRecurring">
           <span class="settings-item-icon">🔁</span>
           <div class="settings-item-info">
@@ -261,6 +278,85 @@
             <div class="settings-item-desc">刪除所有記帳、帳戶、分類、範本、固定收支</div>
           </div>
         </button>
+      </div>
+    </div>
+
+    <!-- ===== 預算管理頁面 ===== -->
+    <div id="pageBudget" style="display:none">
+      <!-- 月預算區塊 -->
+      <div class="budget-section">
+        <div class="budget-section-header">
+          <span class="budget-section-title">💰 每月總預算</span>
+          <button class="budget-edit-btn" id="editMonthBudgetBtn">編輯</button>
+        </div>
+        <div class="budget-month-card" id="budgetMonthCard">
+          <div class="budget-month-empty" id="budgetMonthEmpty">尚未設定月預算</div>
+          <div class="budget-month-info" id="budgetMonthInfo" style="display:none">
+            <div class="budget-month-row">
+              <span class="budget-month-label">本月支出</span>
+              <span class="budget-month-vals">
+                <span id="budgetMonthSpent">$0</span>
+                <span class="budget-month-sep">/</span>
+                <span id="budgetMonthLimit">$0</span>
+              </span>
+            </div>
+            <div class="budget-progress-wrap">
+              <div class="budget-progress-bar" id="budgetMonthBar"></div>
+            </div>
+            <div class="budget-month-pct" id="budgetMonthPct"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 類別年預算區塊 -->
+      <div class="budget-section">
+        <div class="budget-section-header">
+          <span class="budget-section-title">🏷️ 類別年度預算</span>
+          <button class="budget-edit-btn" id="addCatBudgetBtn">＋ 新增</button>
+        </div>
+        <div id="catBudgetList" class="cat-budget-list">
+          <div class="budget-empty" id="catBudgetEmpty">尚未設定類別預算</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 月預算編輯 modal -->
+    <div class="modal-overlay" id="monthBudgetOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>每月總預算</h2>
+          <button class="close-btn" id="closeMonthBudgetBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">金額（元）</label>
+          <input type="number" id="monthBudgetInput" class="form-input" placeholder="例：30000" min="0" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn-save" id="saveMonthBudgetBtn">儲存</button>
+          <button class="btn-delete" id="deleteMonthBudgetBtn" style="display:none">刪除預算</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 類別預算編輯 modal -->
+    <div class="modal-overlay" id="catBudgetOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="catBudgetModalTitle">新增類別預算</h2>
+          <button class="close-btn" id="closeCatBudgetBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">支出分類</label>
+          <select id="catBudgetCatSelect" class="form-input"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">年度預算金額（元）</label>
+          <input type="number" id="catBudgetAmtInput" class="form-input" placeholder="例：50000" min="0" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn-save" id="saveCatBudgetBtn">儲存</button>
+          <button class="btn-delete" id="deleteCatBudgetBtn" style="display:none">刪除預算</button>
+        </div>
       </div>
     </div>
 

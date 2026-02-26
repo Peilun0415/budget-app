@@ -493,6 +493,79 @@ body {
 /* ===== 新增按鈕 ===== */
 .add-btn-wrap {
   padding: 18px 16px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.add-btn-wrap .add-btn {
+  flex: 1;
+}
+
+/* 語音按鈕 */
+.voice-btn {
+  flex-shrink: 0;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.voice-btn:active {
+  transform: scale(0.93);
+}
+
+/* 聆聽中：脈衝動畫 */
+.voice-btn.listening {
+  background: var(--pink-light);
+  box-shadow: 0 0 0 0 rgba(233, 100, 148, 0.5);
+  animation: voice-pulse 1.2s ease-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(233, 100, 148, 0.5); }
+  70%  { box-shadow: 0 0 0 14px rgba(233, 100, 148, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(233, 100, 148, 0); }
+}
+
+/* 語音狀態提示 Toast */
+.voice-toast {
+  margin: 10px 16px 0;
+}
+
+.voice-toast-inner {
+  background: var(--text-dark);
+  color: white;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.voice-toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pink-main);
+  flex-shrink: 0;
+  animation: dot-blink 1s ease-in-out infinite;
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
 }
 
 /* ===== 搜尋列 ===== */

@@ -297,6 +297,10 @@ const goCategoriesBtn   = document.getElementById('goCategories');
 // 主頁預算小卡 DOM
 const homeBudgetWidget     = document.getElementById('homeBudgetWidget');
 const homeBudgetContent    = document.getElementById('homeBudgetContent');
+// 語音記帳 DOM
+const voiceBtn             = document.getElementById('voiceBtn');
+const voiceToast           = document.getElementById('voiceToast');
+const voiceToastText       = document.getElementById('voiceToastText');
 const homeBudgetMoreBtn    = document.getElementById('homeBudgetMoreBtn');
 // 預算 DOM
 const editMonthBudgetBtn   = document.getElementById('editMonthBudgetBtn');
@@ -3925,3 +3929,223 @@ function renderTrendMonthList(monthData) {
     trendMonthList.appendChild(row);
   });
 }
+
+// ===== 語音記帳 =====
+(function initVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    voiceBtn.style.display = 'none';
+    return;
+  }
+
+  const recog = new SpeechRecognition();
+  recog.lang = 'zh-TW';
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+
+  let listening = false;
+
+  function showToast(msg) {
+    voiceToastText.textContent = msg;
+    voiceToast.style.display = '';
+  }
+  function hideToast() {
+    voiceToast.style.display = 'none';
+  }
+
+  // ── 中文數字轉阿拉伯數字 ──
+  function chineseToNumber(str) {
+    const unitMap = { 十: 10, 百: 100, 千: 1000, 萬: 10000, 億: 100000000 };
+    const digitMap = { 零: 0, 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5,
+                       六: 6, 七: 7, 八: 8, 九: 9 };
+    // 先嘗試直接解析阿拉伯數字
+    const direct = parseInt(str.replace(/,/g, ''), 10);
+    if (!isNaN(direct)) return direct;
+
+    let result = 0;
+    let section = 0;
+    let current = 0;
+    let hasUnit = false;
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (digitMap[ch] !== undefined) {
+        current = digitMap[ch];
+        hasUnit = false;
+      } else if (unitMap[ch]) {
+        const unit = unitMap[ch];
+        if (unit === 10 && current === 0 && i === 0) current = 1; // 「十」開頭視為「一十」
+        if (unit >= 10000) {
+          section = (section + current) * unit;
+          result += section;
+          section = 0;
+        } else {
+          section += current * unit;
+        }
+        current = 0;
+        hasUnit = true;
+      }
+    }
+    result += section + current;
+    return result || NaN;
+  }
+
+  // ── 解析語音文字 ──
+  function parseVoiceText(text) {
+    text = text.trim();
+    const result = { type: 'expense', amount: null, categoryKeyword: '', note: '', date: null };
+
+    // 收入關鍵字
+    if (/收入|薪水|薪資|獎金|紅包|退款|退費/.test(text)) {
+      result.type = 'income';
+    }
+
+    // 日期解析
+    const today = new Date();
+    if (/昨天/.test(text)) {
+      const d = new Date(today); d.setDate(d.getDate() - 1);
+      result.date = d.toISOString().slice(0, 10);
+      text = text.replace(/昨天/, '');
+    } else if (/前天/.test(text)) {
+      const d = new Date(today); d.setDate(d.getDate() - 2);
+      result.date = d.toISOString().slice(0, 10);
+      text = text.replace(/前天/, '');
+    } else if (/今天/.test(text)) {
+      result.date = today.toISOString().slice(0, 10);
+      text = text.replace(/今天/, '');
+    } else {
+      // 幾號 / 幾月幾號
+      const dateMatch = text.match(/(\d{1,2})月(\d{1,2})號?/) || text.match(/(\d{1,2})號/);
+      if (dateMatch) {
+        const month = dateMatch[2] ? parseInt(dateMatch[1]) - 1 : today.getMonth();
+        const day   = dateMatch[2] ? parseInt(dateMatch[2]) : parseInt(dateMatch[1]);
+        const d = new Date(today.getFullYear(), month, day);
+        result.date = d.toISOString().slice(0, 10);
+        text = text.replace(dateMatch[0], '');
+      }
+    }
+
+    // 金額解析（支援：200、兩百、200元、兩百塊、200塊錢）
+    const amtPatterns = [
+      /([0-9,]+)\s*(?:元|塊錢|塊|円)?/,
+      /([零一二兩三四五六七八九十百千萬億]+)\s*(?:元|塊錢|塊|円)?/,
+    ];
+    for (const pat of amtPatterns) {
+      const m = text.match(pat);
+      if (m) {
+        const num = chineseToNumber(m[1]);
+        if (!isNaN(num) && num > 0) {
+          result.amount = num;
+          text = text.replace(m[0], ' ');
+          break;
+        }
+      }
+    }
+
+    // 剩餘文字作為分類關鍵字 + 備註
+    result.categoryKeyword = text.replace(/\s+/g, ' ').trim();
+    return result;
+  }
+
+  // ── 依關鍵字找最符合的分類 ──
+  function findCategory(keyword, type) {
+    if (!keyword) return null;
+    const cats = allCategories.filter(c => c.type === type && !c.parentId);
+    // 先找子分類完全符合
+    for (const cat of cats) {
+      for (const sub of (cat.subs || [])) {
+        if (keyword.includes(sub.name)) return { parent: cat, sub };
+      }
+    }
+    // 再找主分類
+    for (const cat of cats) {
+      if (keyword.includes(cat.name)) return { parent: cat, sub: null };
+    }
+    // 模糊：分類名稱包含在關鍵字裡，或關鍵字包含在分類名稱裡
+    for (const cat of cats) {
+      if (cat.name.split('').some(ch => keyword.includes(ch))) {
+        return { parent: cat, sub: null };
+      }
+    }
+    return null;
+  }
+
+  // ── 將解析結果填入表單 ──
+  function fillForm(parsed) {
+    openModal();
+    switchType(parsed.type);
+
+    // 金額
+    if (parsed.amount) {
+      const val = String(parsed.amount);
+      calcRaw  = val;
+      calcExpr = val;
+      amountInput.value = val;
+      calcExpressionEl.textContent = '';
+    }
+
+    // 日期
+    if (parsed.date) {
+      dateInput.value = parsed.date;
+    }
+
+    // 分類
+    const found = findCategory(parsed.categoryKeyword, parsed.type);
+    if (found) {
+      selectedCategory    = found.parent.docId;
+      selectedSubCategory = found.sub ? found.sub.docId : null;
+      updateCatPickBtn(found.parent, found.sub);
+      // 把分類名稱從備註關鍵字移除，剩餘當備註
+      let note = parsed.categoryKeyword
+        .replace(found.parent.name, '')
+        .replace(found.sub?.name || '', '')
+        .trim();
+      noteInput.value = note;
+    } else {
+      noteInput.value = parsed.categoryKeyword;
+    }
+  }
+
+  // ── 語音辨識事件 ──
+  recog.onstart = () => {
+    listening = true;
+    voiceBtn.classList.add('listening');
+    showToast('聆聽中…');
+  };
+
+  recog.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    showToast(`「${text}」`);
+    setTimeout(() => {
+      hideToast();
+      const parsed = parseVoiceText(text);
+      if (!parsed.amount) {
+        showToast('沒聽到金額，請再試一次');
+        setTimeout(hideToast, 2500);
+        return;
+      }
+      fillForm(parsed);
+    }, 800);
+  };
+
+  recog.onerror = (e) => {
+    const msg = e.error === 'not-allowed' ? '請允許麥克風權限'
+              : e.error === 'no-speech'   ? '沒有偵測到聲音'
+              : '辨識失敗，請再試一次';
+    showToast(msg);
+    setTimeout(hideToast, 2500);
+  };
+
+  recog.onend = () => {
+    listening = false;
+    voiceBtn.classList.remove('listening');
+  };
+
+  voiceBtn.addEventListener('click', () => {
+    if (listening) {
+      recog.stop();
+    } else {
+      try { recog.start(); } catch { /* 已在執行中 */ }
+    }
+  });
+})();

@@ -216,6 +216,11 @@
         </div>
       </div>
 
+      <!-- 信用卡本期帳單快捷 -->
+      <div id="billingCycleBar" style="display:none">
+        <button class="billing-cycle-btn" id="billingCycleBtn">💳 本期帳單</button>
+      </div>
+
       <!-- 時間範圍切換 -->
       <div class="detail-filter-bar">
         <div class="detail-mode-toggle">
@@ -823,6 +828,15 @@
             <span class="currency-sign">$</span>
             <input type="number" id="accountBalance" placeholder="0" inputmode="decimal" />
           </div>
+        </div>
+
+        <!-- 結算日（僅信用卡顯示） -->
+        <div class="form-group" id="billingDayGroup" style="display:none">
+          <label for="accountBillingDay">每月結算日</label>
+          <select id="accountBillingDay" class="form-select">
+            <option value="">不設定</option>
+          </select>
+          <p class="billing-day-hint">設定後，查看明細時會自動顯示本期帳單範圍</p>
         </div>
 
         <!-- 備註 -->

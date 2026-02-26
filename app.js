@@ -284,6 +284,8 @@ const detailPrevMonth    = document.getElementById('detailPrevMonth');
 const detailNextMonth    = document.getElementById('detailNextMonth');
 const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
+const billingCycleBar    = document.getElementById('billingCycleBar');
+const billingCycleBtn    = document.getElementById('billingCycleBtn');
 
 // ===== DOM — 分類管理 =====
 const pageCategories    = document.getElementById('pageCategories');
@@ -871,14 +873,56 @@ deleteCatBudgetBtn.addEventListener('click', async () => {
 });
 
 // ===== 帳戶明細 =====
+
+/**
+ * 計算信用卡本期帳單的起訖日
+ * 結算日 billingDay：每月 N 號結帳
+ * 本期 = 上個結算日+1 到 本次結算日
+ */
+function calcBillingCycle(billingDay) {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth(); // 0-indexed
+
+  // 本月結算日（可能還沒到）
+  const thisMonthEnd = new Date(y, m, billingDay);
+  let endDate, startDate;
+
+  if (today <= thisMonthEnd) {
+    // 今天還沒超過本月結算日 → 本期結束 = 本月結算日，開始 = 上月結算日+1
+    endDate   = thisMonthEnd;
+    startDate = new Date(y, m - 1, billingDay + 1);
+  } else {
+    // 今天已超過本月結算日 → 本期結束 = 下月結算日，開始 = 本月結算日+1
+    endDate   = new Date(y, m + 1, billingDay);
+    startDate = new Date(y, m, billingDay + 1);
+  }
+
+  return { start: toDateStr(startDate), end: toDateStr(endDate) };
+}
+
 function openAccountDetail(account) {
   detailAccountId   = account.docId;
-  detailMode        = 'month';
   detailViewYear    = new Date().getFullYear();
   detailViewMonth   = new Date().getMonth();
   detailIcon.textContent = account.emoji;
   detailName.textContent = account.name;
   detailType.textContent = account.typeName;
+
+  // 信用卡且有設結算日 → 自動切換到本期帳單範圍
+  if (account.typeId === 'credit' && account.billingDay) {
+    const cycle = calcBillingCycle(account.billingDay);
+    detailMode        = 'range';
+    detailRangeStart  = cycle.start;
+    detailRangeEnd    = cycle.end;
+    detailRangeStartEl.value = cycle.start;
+    detailRangeEndEl.value   = cycle.end;
+    billingCycleBar.style.display = '';
+  } else {
+    detailMode = 'month';
+    billingCycleBar.style.display = 'none';
+  }
+
   syncDetailModeUI();
   renderAccountDetail(account);
   switchPage('accountDetail');
@@ -993,6 +1037,20 @@ detailModeAll.addEventListener('click', () => {
   syncDetailModeUI();
   const acc = allAccounts.find(a => a.docId === detailAccountId);
   if (acc) renderAccountDetail(acc);
+});
+
+// 本期帳單快捷按鈕
+billingCycleBtn.addEventListener('click', () => {
+  const acc = allAccounts.find(a => a.docId === detailAccountId);
+  if (!acc?.billingDay) return;
+  const cycle = calcBillingCycle(acc.billingDay);
+  detailMode = 'range';
+  detailRangeStart = cycle.start;
+  detailRangeEnd   = cycle.end;
+  detailRangeStartEl.value = cycle.start;
+  detailRangeEndEl.value   = cycle.end;
+  syncDetailModeUI();
+  renderAccountDetail(acc);
 });
 
 detailPrevMonth.addEventListener('click', () => {
@@ -2327,15 +2385,32 @@ accountModalOverlay.addEventListener('click', (e) => {
   if (e.target === accountModalOverlay) closeAccountModal();
 });
 
+const billingDayGroup   = document.getElementById('billingDayGroup');
+const accountBillingDay = document.getElementById('accountBillingDay');
+
+// 填入 1~31 選項
+for (let d = 1; d <= 31; d++) {
+  const opt = document.createElement('option');
+  opt.value = d;
+  opt.textContent = `${d} 號`;
+  accountBillingDay.appendChild(opt);
+}
+
 function openAccountModal(account = null) {
   accountEditId.value = account ? account.docId : '';
   accountModalTitle.textContent = account ? '編輯帳戶' : '新增帳戶';
   accountNameInput.value    = account ? account.name    : '';
   accountBalanceInput.value = account ? account.balance : '';
   accountNoteInput.value    = account ? account.note    : '';
+  accountBillingDay.value   = account?.billingDay ?? '';
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
+  updateBillingDayVisibility();
   accountModalOverlay.classList.add('active');
+}
+
+function updateBillingDayVisibility() {
+  billingDayGroup.style.display = selectedAccountType === 'credit' ? '' : 'none';
 }
 
 function closeAccountModal() {
@@ -2351,7 +2426,7 @@ function renderAccountTypeGrid() {
     item.type = 'button';
     item.className = 'cat-item' + (selectedAccountType === t.id ? ' selected' : '');
     item.innerHTML = `<span class="cat-emoji">${t.emoji}</span><span>${t.name}</span>`;
-    item.addEventListener('click', () => { selectedAccountType = t.id; renderAccountTypeGrid(); });
+    item.addEventListener('click', () => { selectedAccountType = t.id; renderAccountTypeGrid(); updateBillingDayVisibility(); });
     accountTypeGrid.appendChild(item);
   });
 }
@@ -2361,9 +2436,11 @@ accountForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!selectedAccountType) { shakeEl(accountTypeGrid); return; }
 
-  const name    = accountNameInput.value.trim();
-  const balance = parseFloat(accountBalanceInput.value) || 0;
-  const note    = accountNoteInput.value.trim();
+  const name       = accountNameInput.value.trim();
+  const balance    = parseFloat(accountBalanceInput.value) || 0;
+  const note       = accountNoteInput.value.trim();
+  const billingDay = selectedAccountType === 'credit' && accountBillingDay.value
+    ? parseInt(accountBillingDay.value) : null;
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
   const editId  = accountEditId.value;
 
@@ -2376,7 +2453,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note,
+        name, balance, note, billingDay,
       });
     } else {
       const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
@@ -2385,7 +2462,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note,
+        name, balance, note, billingDay,
         order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });

@@ -34,27 +34,92 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ===== 記帳類別 =====
-const CATEGORIES = {
-  expense: [
-    { id: 'food',      emoji: '🍜', name: '餐飲' },
-    { id: 'shop',      emoji: '🛍️', name: '購物' },
-    { id: 'transport', emoji: '🚌', name: '交通' },
-    { id: 'entertain', emoji: '🎮', name: '娛樂' },
-    { id: 'beauty',    emoji: '💄', name: '美妝' },
-    { id: 'health',    emoji: '💊', name: '醫療' },
-    { id: 'home',      emoji: '🏠', name: '居家' },
-    { id: 'other_exp', emoji: '📦', name: '其他' },
-  ],
-  income: [
-    { id: 'salary',    emoji: '💼', name: '薪水' },
-    { id: 'bonus',     emoji: '🎁', name: '獎金' },
-    { id: 'invest',    emoji: '📈', name: '投資' },
-    { id: 'gift',      emoji: '🧧', name: '紅包' },
-    { id: 'freelance', emoji: '💻', name: '接案' },
-    { id: 'other_inc', emoji: '✨', name: '其他' },
-  ],
-};
+// ===== 預設分類（首次登入時寫入 Firestore）=====
+// 子分類不設 emoji，寫入時沿用主分類 emoji
+const DEFAULT_CATEGORIES = [
+  // 支出主分類
+  { type: 'expense', emoji: '🍜', name: '飲食',      order: 0,  subs: [
+    { name: '早餐', order: 0 },
+    { name: '午餐', order: 1 },
+    { name: '晚餐', order: 2 },
+    { name: '消夜', order: 3 },
+  ]},
+  { type: 'expense', emoji: '🏠', name: '住家',      order: 1,  subs: [
+    { name: '日常用品', order: 0 },
+    { name: '水費',     order: 1 },
+    { name: '電費',     order: 2 },
+    { name: '瓦斯',     order: 3 },
+    { name: '房租',     order: 4 },
+    { name: '房貸',     order: 5 },
+    { name: '管理費',   order: 6 },
+  ]},
+  { type: 'expense', emoji: '📡', name: '電信',      order: 2,  subs: [
+    { name: '市內電話費', order: 0 },
+    { name: '行動電話費', order: 1 },
+    { name: '網路費',     order: 2 },
+  ]},
+  { type: 'expense', emoji: '🚌', name: '交通',      order: 3,  subs: [
+    { name: '加油費', order: 0 },
+    { name: '停車費', order: 1 },
+    { name: '計程車', order: 2 },
+    { name: '火車',   order: 3 },
+    { name: '飛機',   order: 4 },
+    { name: '高鐵',   order: 5 },
+    { name: '悠遊卡', order: 6 },
+  ]},
+  { type: 'expense', emoji: '🎮', name: '娛樂',      order: 4,  subs: [
+    { name: '電影',     order: 0 },
+    { name: '數位服務', order: 1 },
+    { name: '旅遊',     order: 2 },
+    { name: '門票',     order: 3 },
+  ]},
+  { type: 'expense', emoji: '🛍️', name: '購物',      order: 5,  subs: [
+    { name: '服飾',     order: 0 },
+    { name: '美妝保養', order: 1 },
+    { name: '3C產品',   order: 2 },
+    { name: '網路購物', order: 3 },
+  ]},
+  { type: 'expense', emoji: '🎁', name: '送禮&捐贈', order: 6,  subs: [
+    { name: '捐款', order: 0 },
+    { name: '送禮', order: 1 },
+    { name: '紅包', order: 2 },
+  ]},
+  { type: 'expense', emoji: '💊', name: '醫療&健康', order: 7,  subs: [
+    { name: '門診', order: 0 },
+    { name: '藥品', order: 1 },
+  ]},
+  { type: 'expense', emoji: '💰', name: '金融&保險', order: 8,  subs: [
+    { name: '機車保險', order: 0 },
+    { name: '汽車保險', order: 1 },
+    { name: '手續費',   order: 2 },
+    { name: '投資虧損', order: 3 },
+  ]},
+  { type: 'expense', emoji: '📋', name: '稅金',      order: 9,  subs: [
+    { name: '所得稅', order: 0 },
+    { name: '房屋稅', order: 1 },
+    { name: '牌照稅', order: 2 },
+  ]},
+  { type: 'expense', emoji: '📦', name: '其他雜項',  order: 10, subs: [
+    { name: '賠償罰款', order: 0 },
+    { name: '小費',     order: 1 },
+  ]},
+  // 收入主分類
+  { type: 'income',  emoji: '💼', name: '主動收入',  order: 0,  subs: [
+    { name: '薪資', order: 0 },
+    { name: '獎金', order: 1 },
+    { name: '補助', order: 2 },
+  ]},
+  { type: 'income',  emoji: '📈', name: '被動收入',  order: 1,  subs: [
+    { name: '利息',   order: 0 },
+    { name: '紅包',   order: 1 },
+    { name: '投資獲利', order: 2 },
+    { name: '股利',   order: 3 },
+    { name: '回饋',   order: 4 },
+  ]},
+  { type: 'income',  emoji: '🎉', name: '意外收入',  order: 2,  subs: [
+    { name: '中獎', order: 0 },
+  ]},
+];
 
 // ===== 帳戶類型 =====
 const ACCOUNT_TYPES = [
@@ -69,14 +134,17 @@ const ACCOUNT_TYPES = [
 // ===== 狀態 =====
 let currentUser         = null;
 let currentType         = 'expense';
-let selectedCategory    = null;
+let selectedCategory    = null;   // 主分類 docId
+let selectedSubCategory = null;   // 子分類 docId
 let selectedAccountType = null;
 let viewYear  = new Date().getFullYear();
 let viewMonth = new Date().getMonth();
-let unsubRecords   = null;
-let unsubAccounts  = null;
-let allRecords  = [];
-let allAccounts = [];
+let unsubRecords    = null;
+let unsubAccounts   = null;
+let unsubCategories = null;
+let allRecords     = [];
+let allAccounts    = [];
+let allCategories  = [];  // 主分類陣列（含 .subs 子陣列）
 let currentPage = 'home';
 let detailAccountId  = null;   // 目前查看明細的帳戶 ID
 let detailMode       = 'month'; // 'month' | 'range' | 'all'
@@ -107,7 +175,14 @@ const closeFormBtn  = document.getElementById('closeFormBtn');
 const recordForm    = document.getElementById('recordForm');
 const btnExpense    = document.getElementById('btnExpense');
 const btnIncome     = document.getElementById('btnIncome');
-const categoryGrid  = document.getElementById('categoryGrid');
+const categoryGrid     = document.getElementById('categoryGrid');
+const catPickBtn       = document.getElementById('catPickBtn');
+const catPickEmoji     = document.getElementById('catPickEmoji');
+const catPickName      = document.getElementById('catPickName');
+const catPickerOverlay = document.getElementById('catPickerOverlay');
+const closeCatPickerBtn = document.getElementById('closeCatPickerBtn');
+const catPickerParents = document.getElementById('catPickerParents');
+const catPickerSubs    = document.getElementById('catPickerSubs');
 const amountInput      = document.getElementById('amount');
 const calcToggleBtn    = document.getElementById('calcToggleBtn');
 const calcKeyboard     = document.getElementById('calcKeyboard');
@@ -167,6 +242,29 @@ const detailNextMonth    = document.getElementById('detailNextMonth');
 const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 
+// ===== DOM — 分類管理 =====
+const pageCategories    = document.getElementById('pageCategories');
+const navCategoriesBtn  = document.getElementById('navCategories');
+const categoryMgmtList  = document.getElementById('categoryMgmtList');
+const openCatFormBtn    = document.getElementById('openCatFormBtn');
+const catTabExpense     = document.getElementById('catTabExpense');
+const catTabIncome      = document.getElementById('catTabIncome');
+let catMgmtType         = 'expense';  // 目前分類管理頁顯示的 type
+const catModalOverlay   = document.getElementById('catModalOverlay');
+const closeCatFormBtn   = document.getElementById('closeCatFormBtn');
+const catForm           = document.getElementById('catForm');
+const catModalTitle     = document.getElementById('catModalTitle');
+const catEmojiInput     = document.getElementById('catEmoji');
+const catNameInput      = document.getElementById('catName');
+const catEditIdInput    = document.getElementById('catEditId');
+const catParentIdInput  = document.getElementById('catParentId');
+const catIsParentInput  = document.getElementById('catIsParent');
+const catParentGroup    = document.getElementById('catParentGroup');
+const catParentLabel    = document.getElementById('catParentLabel');
+const catSubmitBtn      = document.getElementById('catSubmitBtn');
+const deleteCatBtn      = document.getElementById('deleteCatBtn');
+let catSelectedType     = 'expense';
+
 // ===== 認證 =====
 onAuthStateChanged(auth, (user) => {
   if (user) {
@@ -174,13 +272,16 @@ onAuthStateChanged(auth, (user) => {
     showApp(user);
     subscribeRecords();
     subscribeAccounts();
+    subscribeCategories();
   } else {
     currentUser = null;
     showLogin();
-    if (unsubRecords)  { unsubRecords();  unsubRecords  = null; }
-    if (unsubAccounts) { unsubAccounts(); unsubAccounts = null; }
-    allRecords  = [];
-    allAccounts = [];
+    if (unsubRecords)     { unsubRecords();     unsubRecords     = null; }
+    if (unsubAccounts)    { unsubAccounts();    unsubAccounts    = null; }
+    if (unsubCategories)  { unsubCategories();  unsubCategories  = null; }
+    allRecords    = [];
+    allAccounts   = [];
+    allCategories = [];
   }
 });
 
@@ -217,6 +318,7 @@ function showApp(user) {
 // ===== 頁面切換 =====
 navHome.addEventListener('click', () => switchPage('home'));
 navAccountsBtn.addEventListener('click', () => switchPage('accounts'));
+navCategoriesBtn.addEventListener('click', () => switchPage('categories'));
 backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
 
 function switchPage(page) {
@@ -224,11 +326,15 @@ function switchPage(page) {
   pageHome.style.display          = page === 'home'          ? 'block' : 'none';
   pageAccounts.style.display      = page === 'accounts'      ? 'block' : 'none';
   pageAccountDetail.style.display = page === 'accountDetail' ? 'block' : 'none';
+  pageCategories.style.display    = page === 'categories'    ? 'block' : 'none';
   navHome.classList.toggle('active',        page === 'home');
   navAccountsBtn.classList.toggle('active', page === 'accounts' || page === 'accountDetail');
+  navCategoriesBtn.classList.toggle('active', page === 'categories');
   if (page === 'home')          pageTitle.textContent = '我的記帳本';
   if (page === 'accounts')      pageTitle.textContent = '帳戶管理';
   if (page === 'accountDetail') pageTitle.textContent = '帳戶明細';
+  if (page === 'categories')    pageTitle.textContent = '分類管理';
+  if (page === 'categories')    renderCategoryMgmtList();
 }
 
 // ===== 帳戶明細 =====
@@ -324,10 +430,12 @@ function renderAccountDetail(account) {
     groups[date].forEach(r => {
       const item = document.createElement('div');
       item.className = 'record-item record-item-clickable';
+      const dEmoji = r.displayEmoji || r.categoryEmoji || '📦';
+      const dName  = r.displayName  || r.categoryName  || '其他';
       item.innerHTML = `
-        <div class="record-cat-icon ${r.type}-icon">${r.categoryEmoji}</div>
+        <div class="record-cat-icon ${r.type}-icon">${dEmoji}</div>
         <div class="record-info">
-          <div class="record-cat-name">${r.categoryName}</div>
+          <div class="record-cat-name">${dName}</div>
           <div class="record-meta">${r.note || '無備註'}</div>
         </div>
         <div class="record-right">
@@ -443,6 +551,63 @@ function subscribeAccounts() {
   }, console.error);
 }
 
+// ===== Firestore 監聽 — 分類 =====
+function subscribeCategories() {
+  if (unsubCategories) unsubCategories();
+  // 只用 where，排序在 client 端做，避免需要建複合索引
+  const q = query(
+    collection(db, 'categories'),
+    where('uid', '==', currentUser.uid)
+  );
+  unsubCategories = onSnapshot(q, async (snap) => {
+    const docs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    // 若使用者尚無分類，寫入預設值
+    if (docs.length === 0) {
+      await seedDefaultCategories();
+      return; // onSnapshot 會再次觸發
+    }
+    // 組裝：主分類 + 子分類
+    const parents = docs.filter(d => !d.parentId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    parents.forEach(p => {
+      p.subs = docs.filter(d => d.parentId === p.docId)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    allCategories = parents;
+    // 若目前在分類管理頁，重新渲染
+    if (currentPage === 'categories') renderCategoryMgmtList();
+    // 分類載入後，若尚未選分類，設預設值
+    if (!selectedCategory) setDefaultCategory();
+  }, console.error);
+}
+
+async function seedDefaultCategories() {
+  const batch = [];
+  for (const cat of DEFAULT_CATEGORIES) {
+    const parentRef = await addDoc(collection(db, 'categories'), {
+      uid:       currentUser.uid,
+      type:      cat.type,
+      emoji:     cat.emoji,
+      name:      cat.name,
+      order:     cat.order,
+      parentId:  null,
+      createdAt: serverTimestamp(),
+    });
+    for (const sub of cat.subs) {
+      batch.push(addDoc(collection(db, 'categories'), {
+        uid:       currentUser.uid,
+        type:      cat.type,
+        emoji:     cat.emoji,   // 子分類沿用主分類 emoji
+        name:      sub.name,
+        order:     sub.order,
+        parentId:  parentRef.id,
+        createdAt: serverTimestamp(),
+      }));
+    }
+  }
+  await Promise.all(batch);
+}
+
 // ===== 月份切換 =====
 prevMonthBtn.addEventListener('click', () => changeMonth(-1));
 nextMonthBtn.addEventListener('click', () => changeMonth(1));
@@ -474,9 +639,15 @@ function openModal(record = null) {
     recordModalTitle.textContent = '編輯記帳';
     submitBtn.textContent = '儲存修改';
     deleteRecordBtn.style.display = 'block';
-    switchType(record.type);
-    selectedCategory = record.categoryId;
-    renderCategoryGrid();
+    currentType         = record.type;
+    selectedCategory    = record.categoryId    || null;
+    selectedSubCategory = record.subCategoryId || null;
+    btnExpense.classList.toggle('active', record.type === 'expense');
+    btnIncome.classList.toggle('active',  record.type === 'income');
+    // 恢復分類按鈕顯示
+    const parentCat = allCategories.find(c => c.docId === selectedCategory) || null;
+    const subCat    = parentCat?.subs?.find(s => s.docId === selectedSubCategory) || null;
+    updateCatPickBtn(parentCat, subCat);
     calcExpr = String(record.amount);
     calcRaw  = String(record.amount);
     amountInput.value   = calcExpr;
@@ -503,23 +674,120 @@ btnExpense.addEventListener('click', () => switchType('expense'));
 btnIncome.addEventListener('click',  () => switchType('income'));
 
 function switchType(type) {
-  currentType = type;
-  selectedCategory = null;
+  currentType         = type;
+  selectedCategory    = null;
+  selectedSubCategory = null;
   btnExpense.classList.toggle('active', type === 'expense');
   btnIncome.classList.toggle('active',  type === 'income');
-  renderCategoryGrid();
+  setDefaultCategory();
 }
 
-function renderCategoryGrid() {
-  categoryGrid.innerHTML = '';
-  CATEGORIES[currentType].forEach(cat => {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'cat-item' + (selectedCategory === cat.id ? ' selected' : '');
-    item.innerHTML = `<span class="cat-emoji">${cat.emoji}</span><span>${cat.name}</span>`;
-    item.addEventListener('click', () => { selectedCategory = cat.id; renderCategoryGrid(); });
-    categoryGrid.appendChild(item);
+// 自動選該 type 第一個主分類的第一個子分類（無子分類則選主分類）
+function setDefaultCategory() {
+  const parents = allCategories.filter(c => c.type === currentType);
+  if (parents.length === 0) {
+    selectedCategory    = null;
+    selectedSubCategory = null;
+    updateCatPickBtn(null, null);
+    return;
+  }
+  const firstParent = parents[0];
+  const firstSub    = firstParent.subs && firstParent.subs.length > 0 ? firstParent.subs[0] : null;
+  selectedCategory    = firstParent.docId;
+  selectedSubCategory = firstSub ? firstSub.docId : null;
+  updateCatPickBtn(firstParent, firstSub);
+}
+
+// ===== 分類選擇彈窗 =====
+catPickBtn.addEventListener('click', () => openCatPicker());
+closeCatPickerBtn.addEventListener('click', closeCatPicker);
+catPickerOverlay.addEventListener('click', (e) => {
+  if (e.target === catPickerOverlay) closeCatPicker();
+});
+
+function openCatPicker() {
+  renderCatPickerParents();
+  catPickerOverlay.classList.add('active');
+}
+
+function closeCatPicker() {
+  catPickerOverlay.classList.remove('active');
+}
+
+// 渲染左欄主分類
+function renderCatPickerParents() {
+  catPickerParents.innerHTML = '';
+  catPickerSubs.innerHTML = '';
+  const parents = allCategories.filter(c => c.type === currentType);
+
+  // 若目前已選主分類，預先展開對應子分類
+  let activeParent = parents.find(c => c.docId === selectedCategory) || parents[0] || null;
+
+  parents.forEach(cat => {
+    const item = document.createElement('div');
+    item.className = 'cat-picker-parent' + (cat === activeParent ? ' active' : '');
+    item.innerHTML = `<span class="cat-picker-parent-emoji">${cat.emoji}</span><span>${cat.name}</span>`;
+    item.addEventListener('click', () => {
+      catPickerParents.querySelectorAll('.cat-picker-parent').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+      renderCatPickerSubs(cat);
+    });
+    catPickerParents.appendChild(item);
   });
+
+  if (activeParent) renderCatPickerSubs(activeParent);
+}
+
+// 渲染右欄子分類（純文字，無 emoji）
+function renderCatPickerSubs(parentCat) {
+  catPickerSubs.innerHTML = '';
+
+  if (parentCat.subs && parentCat.subs.length > 0) {
+    parentCat.subs.forEach(sub => {
+      const item = document.createElement('div');
+      item.className = 'cat-picker-sub' +
+        (selectedSubCategory === sub.docId ? ' selected' : '');
+      item.textContent = sub.name;
+      item.addEventListener('click', () => {
+        selectedCategory    = parentCat.docId;
+        selectedSubCategory = sub.docId;
+        updateCatPickBtn(parentCat, sub);
+        closeCatPicker();
+      });
+      catPickerSubs.appendChild(item);
+    });
+  }
+}
+
+// 更新金額列上的分類按鈕顯示
+function updateCatPickBtn(parentCat, subCat) {
+  if (!parentCat) {
+    catPickEmoji.textContent = '📦';
+    catPickName.innerHTML    = '選擇分類';
+    return;
+  }
+  catPickEmoji.textContent = parentCat.emoji;
+  if (subCat) {
+    catPickName.innerHTML = `${parentCat.name}<br><span class="cat-pick-sub-label">${subCat.name}</span>`;
+  } else {
+    catPickName.innerHTML = parentCat.name;
+  }
+}
+
+// 舊介面相容（switchType 時重設顯示）
+function renderCategoryGrid() {
+  // 切換收/支時，若已選分類不屬於新 type，清除
+  if (selectedCategory) {
+    const cat = allCategories.find(c => c.docId === selectedCategory);
+    if (!cat || cat.type !== currentType) {
+      selectedCategory    = null;
+      selectedSubCategory = null;
+      updateCatPickBtn(null, null);
+    } else {
+      const sub = cat.subs?.find(s => s.docId === selectedSubCategory) || null;
+      updateCatPickBtn(cat, sub);
+    }
+  }
 }
 
 // ===== 帳戶下拉選單（記帳表單用）=====
@@ -567,9 +835,21 @@ recordForm.addEventListener('submit', async (e) => {
   calcExpressionEl.style.color = '';
   const amount = parseFloat(calcRaw) || parseFloat(amountInput.value);
   if (!amount || amount <= 0) { shakeEl(amountInput.parentElement); return; }
-  if (!selectedCategory)      { shakeEl(categoryGrid); return; }
+  if (!selectedCategory)      { shakeEl(catPickBtn); return; }
 
-  const cat      = CATEGORIES[currentType].find(c => c.id === selectedCategory);
+  // 找主分類
+  const parentCat = allCategories.find(c => c.docId === selectedCategory);
+  // 找子分類（若有選）
+  const subCat = selectedSubCategory && parentCat
+    ? (parentCat.subs || []).find(s => s.docId === selectedSubCategory)
+    : null;
+
+  // 顯示用：優先用子分類名稱，否則用主分類
+  const displayEmoji = subCat ? subCat.emoji : (parentCat ? parentCat.emoji : '📦');
+  const displayName  = subCat
+    ? `${parentCat ? parentCat.name + '・' : ''}${subCat.name}`
+    : (parentCat ? parentCat.name : '其他');
+
   const selAccId = accountSelect.value;
   const selAcc   = allAccounts.find(a => a.docId === selAccId);
   const editId   = recordEditId.value;
@@ -578,15 +858,20 @@ recordForm.addEventListener('submit', async (e) => {
   submitBtn.textContent = '儲存中...';
   try {
     const data = {
-      type:          currentType,
+      type:             currentType,
       amount,
-      categoryId:    selectedCategory,
-      categoryName:  cat.name,
-      categoryEmoji: cat.emoji,
-      accountId:     selAccId || null,
-      accountName:   selAcc ? selAcc.name : null,
-      date:          dateInput.value,
-      note:          noteInput.value.trim(),
+      categoryId:       selectedCategory,
+      categoryName:     parentCat ? parentCat.name : '其他',
+      categoryEmoji:    parentCat ? parentCat.emoji : '📦',
+      subCategoryId:    selectedSubCategory || null,
+      subCategoryName:  subCat ? subCat.name  : null,
+      subCategoryEmoji: subCat ? subCat.emoji : null,
+      displayEmoji,
+      displayName,
+      accountId:        selAccId || null,
+      accountName:      selAcc ? selAcc.name : null,
+      date:             dateInput.value,
+      note:             noteInput.value.trim(),
     };
     if (editId) {
       await updateDoc(doc(db, 'records', editId), data);
@@ -612,14 +897,13 @@ function resetForm() {
   amountInput.value   = '';
   noteInput.value     = '';
   accountSelect.value = allAccounts.length > 0 ? allAccounts[0].docId : '';
-  selectedCategory    = null;
   currentType         = 'expense';
   btnExpense.classList.add('active');
   btnIncome.classList.remove('active');
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
+  setDefaultCategory();
   setDefaultDate();
-  renderCategoryGrid();
   resetCalc();
 }
 
@@ -714,6 +998,315 @@ async function deleteAccount(docId) {
   try {
     await deleteDoc(doc(db, 'accounts', docId));
   } catch (err) { console.error(err); alert('刪除失敗'); }
+}
+
+// ===== 分類管理頁面 =====
+// Tab 切換
+catTabExpense.addEventListener('click', () => switchCatMgmtType('expense'));
+catTabIncome.addEventListener('click',  () => switchCatMgmtType('income'));
+
+function switchCatMgmtType(type) {
+  catMgmtType = type;
+  catTabExpense.classList.toggle('active', type === 'expense');
+  catTabIncome.classList.toggle('active',  type === 'income');
+  renderCategoryMgmtList();
+}
+
+openCatFormBtn.addEventListener('click', () => {
+  // 新增主分類時預設帶入目前 tab 的 type
+  catSelectedType = catMgmtType;
+  openCatModal(null, null);
+});
+closeCatFormBtn.addEventListener('click', closeCatModal);
+catModalOverlay.addEventListener('click', (e) => { if (e.target === catModalOverlay) closeCatModal(); });
+
+deleteCatBtn.addEventListener('click', async () => {
+  const editId    = catEditIdInput.value;
+  const isParent  = catIsParentInput.value === 'true';
+  if (!editId) return;
+  const msg = isParent
+    ? '確定要刪除此主分類？底下的子分類也會一併刪除。'
+    : '確定要刪除此子分類？';
+  if (!confirm(msg)) return;
+  try {
+    if (isParent) {
+      // 刪除所有子分類
+      const parent = allCategories.find(c => c.docId === editId);
+      if (parent && parent.subs) {
+        await Promise.all(parent.subs.map(s => deleteDoc(doc(db, 'categories', s.docId))));
+      }
+    }
+    await deleteDoc(doc(db, 'categories', editId));
+    closeCatModal();
+  } catch (err) { console.error(err); alert('刪除失敗'); }
+});
+
+function openCatModal(catDoc = null, parentDoc = null) {
+  // catDoc: 編輯對象（null = 新增）
+  // parentDoc: 若新增/編輯子分類，傳入主分類
+  const isParent = !parentDoc;
+  catIsParentInput.value = isParent ? 'true' : 'false';
+
+  if (catDoc) {
+    catModalTitle.textContent = isParent ? '編輯主分類' : '編輯子分類';
+    catEditIdInput.value  = catDoc.docId;
+    catEmojiInput.value   = catDoc.emoji || '';
+    catNameInput.value    = catDoc.name  || '';
+    deleteCatBtn.style.display = 'block';
+    catSelectedType = catDoc.type || 'expense';
+  } else {
+    catModalTitle.textContent = isParent ? '新增主分類' : '新增子分類';
+    catEditIdInput.value  = '';
+    catEmojiInput.value   = parentDoc ? (parentDoc.emoji || '') : '';
+    catNameInput.value    = '';
+    deleteCatBtn.style.display = 'none';
+  }
+
+  if (!isParent && parentDoc) {
+    catParentIdInput.value = parentDoc.docId;
+    catParentGroup.style.display = '';
+    catParentLabel.textContent = `${parentDoc.emoji} ${parentDoc.name}`;
+  } else {
+    catParentIdInput.value = '';
+    catParentGroup.style.display = 'none';
+  }
+
+  catModalOverlay.classList.add('active');
+  setTimeout(() => catNameInput.focus(), 200);
+}
+
+function closeCatModal() {
+  catModalOverlay.classList.remove('active');
+}
+
+catForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name     = catNameInput.value.trim();
+  const emoji    = catEmojiInput.value.trim() || '📦';
+  const editId   = catEditIdInput.value;
+  const parentId = catParentIdInput.value || null;
+  const isParent = catIsParentInput.value === 'true';
+  if (!name) { shakeEl(catNameInput); return; }
+
+  catSubmitBtn.disabled = true;
+  catSubmitBtn.textContent = '儲存中...';
+  try {
+    if (editId) {
+      await updateDoc(doc(db, 'categories', editId), { emoji, name });
+    } else {
+      if (isParent) {
+        const order = allCategories.filter(c => c.type === catSelectedType).length;
+        await addDoc(collection(db, 'categories'), {
+          uid: currentUser.uid,
+          type: catSelectedType,
+          emoji, name,
+          order,
+          parentId: null,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        const parent = allCategories.find(c => c.docId === parentId);
+        const order  = parent ? (parent.subs || []).length : 0;
+        await addDoc(collection(db, 'categories'), {
+          uid: currentUser.uid,
+          type: parent ? parent.type : 'expense',
+          emoji, name,
+          order,
+          parentId,
+          createdAt: serverTimestamp(),
+        });
+      }
+    }
+    closeCatModal();
+  } catch (err) {
+    console.error(err);
+    alert('儲存失敗');
+  } finally {
+    catSubmitBtn.disabled = false;
+    catSubmitBtn.textContent = '儲存';
+  }
+});
+
+// ===== 渲染分類管理列表 =====
+function renderCategoryMgmtList() {
+  categoryMgmtList.innerHTML = '';
+  const visible = allCategories.filter(c => c.type === catMgmtType);
+  if (visible.length === 0) {
+    categoryMgmtList.innerHTML = '<div class="empty-state">尚無分類，點上方按鈕新增</div>';
+    return;
+  }
+  visible.forEach(p => categoryMgmtList.appendChild(buildCatParentItem(p)));
+}
+
+function buildCatParentItem(parent) {
+  const wrap = document.createElement('div');
+  wrap.className = 'cat-parent-item';
+  wrap.dataset.docId = parent.docId;
+
+  // 主分類標頭
+  const header = document.createElement('div');
+  header.className = 'cat-parent-header';
+  header.innerHTML = `
+    <span class="drag-handle cat-drag" title="拖曳排序">⠿</span>
+    <span class="cat-parent-emoji">${parent.emoji}</span>
+    <span class="cat-parent-name">${parent.name}</span>
+    <div class="cat-parent-actions">
+      <button type="button" class="cat-add-sub-btn">＋ 子分類</button>
+      <button type="button" class="cat-action-btn cat-edit-btn" title="編輯">✏️</button>
+    </div>
+    <span class="cat-toggle-arrow open">›</span>
+  `;
+  header.querySelector('.cat-edit-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openCatModal(parent, null);
+  });
+  header.querySelector('.cat-add-sub-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openCatModal(null, parent);
+  });
+
+  // 展開/收合
+  const arrow = header.querySelector('.cat-toggle-arrow');
+  let subListEl = null;
+
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    if (subListEl) {
+      const isOpen = subListEl.style.display !== 'none';
+      subListEl.style.display = isOpen ? 'none' : '';
+      arrow.classList.toggle('open', !isOpen);
+    }
+  });
+
+  wrap.appendChild(header);
+
+  // 子分類列表
+  if (parent.subs && parent.subs.length > 0) {
+    subListEl = document.createElement('div');
+    subListEl.className = 'cat-sub-list';
+    parent.subs.forEach(sub => {
+      const subItem = document.createElement('div');
+      subItem.className = 'cat-sub-item';
+      subItem.dataset.docId = sub.docId;
+      subItem.innerHTML = `
+        <span class="drag-handle cat-sub-drag" title="拖曳排序">⠿</span>
+        <span class="cat-sub-emoji">${sub.emoji}</span>
+        <span class="cat-sub-name">${sub.name}</span>
+        <button type="button" class="cat-action-btn cat-sub-edit-btn" title="編輯">✏️</button>
+      `;
+      subItem.querySelector('.cat-sub-edit-btn').addEventListener('click', () => {
+        openCatModal(sub, parent);
+      });
+      initCatDragHandle(subItem, subItem.querySelector('.cat-sub-drag'), parent.docId, true);
+      subListEl.appendChild(subItem);
+    });
+    wrap.appendChild(subListEl);
+  } else {
+    subListEl = null;
+  }
+
+  initCatDragHandle(wrap, header.querySelector('.cat-drag'), null, false);
+  return wrap;
+}
+
+// ===== 分類拖曳排序 =====
+let catDragSrc = null;
+let catDragIsChild = false;
+let catDragParentId = null;
+
+function initCatDragHandle(item, handle, parentId, isChild) {
+  if (!handle) return;
+  const onStart = () => {
+    catDragSrc      = item;
+    catDragIsChild  = isChild;
+    catDragParentId = parentId;
+    item.classList.add('dragging');
+  };
+  const onMove = (x, y) => {
+    const target = getCatItemAt(x, y, isChild, parentId);
+    highlightCatDragOver(target);
+  };
+  const onEnd = (x, y) => {
+    const target = getCatItemAt(x, y, isChild, parentId);
+    finishCatDrag(target);
+  };
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    onStart();
+    const mm = (e) => onMove(e.clientX, e.clientY);
+    const mu = (e) => {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      onEnd(e.clientX, e.clientY);
+    };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  handle.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    onStart();
+    const tm = (e) => { const t = e.touches[0]; onMove(t.clientX, t.clientY); };
+    const te = (e) => {
+      handle.removeEventListener('touchmove', tm);
+      handle.removeEventListener('touchend', te);
+      const t = e.changedTouches[0];
+      onEnd(t.clientX, t.clientY);
+    };
+    handle.addEventListener('touchmove', tm, { passive: false });
+    handle.addEventListener('touchend', te);
+  }, { passive: false });
+}
+
+function getCatItemAt(x, y, isChild, parentId) {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  if (isChild) return el.closest('.cat-sub-item');
+  return el.closest('.cat-parent-item');
+}
+
+function highlightCatDragOver(target) {
+  document.querySelectorAll('.cat-parent-item.drag-over, .cat-sub-item.drag-over')
+    .forEach(el => el.classList.remove('drag-over'));
+  if (target && target !== catDragSrc) target.classList.add('drag-over');
+}
+
+async function finishCatDrag(target) {
+  document.querySelectorAll('.cat-parent-item, .cat-sub-item')
+    .forEach(el => el.classList.remove('dragging', 'drag-over'));
+  if (!target || target === catDragSrc || !catDragSrc) { catDragSrc = null; return; }
+
+  if (catDragIsChild) {
+    // 子分類排序
+    const parent = allCategories.find(c => c.docId === catDragParentId);
+    if (!parent || !parent.subs) { catDragSrc = null; return; }
+    const subList = [...(catDragSrc.closest('.cat-sub-list')?.querySelectorAll('.cat-sub-item') || [])];
+    const srcIdx = subList.indexOf(catDragSrc);
+    const dstIdx = subList.indexOf(target);
+    if (srcIdx === -1 || dstIdx === -1) { catDragSrc = null; return; }
+    const ordered = [...parent.subs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const [moved] = ordered.splice(srcIdx, 1);
+    ordered.splice(dstIdx, 0, moved);
+    try {
+      await Promise.all(ordered.map((s, i) => updateDoc(doc(db, 'categories', s.docId), { order: i })));
+    } catch (err) { console.error(err); }
+  } else {
+    // 主分類排序（同 type）
+    const type = allCategories.find(c => c.docId === catDragSrc.dataset.docId)?.type;
+    const sameType = [...(categoryMgmtList.querySelectorAll('.cat-parent-item'))];
+    const srcIdx = sameType.indexOf(catDragSrc);
+    const dstIdx = sameType.indexOf(target);
+    if (srcIdx === -1 || dstIdx === -1) { catDragSrc = null; return; }
+    const ordered = allCategories.filter(c => c.type === type)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const [moved] = ordered.splice(srcIdx, 1);
+    ordered.splice(dstIdx, 0, moved);
+    try {
+      await Promise.all(ordered.map((c, i) => updateDoc(doc(db, 'categories', c.docId), { order: i })));
+    } catch (err) { console.error(err); }
+  }
+  catDragSrc = null;
 }
 
 // ===== 計算帳戶動態餘額 =====
@@ -870,10 +1463,12 @@ function renderList() {
       const item = document.createElement('div');
       item.className = 'record-item record-item-clickable';
       const metaText = [r.accountName, r.note].filter(Boolean).join(' · ') || '無備註';
+      const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
+      const dispName  = r.displayName  || r.categoryName  || '其他';
       item.innerHTML = `
-        <div class="record-cat-icon ${r.type}-icon">${r.categoryEmoji}</div>
+        <div class="record-cat-icon ${r.type}-icon">${dispEmoji}</div>
         <div class="record-info">
-          <div class="record-cat-name">${r.categoryName}</div>
+          <div class="record-cat-name">${dispName}</div>
           <div class="record-meta">${metaText}</div>
         </div>
         <div class="record-right">

@@ -188,6 +188,24 @@
       </section>
     </div>
 
+    <!-- ===== 分類管理頁面 ===== -->
+    <div id="pageCategories" style="display:none">
+      <div class="cat-mgmt-tabs">
+        <button class="cat-mgmt-tab active" id="catTabExpense" data-type="expense">
+          <span>💸</span> 支出
+        </button>
+        <button class="cat-mgmt-tab" id="catTabIncome" data-type="income">
+          <span>💰</span> 收入
+        </button>
+      </div>
+      <div class="add-btn-wrap">
+        <button class="add-btn" id="openCatFormBtn">＋ 新增主分類</button>
+      </div>
+      <section class="list-section">
+        <div id="categoryMgmtList" class="category-mgmt-list"></div>
+      </section>
+    </div>
+
     <!-- 底部導覽列 -->
     <nav class="bottom-nav">
       <button class="nav-btn active" id="navHome" data-page="home">
@@ -197,6 +215,10 @@
       <button class="nav-btn" id="navAccounts" data-page="accounts">
         <span class="nav-icon">🏦</span>
         <span class="nav-label">帳戶</span>
+      </button>
+      <button class="nav-btn" id="navCategories" data-page="categories">
+        <span class="nav-icon">🏷️</span>
+        <span class="nav-label">分類</span>
       </button>
     </nav>
 
@@ -218,10 +240,16 @@
       <form id="recordForm">
         <div class="form-group">
           <label for="amount">金額</label>
-          <div class="amount-input-wrap" id="amountInputWrap">
-            <span class="currency-sign">$</span>
-            <input type="text" id="amount" placeholder="0" inputmode="none" required />
-            <button type="button" class="calc-toggle-btn" id="calcToggleBtn">🔢</button>
+          <div class="amount-row">
+            <button type="button" class="cat-pick-btn" id="catPickBtn">
+              <span id="catPickEmoji">📦</span>
+              <span id="catPickName">選擇分類</span>
+            </button>
+            <div class="amount-input-wrap" id="amountInputWrap">
+              <span class="currency-sign">$</span>
+              <input type="text" id="amount" placeholder="0" inputmode="none" required />
+              <button type="button" class="calc-toggle-btn" id="calcToggleBtn">🔢</button>
+            </div>
           </div>
           <!-- 計算機顯示列 -->
           <div class="calc-expression" id="calcExpression"></div>
@@ -256,8 +284,8 @@
         </div>
 
         <div class="form-group">
-          <label>類別</label>
-          <div class="category-grid" id="categoryGrid"></div>
+          <label for="date">日期</label>
+          <input type="date" id="date" required />
         </div>
 
         <!-- 帳戶選擇 -->
@@ -265,11 +293,6 @@
           <label for="accountSelect">帳戶</label>
           <select id="accountSelect" class="form-select">
           </select>
-        </div>
-
-        <div class="form-group">
-          <label for="date">日期</label>
-          <input type="date" id="date" required />
         </div>
 
         <div class="form-group">
@@ -283,6 +306,20 @@
           <button type="button" class="delete-record-btn" id="deleteRecordBtn" style="display:none">刪除</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 分類選擇彈窗 -->
+  <div class="modal-overlay cat-picker-overlay" id="catPickerOverlay">
+    <div class="modal cat-picker-modal">
+      <div class="modal-header">
+        <h2>選擇分類</h2>
+        <button class="close-btn" id="closeCatPickerBtn">✕</button>
+      </div>
+      <div class="cat-picker-body">
+        <div class="cat-picker-left" id="catPickerParents"></div>
+        <div class="cat-picker-right" id="catPickerSubs"></div>
+      </div>
     </div>
   </div>
 
@@ -324,6 +361,38 @@
 
         <input type="hidden" id="accountEditId" value="" />
         <button type="submit" class="submit-btn" id="accountSubmitBtn">儲存帳戶</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 分類編輯彈窗（主分類 / 子分類共用） -->
+  <div class="modal-overlay" id="catModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="catModalTitle">新增主分類</h2>
+        <button class="close-btn" id="closeCatFormBtn">✕</button>
+      </div>
+      <form id="catForm">
+        <div class="form-group">
+          <label>圖示（Emoji）</label>
+          <input type="text" id="catEmoji" placeholder="例：🍜" maxlength="4" />
+        </div>
+        <div class="form-group">
+          <label for="catName">名稱</label>
+          <input type="text" id="catName" placeholder="例：飲食" maxlength="12" required />
+        </div>
+        <!-- 子分類時顯示：所屬主分類（唯讀） -->
+        <div class="form-group" id="catParentGroup" style="display:none">
+          <label>所屬主分類</label>
+          <div id="catParentLabel" class="cat-parent-label"></div>
+        </div>
+        <input type="hidden" id="catEditId" value="" />
+        <input type="hidden" id="catParentId" value="" />
+        <input type="hidden" id="catIsParent" value="true" />
+        <div class="form-action-row">
+          <button type="submit" class="submit-btn" id="catSubmitBtn">儲存</button>
+          <button type="button" class="delete-record-btn" id="deleteCatBtn" style="display:none">刪除</button>
+        </div>
       </form>
     </div>
   </div>

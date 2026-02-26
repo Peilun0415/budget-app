@@ -39,14 +39,14 @@
     <!-- ===== 記帳頁面 ===== -->
     <div id="pageHome">
       <!-- 月份導覽 -->
-      <div class="month-nav-bar">
+      <div class="month-nav-bar" id="homeMonthNav">
         <button class="month-btn" id="prevMonth">‹</button>
         <span id="currentMonthLabel"></span>
         <button class="month-btn" id="nextMonth">›</button>
       </div>
 
       <!-- 統計卡片 -->
-      <section class="summary-section">
+      <section class="summary-section" id="homeSummary">
         <div class="summary-card income-card">
           <div class="summary-icon">💰</div>
           <div class="summary-info">
@@ -75,9 +75,18 @@
         <button class="add-btn" id="openFormBtn">＋ 新增記帳</button>
       </div>
 
+      <!-- 搜尋列 -->
+      <div class="search-bar-wrap" id="searchBarWrap">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="搜尋備註、分類、帳戶…" />
+          <button class="search-clear-btn" id="searchClearBtn" style="display:none">✕</button>
+        </div>
+      </div>
+
       <!-- 記帳列表 -->
       <section class="list-section">
-        <h2 class="list-title">本月明細</h2>
+        <h2 class="list-title" id="listTitle">本月明細</h2>
         <div id="recordList" class="record-list">
           <div class="empty-state" id="emptyState">
             <span>📋</span>

@@ -217,6 +217,12 @@ const confirmSaveTplBtn = document.getElementById('confirmSaveTplBtn');
 const accountSelect = document.getElementById('accountSelect');
 const recordList    = document.getElementById('recordList');
 const emptyState    = document.getElementById('emptyState');
+const searchInput    = document.getElementById('searchInput');
+const searchClearBtn = document.getElementById('searchClearBtn');
+const listTitle      = document.getElementById('listTitle');
+const homeMonthNav   = document.getElementById('homeMonthNav');
+const homeSummary    = document.getElementById('homeSummary');
+let   searchKeyword  = '';
 const totalIncome   = document.getElementById('totalIncome');
 const totalExpense  = document.getElementById('totalExpense');
 const totalBalance  = document.getElementById('totalBalance');
@@ -400,6 +406,13 @@ navSettingsBtn.addEventListener('click', () => switchPage('settings'));
 backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
 
 function switchPage(page) {
+  // 離開記帳頁時清除搜尋
+  if (page !== 'home' && searchKeyword) {
+    searchInput.value = '';
+    searchKeyword = '';
+    searchClearBtn.style.display = 'none';
+    applySearchMode(false);
+  }
   currentPage = page;
   pageHome.style.display          = page === 'home'          ? 'block' : 'none';
   pageAccounts.style.display      = page === 'accounts'      ? 'block' : 'none';
@@ -1500,6 +1513,27 @@ recDeleteBtn.addEventListener('click', async () => {
 prevMonthBtn.addEventListener('click', () => changeMonth(-1));
 nextMonthBtn.addEventListener('click', () => changeMonth(1));
 
+// ===== 搜尋 =====
+function applySearchMode(isSearching) {
+  homeMonthNav.style.display = isSearching ? 'none' : '';
+  homeSummary.style.display  = isSearching ? 'none' : '';
+}
+
+searchInput.addEventListener('input', () => {
+  searchKeyword = searchInput.value;
+  searchClearBtn.style.display = searchKeyword ? '' : 'none';
+  applySearchMode(!!searchKeyword.trim());
+  renderList();
+});
+searchClearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchKeyword = '';
+  searchClearBtn.style.display = 'none';
+  applySearchMode(false);
+  searchInput.focus();
+  renderList();
+});
+
 function changeMonth(delta) {
   viewMonth += delta;
   if (viewMonth > 11) { viewMonth = 0;  viewYear++; }
@@ -2447,21 +2481,56 @@ function renderSummary() {
   totalBalance.style.color = balance >= 0 ? 'var(--purple-main)' : 'var(--red-main)';
 }
 
+function matchesSearch(r, kw) {
+  if (!kw) return true;
+  const q = kw.toLowerCase();
+  const fromAccObj = allAccounts.find(a => a.docId === r.transferFromId);
+  const toAccObj   = allAccounts.find(a => a.docId === r.transferToId);
+  const fields = [
+    r.note,
+    r.categoryName,
+    r.subCategoryName,
+    r.accountName,
+    r.displayName,
+    fromAccObj?.name,
+    toAccObj?.name,
+  ];
+  return fields.some(f => f && f.toLowerCase().includes(q));
+}
+
 function renderList() {
-  const recs = getMonthRecords();
+  const kw = searchKeyword.trim();
+  // 搜尋模式：全部記錄；否則只取當月
+  let recs = kw ? allRecords : getMonthRecords();
+
+  // 更新標題
+  if (kw) {
+    listTitle.textContent = `搜尋「${kw}」的結果`;
+    listTitle.classList.add('searching');
+  } else {
+    listTitle.textContent = '本月明細';
+    listTitle.classList.remove('searching');
+  }
+
   while (recordList.firstChild) recordList.removeChild(recordList.firstChild);
 
-  if (recs.length === 0) {
+  // 轉帳只保留「轉出」那筆，避免重複顯示
+  let displayRecs = recs.filter(r =>
+    r.type !== 'transfer' || r.accountId === r.transferFromId
+  );
+
+  // 套用關鍵字篩選
+  if (kw) displayRecs = displayRecs.filter(r => matchesSearch(r, kw));
+
+  if (displayRecs.length === 0) {
     recordList.appendChild(emptyState);
     emptyState.style.display = '';
+    emptyState.querySelector('p').innerHTML = kw
+      ? `找不到「${kw}」的相關記錄`
+      : '還沒有記帳喔！<br>點上方按鈕開始記帳吧～';
     return;
   }
   emptyState.style.display = 'none';
-
-  // 轉帳只保留「轉出」那筆（transferFromId === accountId），避免重複顯示
-  const displayRecs = recs.filter(r =>
-    r.type !== 'transfer' || r.accountId === r.transferFromId
-  );
 
   const groups = {};
   displayRecs.forEach(r => {
@@ -2470,6 +2539,7 @@ function renderList() {
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
+    // 搜尋模式下日期標頭的每日小計只算篩選後的那幾筆
     recordList.appendChild(buildDateHeader(date, groups[date]));
     groups[date].forEach(r => {
       recordList.appendChild(buildRecordItem(r));

@@ -413,6 +413,7 @@ body {
 
 .record-amount.income { color: var(--green-main); }
 .record-amount.expense { color: var(--red-main); }
+.record-amount.transfer { color: var(--pink-main); }
 
 .delete-btn {
   background: none;
@@ -692,6 +693,31 @@ input[type="text"]:not(#amount):focus {
   border-color: var(--pink-main);
   background: var(--pink-mid);
   color: var(--pink-dark);
+}
+
+/* ===== 轉帳 ===== */
+.transfer-accounts-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.transfer-acc-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.transfer-arrow {
+  font-size: 20px;
+  color: var(--pink-main);
+  font-weight: 700;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.record-cat-icon.transfer-icon {
+  background: #eef4ff;
+  color: var(--pink-main);
 }
 
 /* ===== 提交按鈕 ===== */

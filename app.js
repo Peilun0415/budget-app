@@ -175,6 +175,11 @@ const closeFormBtn  = document.getElementById('closeFormBtn');
 const recordForm    = document.getElementById('recordForm');
 const btnExpense    = document.getElementById('btnExpense');
 const btnIncome     = document.getElementById('btnIncome');
+const btnTransfer   = document.getElementById('btnTransfer');
+const accountGroup  = document.getElementById('accountGroup');
+const transferGroup = document.getElementById('transferGroup');
+const transferFrom  = document.getElementById('transferFrom');
+const transferTo    = document.getElementById('transferTo');
 const categoryGrid     = document.getElementById('categoryGrid');
 const catPickBtn       = document.getElementById('catPickBtn');
 const catPickEmoji     = document.getElementById('catPickEmoji');
@@ -381,17 +386,12 @@ function getDetailFilteredRecords(accountDocId) {
 }
 
 function renderAccountDetail(account) {
-  // 目前餘額永遠用全部記錄計算
-  const allRecs  = allRecords.filter(r => r.accountId === account.docId);
-  const allInc   = allRecs.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
-  const allExp   = allRecs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  const initBal  = account.balance || 0;
-  const curBal   = initBal + allInc - allExp;
-
+  // 目前餘額永遠用全部記錄計算（含轉帳）
+  const curBal = calcAccountBalance(account);
   detailBalance.textContent = curBal < 0 ? `-$${formatMoney(Math.abs(curBal))}` : `$${formatMoney(curBal)}`;
-  detailBalance.style.color     = curBal >= 0 ? 'white' : '#ffb3b3';
+  detailBalance.style.color = curBal >= 0 ? 'white' : '#ffb3b3';
 
-  // 期間收入/支出用篩選後的記錄
+  // 期間收入/支出用篩選後的記錄（轉帳不計入收支統計）
   const filtered = getDetailFilteredRecords(account.docId);
   const incTotal = filtered.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
   const expTotal = filtered.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
@@ -428,23 +428,7 @@ function renderAccountDetail(account) {
     accountDetailList.appendChild(buildDateHeader(date, groups[date]));
 
     groups[date].forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'record-item record-item-clickable';
-      const dEmoji = r.displayEmoji || r.categoryEmoji || '📦';
-      const dName  = r.displayName  || r.categoryName  || '其他';
-      item.innerHTML = `
-        <div class="record-cat-icon ${r.type}-icon">${dEmoji}</div>
-        <div class="record-info">
-          <div class="record-cat-name">${dName}</div>
-          <div class="record-meta">${r.note || '無備註'}</div>
-        </div>
-        <div class="record-right">
-          <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
-          <span class="record-edit-hint">›</span>
-        </div>
-      `;
-      item.addEventListener('click', () => openModal(r));
-      accountDetailList.appendChild(item);
+      accountDetailList.appendChild(buildRecordItem(r));
     });
   });
 }
@@ -636,24 +620,26 @@ deleteRecordBtn.addEventListener('click', async () => {
 function openModal(record = null) {
   if (record) {
     recordEditId.value = record.docId;
-    recordModalTitle.textContent = '編輯記帳';
+    recordModalTitle.textContent = record.type === 'transfer' ? '編輯轉帳' : '編輯記帳';
     submitBtn.textContent = '儲存修改';
     deleteRecordBtn.style.display = 'block';
-    currentType         = record.type;
-    selectedCategory    = record.categoryId    || null;
-    selectedSubCategory = record.subCategoryId || null;
-    btnExpense.classList.toggle('active', record.type === 'expense');
-    btnIncome.classList.toggle('active',  record.type === 'income');
-    // 恢復分類按鈕顯示
-    const parentCat = allCategories.find(c => c.docId === selectedCategory) || null;
-    const subCat    = parentCat?.subs?.find(s => s.docId === selectedSubCategory) || null;
-    updateCatPickBtn(parentCat, subCat);
+    switchType(record.type);
+    if (record.type === 'transfer') {
+      transferFrom.value = record.transferFromId || '';
+      transferTo.value   = record.transferToId   || '';
+    } else {
+      selectedCategory    = record.categoryId    || null;
+      selectedSubCategory = record.subCategoryId || null;
+      const parentCat = allCategories.find(c => c.docId === selectedCategory) || null;
+      const subCat    = parentCat?.subs?.find(s => s.docId === selectedSubCategory) || null;
+      updateCatPickBtn(parentCat, subCat);
+      accountSelect.value = record.accountId || '';
+    }
     calcExpr = String(record.amount);
     calcRaw  = String(record.amount);
-    amountInput.value   = calcExpr;
-    dateInput.value     = record.date;
-    noteInput.value     = record.note || '';
-    accountSelect.value = record.accountId || '';
+    amountInput.value = calcExpr;
+    dateInput.value   = record.date;
+    noteInput.value   = record.note || '';
   } else {
     recordEditId.value = '';
     recordModalTitle.textContent = '新增記帳';
@@ -669,17 +655,26 @@ function closeModal() {
   resetForm();
 }
 
-// ===== 切換收入/支出 =====
-btnExpense.addEventListener('click', () => switchType('expense'));
-btnIncome.addEventListener('click',  () => switchType('income'));
+// ===== 切換收入/支出/轉帳 =====
+btnExpense.addEventListener('click',  () => switchType('expense'));
+btnIncome.addEventListener('click',   () => switchType('income'));
+btnTransfer.addEventListener('click', () => switchType('transfer'));
 
 function switchType(type) {
   currentType         = type;
   selectedCategory    = null;
   selectedSubCategory = null;
-  btnExpense.classList.toggle('active', type === 'expense');
-  btnIncome.classList.toggle('active',  type === 'income');
-  setDefaultCategory();
+  btnExpense.classList.toggle('active',  type === 'expense');
+  btnIncome.classList.toggle('active',   type === 'income');
+  btnTransfer.classList.toggle('active', type === 'transfer');
+
+  const isTransfer = type === 'transfer';
+  // 分類按鈕、帳戶選擇 ↔ 轉帳帳戶選擇 互換顯示
+  catPickBtn.style.display    = isTransfer ? 'none' : '';
+  accountGroup.style.display  = isTransfer ? 'none' : '';
+  transferGroup.style.display = isTransfer ? '' : 'none';
+
+  if (!isTransfer) setDefaultCategory();
 }
 
 // 自動選該 type 第一個主分類的第一個子分類（無子分類則選主分類）
@@ -792,20 +787,37 @@ function renderCategoryGrid() {
 
 // ===== 帳戶下拉選單（記帳表單用）=====
 function renderAccountSelect() {
-  const prev = accountSelect.value;
+  const prev     = accountSelect.value;
+  const prevFrom = transferFrom.value;
+  const prevTo   = transferTo.value;
+
+  // 清空重建（避免重複 append）
+  accountSelect.innerHTML = '';
+  transferFrom.innerHTML  = '';
+  transferTo.innerHTML    = '';
+
   allAccounts.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.docId;
-    opt.textContent = `${a.emoji} ${a.name}`;
-    accountSelect.appendChild(opt);
+    const makeOpt = () => {
+      const opt = document.createElement('option');
+      opt.value = a.docId;
+      opt.textContent = `${a.emoji} ${a.name}`;
+      return opt;
+    };
+    accountSelect.appendChild(makeOpt());
+    transferFrom.appendChild(makeOpt());
+    transferTo.appendChild(makeOpt());
   });
-  if (prev) {
-    // 編輯模式：還原原本選的帳戶
-    accountSelect.value = prev;
-  } else if (!recordEditId.value && allAccounts.length > 0) {
-    // 新增模式：預設選第一個帳戶
-    accountSelect.value = allAccounts[0].docId;
-  }
+
+  // 還原選擇
+  if (prev)     accountSelect.value = prev;
+  else if (allAccounts.length > 0) accountSelect.value = allAccounts[0].docId;
+
+  if (prevFrom) transferFrom.value = prevFrom;
+  else if (allAccounts.length > 0) transferFrom.value = allAccounts[0].docId;
+
+  if (prevTo)   transferTo.value = prevTo;
+  else if (allAccounts.length > 1) transferTo.value = allAccounts[1].docId;
+  else if (allAccounts.length > 0) transferTo.value = allAccounts[0].docId;
 }
 
 // ===== 日期 =====
@@ -835,28 +847,88 @@ recordForm.addEventListener('submit', async (e) => {
   calcExpressionEl.style.color = '';
   const amount = parseFloat(calcRaw) || parseFloat(amountInput.value);
   if (!amount || amount <= 0) { shakeEl(amountInput.parentElement); return; }
-  if (!selectedCategory)      { shakeEl(catPickBtn); return; }
 
-  // 找主分類
-  const parentCat = allCategories.find(c => c.docId === selectedCategory);
-  // 找子分類（若有選）
-  const subCat = selectedSubCategory && parentCat
-    ? (parentCat.subs || []).find(s => s.docId === selectedSubCategory)
-    : null;
-
-  // 顯示用：優先用子分類名稱，否則用主分類
-  const displayEmoji = subCat ? subCat.emoji : (parentCat ? parentCat.emoji : '📦');
-  const displayName  = subCat
-    ? `${parentCat ? parentCat.name + '・' : ''}${subCat.name}`
-    : (parentCat ? parentCat.name : '其他');
-
-  const selAccId = accountSelect.value;
-  const selAcc   = allAccounts.find(a => a.docId === selAccId);
-  const editId   = recordEditId.value;
-
+  const editId = recordEditId.value;
   submitBtn.disabled = true;
   submitBtn.textContent = '儲存中...';
+
   try {
+    // ===== 轉帳 =====
+    if (currentType === 'transfer') {
+      const fromId  = transferFrom.value;
+      const toId    = transferTo.value;
+      const fromAcc = allAccounts.find(a => a.docId === fromId);
+      const toAcc   = allAccounts.find(a => a.docId === toId);
+      if (!fromId || !toId) { shakeEl(transferGroup); return; }
+      if (fromId === toId) {
+        shakeEl(transferGroup);
+        alert('轉出與轉入帳戶不能相同');
+        return;
+      }
+      const note = noteInput.value.trim();
+      const date = dateInput.value;
+
+      if (editId) {
+        // 編輯：找到配對的另一筆，一起更新
+        const rec = allRecords.find(r => r.docId === editId);
+        const paired = rec?.transferId
+          ? allRecords.filter(r => r.transferId === rec.transferId)
+          : [rec];
+        const outRec = paired.find(r => r.type === 'expense') || paired[0];
+        const inRec  = paired.find(r => r.type === 'income')  || paired[1];
+        const updates = [];
+        if (outRec) updates.push(updateDoc(doc(db, 'records', outRec.docId), {
+          amount, date, note,
+          accountId: fromId, accountName: fromAcc?.name || null,
+          transferFromId: fromId, transferToId: toId,
+          displayName: `轉帳 → ${toAcc?.name || ''}`,
+        }));
+        if (inRec) updates.push(updateDoc(doc(db, 'records', inRec.docId), {
+          amount, date, note,
+          accountId: toId, accountName: toAcc?.name || null,
+          transferFromId: fromId, transferToId: toId,
+          displayName: `轉帳 ← ${fromAcc?.name || ''}`,
+        }));
+        await Promise.all(updates);
+      } else {
+        // 新增：建立兩筆並用同一個 transferId 關聯
+        const transferId = `tf_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+        const base = { uid: currentUser.uid, type: 'transfer', amount, date, note,
+          transferId, transferFromId: fromId, transferToId: toId,
+          displayEmoji: '🔄', categoryId: null, categoryName: null,
+          createdAt: serverTimestamp() };
+        await Promise.all([
+          addDoc(collection(db, 'records'), {
+            ...base,
+            accountId: fromId, accountName: fromAcc?.name || null,
+            displayName: `轉帳 → ${toAcc?.name || ''}`,
+          }),
+          addDoc(collection(db, 'records'), {
+            ...base,
+            accountId: toId, accountName: toAcc?.name || null,
+            displayName: `轉帳 ← ${fromAcc?.name || ''}`,
+          }),
+        ]);
+      }
+      closeModal();
+      return;
+    }
+
+    // ===== 一般支出 / 收入 =====
+    if (!selectedCategory) { shakeEl(catPickBtn); return; }
+
+    const parentCat = allCategories.find(c => c.docId === selectedCategory);
+    const subCat = selectedSubCategory && parentCat
+      ? (parentCat.subs || []).find(s => s.docId === selectedSubCategory)
+      : null;
+    const displayEmoji = subCat ? subCat.emoji : (parentCat ? parentCat.emoji : '📦');
+    const displayName  = subCat
+      ? `${parentCat ? parentCat.name + '・' : ''}${subCat.name}`
+      : (parentCat ? parentCat.name : '其他');
+
+    const selAccId = accountSelect.value;
+    const selAcc   = allAccounts.find(a => a.docId === selAccId);
+
     const data = {
       type:             currentType,
       amount,
@@ -877,9 +949,7 @@ recordForm.addEventListener('submit', async (e) => {
       await updateDoc(doc(db, 'records', editId), data);
     } else {
       await addDoc(collection(db, 'records'), {
-        uid: currentUser.uid,
-        ...data,
-        createdAt: serverTimestamp(),
+        uid: currentUser.uid, ...data, createdAt: serverTimestamp(),
       });
     }
     closeModal();
@@ -896,20 +966,24 @@ function resetForm() {
   recordEditId.value  = '';
   amountInput.value   = '';
   noteInput.value     = '';
-  accountSelect.value = allAccounts.length > 0 ? allAccounts[0].docId : '';
-  currentType         = 'expense';
-  btnExpense.classList.add('active');
-  btnIncome.classList.remove('active');
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
-  setDefaultCategory();
+  // 回到支出模式（會自動切換 UI 顯示）
+  switchType('expense');
   setDefaultDate();
   resetCalc();
 }
 
 async function deleteRecord(docId) {
   try {
-    await deleteDoc(doc(db, 'records', docId));
+    const rec = allRecords.find(r => r.docId === docId);
+    if (rec?.transferId) {
+      // 轉帳：刪除兩筆關聯記錄
+      const paired = allRecords.filter(r => r.transferId === rec.transferId);
+      await Promise.all(paired.map(r => deleteDoc(doc(db, 'records', r.docId))));
+    } else {
+      await deleteDoc(doc(db, 'records', docId));
+    }
   } catch (err) { console.error(err); alert('刪除失敗'); }
 }
 
@@ -1317,7 +1391,10 @@ function calcAccountBalance(account) {
   const recs = allRecords.filter(r => r.accountId === account.docId);
   const inc  = recs.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
   const exp  = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  return (account.balance || 0) + inc - exp;
+  // 轉帳：轉入 +amount，轉出 -amount
+  const transferIn  = recs.filter(r => r.type === 'transfer' && r.transferToId   === account.docId).reduce((s, r) => s + r.amount, 0);
+  const transferOut = recs.filter(r => r.type === 'transfer' && r.transferFromId === account.docId).reduce((s, r) => s + r.amount, 0);
+  return (account.balance || 0) + inc - exp + transferIn - transferOut;
 }
 
 // ===== 渲染帳戶列表 =====
@@ -1467,40 +1544,68 @@ function renderList() {
   }
   emptyState.style.display = 'none';
 
+  // 轉帳只保留「轉出」那筆（transferFromId === accountId），避免重複顯示
+  const displayRecs = recs.filter(r =>
+    r.type !== 'transfer' || r.accountId === r.transferFromId
+  );
+
   const groups = {};
-  recs.forEach(r => {
+  displayRecs.forEach(r => {
     if (!groups[r.date]) groups[r.date] = [];
     groups[r.date].push(r);
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
     recordList.appendChild(buildDateHeader(date, groups[date]));
-
     groups[date].forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'record-item record-item-clickable';
-      const metaText = [r.accountName, r.note].filter(Boolean).join(' · ') || '無備註';
-      const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
-      const dispName  = r.displayName  || r.categoryName  || '其他';
-      item.innerHTML = `
-        <div class="record-cat-icon ${r.type}-icon">${dispEmoji}</div>
-        <div class="record-info">
-          <div class="record-cat-name">${dispName}</div>
-          <div class="record-meta">${metaText}</div>
-        </div>
-        <div class="record-right">
-          <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
-          <span class="record-edit-hint">›</span>
-        </div>
-      `;
-      item.addEventListener('click', () => openModal(r));
-      recordList.appendChild(item);
+      recordList.appendChild(buildRecordItem(r));
     });
   });
 }
 
 function formatMoney(n) {
   return n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+}
+
+// ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
+function buildRecordItem(r) {
+  const item = document.createElement('div');
+  item.className = 'record-item record-item-clickable';
+
+  if (r.type === 'transfer') {
+    // 轉帳：顯示「A → B」，金額藍字
+    const fromName = allAccounts.find(a => a.docId === r.transferFromId)?.name || '?';
+    const toName   = allAccounts.find(a => a.docId === r.transferToId)?.name   || '?';
+    const metaText = r.note || '無備註';
+    item.innerHTML = `
+      <div class="record-cat-icon transfer-icon">🔄</div>
+      <div class="record-info">
+        <div class="record-cat-name">${fromName} → ${toName}</div>
+        <div class="record-meta">${metaText}</div>
+      </div>
+      <div class="record-right">
+        <span class="record-amount transfer">$${formatMoney(r.amount)}</span>
+        <span class="record-edit-hint">›</span>
+      </div>
+    `;
+  } else {
+    const metaText  = [r.accountName, r.note].filter(Boolean).join(' · ') || '無備註';
+    const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
+    const dispName  = r.displayName  || r.categoryName  || '其他';
+    item.innerHTML = `
+      <div class="record-cat-icon ${r.type}-icon">${dispEmoji}</div>
+      <div class="record-info">
+        <div class="record-cat-name">${dispName}</div>
+        <div class="record-meta">${metaText}</div>
+      </div>
+      <div class="record-right">
+        <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
+        <span class="record-edit-hint">›</span>
+      </div>
+    `;
+  }
+  item.addEventListener('click', () => openModal(r));
+  return item;
 }
 
 // ===== 建立日期分組標題（含當日小計）=====

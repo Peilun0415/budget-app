@@ -235,6 +235,7 @@
       <div class="type-toggle">
         <button class="type-btn active" id="btnExpense" data-type="expense">支出</button>
         <button class="type-btn" id="btnIncome" data-type="income">收入</button>
+        <button class="type-btn" id="btnTransfer" data-type="transfer">轉帳</button>
       </div>
 
       <form id="recordForm">
@@ -288,11 +289,25 @@
           <input type="date" id="date" required />
         </div>
 
-        <!-- 帳戶選擇 -->
-        <div class="form-group">
+        <!-- 一般記帳：帳戶選擇 -->
+        <div class="form-group" id="accountGroup">
           <label for="accountSelect">帳戶</label>
-          <select id="accountSelect" class="form-select">
-          </select>
+          <select id="accountSelect" class="form-select"></select>
+        </div>
+
+        <!-- 轉帳專用：從/到帳戶 -->
+        <div id="transferGroup" style="display:none">
+          <div class="transfer-accounts-row">
+            <div class="form-group transfer-acc-group">
+              <label for="transferFrom">從</label>
+              <select id="transferFrom" class="form-select"></select>
+            </div>
+            <div class="transfer-arrow">→</div>
+            <div class="form-group transfer-acc-group">
+              <label for="transferTo">到</label>
+              <select id="transferTo" class="form-select"></select>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

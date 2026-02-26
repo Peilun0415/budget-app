@@ -388,6 +388,59 @@ const catSubmitBtn      = document.getElementById('catSubmitBtn');
 const deleteCatBtn      = document.getElementById('deleteCatBtn');
 let catSelectedType     = 'expense';
 
+// ===== Modal input 防自動 focus（手機鍵盤不自動彈出）=====
+// 原理：modal 開啟時把所有 input/select/textarea 設為 readonly，
+// 使用者主動點擊後才移除 readonly，讓鍵盤正常彈出。
+function lockModalInputs(overlayEl) {
+  overlayEl.querySelectorAll('input, select, textarea').forEach(el => {
+    if (el.readOnly === false && el.tagName !== 'SELECT') {
+      el.dataset.wasReadonly = 'false';
+      el.readOnly = true;
+    }
+  });
+  overlayEl.addEventListener('pointerdown', function unlockOnTap(e) {
+    const target = e.target.closest('input, select, textarea');
+    if (target && target.dataset.wasReadonly === 'false') {
+      target.readOnly = false;
+      delete target.dataset.wasReadonly;
+      // 重新鎖住其他 input（讓每次只有點到的那個解鎖）
+      overlayEl.querySelectorAll('input, textarea').forEach(el => {
+        if (el !== target && el.dataset.wasReadonly !== undefined) {
+          el.readOnly = true;
+        }
+      });
+    }
+  }, { capture: true });
+}
+
+// 在所有 overlay 加上監聽，active 時鎖住 inputs
+const _overlayObserver = new MutationObserver((mutations) => {
+  mutations.forEach(m => {
+    if (m.type === 'attributes' && m.attributeName === 'class') {
+      const el = m.target;
+      if (el.classList.contains('active')) {
+        // 重新鎖住（每次開啟都重設）
+        el.querySelectorAll('input, textarea').forEach(inp => {
+          if (inp.getAttribute('inputmode') !== 'none') {
+            inp.dataset.wasReadonly = 'false';
+            inp.readOnly = true;
+          }
+        });
+      } else {
+        // 關閉時解鎖
+        el.querySelectorAll('input, textarea').forEach(inp => {
+          inp.readOnly = false;
+          delete inp.dataset.wasReadonly;
+        });
+      }
+    }
+  });
+});
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  _overlayObserver.observe(ov, { attributes: true });
+  lockModalInputs(ov);
+});
+
 // ===== 認證 =====
 const splashScreen = document.getElementById('splashScreen');
 function hideSplash() {

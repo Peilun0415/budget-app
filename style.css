@@ -6,28 +6,28 @@
 }
 
 :root {
-  --pink-light: #fff0f5;
-  --pink-mid: #ffd6e7;
-  --pink-main: #ff85a1;
-  --pink-dark: #e8527a;
+  --pink-light: #f0f6ff;
+  --pink-mid: #c8deff;
+  --pink-main: #4a90e2;
+  --pink-dark: #2563c7;
   --green-light: #e8f8f0;
-  --green-main: #4caf82;
+  --green-main: #34a87a;
   --red-light: #fff0f0;
-  --red-main: #ff6b6b;
-  --purple-light: #f3eeff;
-  --purple-main: #9b72cf;
-  --text-dark: #3d2c35;
-  --text-mid: #7a6070;
-  --text-light: #b8a0ac;
+  --red-main: #f05a5a;
+  --purple-light: #eef4ff;
+  --purple-main: #4a90e2;
+  --text-dark: #1a2a3a;
+  --text-mid: #5a7080;
+  --text-light: #9ab0c0;
   --white: #ffffff;
-  --shadow: 0 4px 16px rgba(255, 133, 161, 0.18);
+  --shadow: 0 4px 16px rgba(74, 144, 226, 0.14);
   --radius: 18px;
   --radius-sm: 10px;
 }
 
 body {
   font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-  background: linear-gradient(160deg, #fff0f5 0%, #fce4ec 50%, #f3eeff 100%);
+  background: linear-gradient(160deg, #f0f6ff 0%, #e8f0fb 50%, #f5f8ff 100%);
   min-height: 100vh;
   color: var(--text-dark);
   padding-bottom: 40px;
@@ -47,7 +47,7 @@ body {
   border-radius: 28px;
   padding: 40px 28px;
   text-align: center;
-  box-shadow: 0 8px 40px rgba(255, 133, 161, 0.22);
+  box-shadow: 0 8px 40px rgba(74, 144, 226, 0.18);
   width: 100%;
   max-width: 360px;
 }
@@ -86,7 +86,7 @@ body {
   color: var(--text-dark);
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 10px rgba(255, 133, 161, 0.12);
+  box-shadow: 0 2px 10px rgba(74, 144, 226, 0.12);
 }
 
 .google-login-btn:active {
@@ -96,10 +96,10 @@ body {
 
 /* ===== 頂部標題 ===== */
 .app-header {
-  background: linear-gradient(135deg, var(--pink-main) 0%, #c86dd7 100%);
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
   color: white;
   padding: 16px 20px;
-  box-shadow: 0 4px 16px rgba(255, 133, 161, 0.3);
+  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -161,7 +161,7 @@ body {
   color: var(--text-dark);
   padding: 14px 20px;
   background: var(--white);
-  border-bottom: 1px solid var(--pink-mid);
+  border-bottom: 1px solid #ddeeff;
 }
 
 .month-btn {
@@ -232,7 +232,7 @@ body {
 
 .income-card .summary-amount { color: var(--green-main); }
 .expense-card .summary-amount { color: var(--red-main); }
-.balance-card .summary-amount { color: var(--purple-main); }
+.balance-card .summary-amount { color: var(--pink-main); }
 
 /* ===== 新增按鈕 ===== */
 .add-btn-wrap {
@@ -241,7 +241,7 @@ body {
 
 .add-btn {
   width: 100%;
-  background: linear-gradient(135deg, var(--pink-main) 0%, #c86dd7 100%);
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
   color: white;
   border: none;
   border-radius: var(--radius);
@@ -249,14 +249,14 @@ body {
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(255, 133, 161, 0.4);
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
   transition: transform 0.15s, box-shadow 0.15s;
   letter-spacing: 1px;
 }
 
 .add-btn:active {
   transform: scale(0.97);
-  box-shadow: 0 3px 10px rgba(255, 133, 161, 0.3);
+  box-shadow: 0 3px 10px rgba(74, 144, 226, 0.25);
 }
 
 /* ===== 記帳列表 ===== */
@@ -479,7 +479,7 @@ body {
 .type-btn.active {
   background: var(--white);
   color: var(--pink-dark);
-  box-shadow: 0 2px 8px rgba(255, 133, 161, 0.2);
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
 }
 
 /* ===== 表單 ===== */
@@ -583,7 +583,7 @@ input[type="text"]:focus {
 /* ===== 提交按鈕 ===== */
 .submit-btn {
   width: 100%;
-  background: linear-gradient(135deg, var(--pink-main) 0%, #c86dd7 100%);
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
   color: white;
   border: none;
   border-radius: var(--radius);
@@ -591,7 +591,7 @@ input[type="text"]:focus {
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(255, 133, 161, 0.4);
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
   transition: transform 0.15s;
   letter-spacing: 1px;
   margin-top: 6px;
@@ -629,6 +629,428 @@ input[type="text"]:focus {
   .modal-overlay {
     align-items: center;
   }
+}
+
+/* ===== 底部導覽列 ===== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border-top: 1px solid #ddeeff;
+  display: flex;
+  z-index: 150;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 0 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-light);
+  transition: color 0.2s;
+}
+
+.nav-btn.active {
+  color: var(--pink-main);
+}
+
+.nav-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.nav-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* 讓頁面內容不被底部導覽列遮住 */
+#pageHome,
+#pageAccounts {
+  padding-bottom: 72px;
+}
+
+/* ===== 帳戶頁面頂部 ===== */
+.accounts-header-bar {
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  color: white;
+  padding: 20px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.accounts-net-worth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.accounts-net-label {
+  font-size: 13px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.accounts-net-amount {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.accounts-sub-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(255,255,255,0.15);
+  border-radius: 14px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.accounts-sub-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.accounts-sub-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(255,255,255,0.3);
+}
+
+.accounts-sub-label {
+  font-size: 12px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.accounts-sub-value {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.accounts-sub-value.asset     { color: #a8ffd4; }
+.accounts-sub-value.liability { color: #ffb3b3; }
+
+/* ===== 帳戶列表 ===== */
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-item {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 10px rgba(200, 150, 180, 0.12);
+  animation: slideIn 0.25s ease;
+}
+
+.account-type-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  background: var(--pink-light);
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.account-type-label {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+.account-note {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.account-balance {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--pink-main);
+}
+
+.account-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.edit-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  color: var(--text-light);
+  line-height: 1;
+}
+
+.edit-btn:active {
+  background: var(--purple-light);
+  color: var(--purple-main);
+}
+
+.delete-btn:active {
+  background: var(--red-light);
+  color: var(--red-main);
+}
+
+/* ===== 帳戶類型格子 ===== */
+.account-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* ===== 表單 select ===== */
+.form-select {
+  width: 100%;
+  background: var(--pink-light);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--text-dark);
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b8a0ac' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.form-select:focus {
+  border-color: var(--pink-main);
+}
+
+/* ===== 帳戶明細頁面 ===== */
+#pageAccountDetail {
+  padding-bottom: 72px;
+}
+
+.account-detail-header {
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  color: white;
+  padding: 16px 20px 20px;
+}
+
+.back-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 14px;
+  display: inline-block;
+  transition: background 0.2s;
+}
+
+.back-btn:active {
+  background: rgba(255,255,255,0.35);
+}
+
+.account-detail-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.account-detail-icon {
+  font-size: 32px;
+  width: 52px;
+  height: 52px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.account-detail-name {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.account-detail-type {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.account-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.detail-stat {
+  background: rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-stat-balance {
+  grid-column: 1 / -1;
+  background: rgba(255,255,255,0.25);
+}
+
+.detail-stat-label {
+  font-size: 11px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.detail-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.detail-stat-value.income  { color: #a8ffd4; }
+.detail-stat-value.expense { color: #ffb3b3; }
+.detail-stat-value.balance { font-size: 22px; }
+
+/* ===== 帳戶明細篩選列 ===== */
+.detail-filter-bar {
+  background: var(--white);
+  padding: 12px 16px;
+  border-bottom: 1px solid #ddeeff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-mode-toggle {
+  display: flex;
+  background: var(--pink-light);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+}
+
+.detail-mode-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-mid);
+  transition: all 0.2s;
+}
+
+.detail-mode-btn.active {
+  background: var(--white);
+  color: var(--pink-dark);
+  box-shadow: 0 2px 6px rgba(74, 144, 226, 0.2);
+}
+
+.detail-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.detail-range-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.range-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-mid);
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.range-date-input {
+  flex: 1;
+  background: var(--pink-light);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--text-dark);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.range-date-input:focus {
+  border-color: var(--pink-main);
 }
 
 /* ===== 滾動條美化 ===== */

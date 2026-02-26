@@ -27,61 +27,178 @@
     <!-- 頂部標題 -->
     <header class="app-header">
       <div class="header-title">
-        <h1>我的記帳本</h1>
+        <h1 id="pageTitle">我的記帳本</h1>
       </div>
       <div class="header-right">
         <img class="user-avatar" id="userAvatar" src="" alt="" />
-        <button class="logout-btn" id="logoutBtn" title="登出">登出</button>
+        <button class="logout-btn" id="logoutBtn">登出</button>
       </div>
     </header>
 
-    <!-- 月份導覽 -->
-    <div class="month-nav-bar">
-      <button class="month-btn" id="prevMonth">‹</button>
-      <span id="currentMonthLabel">2026年2月</span>
-      <button class="month-btn" id="nextMonth">›</button>
+    <!-- ===== 記帳頁面 ===== -->
+    <div id="pageHome">
+      <!-- 月份導覽 -->
+      <div class="month-nav-bar">
+        <button class="month-btn" id="prevMonth">‹</button>
+        <span id="currentMonthLabel">2026年2月</span>
+        <button class="month-btn" id="nextMonth">›</button>
+      </div>
+
+      <!-- 統計卡片 -->
+      <section class="summary-section">
+        <div class="summary-card income-card">
+          <div class="summary-icon">💰</div>
+          <div class="summary-info">
+            <span class="summary-label">本月收入</span>
+            <span class="summary-amount" id="totalIncome">$0</span>
+          </div>
+        </div>
+        <div class="summary-card expense-card">
+          <div class="summary-icon">🛍️</div>
+          <div class="summary-info">
+            <span class="summary-label">本月支出</span>
+            <span class="summary-amount" id="totalExpense">$0</span>
+          </div>
+        </div>
+        <div class="summary-card balance-card">
+          <div class="summary-icon">✨</div>
+          <div class="summary-info">
+            <span class="summary-label">結餘</span>
+            <span class="summary-amount" id="totalBalance">$0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 新增按鈕 -->
+      <div class="add-btn-wrap">
+        <button class="add-btn" id="openFormBtn">＋ 新增記帳</button>
+      </div>
+
+      <!-- 記帳列表 -->
+      <section class="list-section">
+        <h2 class="list-title">本月明細</h2>
+        <div id="recordList" class="record-list">
+          <div class="empty-state" id="emptyState">
+            <span>📋</span>
+            <p>還沒有記帳喔！<br>點上方按鈕開始記帳吧～</p>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- 統計卡片 -->
-    <section class="summary-section">
-      <div class="summary-card income-card">
-        <div class="summary-icon">💰</div>
-        <div class="summary-info">
-          <span class="summary-label">本月收入</span>
-          <span class="summary-amount" id="totalIncome">$0</span>
+    <!-- ===== 帳戶頁面 ===== -->
+    <div id="pageAccounts" style="display:none">
+      <div class="accounts-header-bar">
+        <div class="accounts-net-worth">
+          <span class="accounts-net-label">淨資產</span>
+          <span class="accounts-net-amount" id="accountsNetWorth">$0</span>
+        </div>
+        <div class="accounts-sub-stats">
+          <div class="accounts-sub-item">
+            <span class="accounts-sub-label">資產</span>
+            <span class="accounts-sub-value asset" id="accountsTotalAsset">$0</span>
+          </div>
+          <div class="accounts-sub-divider"></div>
+          <div class="accounts-sub-item">
+            <span class="accounts-sub-label">負債</span>
+            <span class="accounts-sub-value liability" id="accountsTotalLiability">$0</span>
+          </div>
         </div>
       </div>
-      <div class="summary-card expense-card">
-        <div class="summary-icon">🛍️</div>
-        <div class="summary-info">
-          <span class="summary-label">本月支出</span>
-          <span class="summary-amount" id="totalExpense">$0</span>
-        </div>
-      </div>
-      <div class="summary-card balance-card">
-        <div class="summary-icon">✨</div>
-        <div class="summary-info">
-          <span class="summary-label">結餘</span>
-          <span class="summary-amount" id="totalBalance">$0</span>
-        </div>
-      </div>
-    </section>
 
-    <!-- 新增按鈕 -->
-    <div class="add-btn-wrap">
-      <button class="add-btn" id="openFormBtn">＋ 新增記帳</button>
+      <div class="add-btn-wrap">
+        <button class="add-btn" id="openAccountFormBtn">＋ 新增帳戶</button>
+      </div>
+
+      <section class="list-section">
+        <div id="accountList" class="account-list">
+          <div class="empty-state" id="accountEmptyState">
+            <span>🏦</span>
+            <p>還沒有帳戶喔！<br>點上方按鈕新增帳戶吧～</p>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- 記帳列表 -->
-    <section class="list-section">
-      <h2 class="list-title">本月明細</h2>
-      <div id="recordList" class="record-list">
-        <div class="empty-state" id="emptyState">
-          <span>📋</span>
-          <p>還沒有記帳喔！<br>點上方按鈕開始記帳吧～</p>
+    <!-- ===== 帳戶明細頁面 ===== -->
+    <div id="pageAccountDetail" style="display:none">
+      <!-- 帳戶資訊卡 -->
+      <div class="account-detail-header">
+        <button class="back-btn" id="backToAccountsBtn">‹ 返回</button>
+        <div class="account-detail-info">
+          <div class="account-detail-icon" id="detailIcon"></div>
+          <div>
+            <div class="account-detail-name" id="detailName"></div>
+            <div class="account-detail-type" id="detailType"></div>
+          </div>
+        </div>
+        <div class="account-detail-stats">
+          <div class="detail-stat">
+            <span class="detail-stat-label">期間收入</span>
+            <span class="detail-stat-value income" id="detailIncome">$0</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-label">期間支出</span>
+            <span class="detail-stat-value expense" id="detailExpense">$0</span>
+          </div>
+          <div class="detail-stat detail-stat-balance">
+            <span class="detail-stat-label">目前餘額</span>
+            <span class="detail-stat-value balance" id="detailBalance">$0</span>
+          </div>
         </div>
       </div>
-    </section>
+
+      <!-- 時間範圍切換 -->
+      <div class="detail-filter-bar">
+        <div class="detail-mode-toggle">
+          <button class="detail-mode-btn active" id="detailModeMonth">月份</button>
+          <button class="detail-mode-btn" id="detailModeRange">自訂範圍</button>
+          <button class="detail-mode-btn" id="detailModeAll">全部</button>
+        </div>
+
+        <!-- 月份模式 -->
+        <div class="detail-month-nav" id="detailMonthNav">
+          <button class="month-btn" id="detailPrevMonth">‹</button>
+          <span id="detailMonthLabel">2026年2月</span>
+          <button class="month-btn" id="detailNextMonth">›</button>
+        </div>
+
+        <!-- 自訂範圍模式 -->
+        <div class="detail-range-nav" id="detailRangeNav" style="display:none">
+          <div class="range-row">
+            <label>從</label>
+            <input type="date" id="detailRangeStart" class="range-date-input" />
+          </div>
+          <div class="range-row">
+            <label>到</label>
+            <input type="date" id="detailRangeEnd" class="range-date-input" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 明細列表 -->
+      <section class="list-section">
+        <h2 class="list-title" id="detailListTitle">本月明細</h2>
+        <div id="accountDetailList" class="record-list">
+          <div class="empty-state" id="accountDetailEmpty">
+            <span>📋</span>
+            <p>這個期間沒有記帳記錄</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 底部導覽列 -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="navHome" data-page="home">
+        <span class="nav-icon">📒</span>
+        <span class="nav-label">記帳</span>
+      </button>
+      <button class="nav-btn" id="navAccounts" data-page="accounts">
+        <span class="nav-icon">🏦</span>
+        <span class="nav-label">帳戶</span>
+      </button>
+    </nav>
 
   </div><!-- /app-screen -->
 
@@ -112,6 +229,14 @@
           <div class="category-grid" id="categoryGrid"></div>
         </div>
 
+        <!-- 帳戶選擇 -->
+        <div class="form-group">
+          <label for="accountSelect">帳戶</label>
+          <select id="accountSelect" class="form-select">
+            <option value="">— 不指定帳戶 —</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label for="date">日期</label>
           <input type="date" id="date" required />
@@ -127,7 +252,48 @@
     </div>
   </div>
 
-  <!-- Firebase SDK -->
+  <!-- 新增帳戶彈窗 -->
+  <div class="modal-overlay" id="accountModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="accountModalTitle">新增帳戶</h2>
+        <button class="close-btn" id="closeAccountFormBtn">✕</button>
+      </div>
+
+      <form id="accountForm">
+        <!-- 帳戶類型 -->
+        <div class="form-group">
+          <label>帳戶類型</label>
+          <div class="account-type-grid" id="accountTypeGrid"></div>
+        </div>
+
+        <!-- 帳戶名稱 -->
+        <div class="form-group">
+          <label for="accountName">帳戶名稱</label>
+          <input type="text" id="accountName" placeholder="例：玉山銀行、國泰世華..." maxlength="20" required />
+        </div>
+
+        <!-- 初始餘額 -->
+        <div class="form-group">
+          <label for="accountBalance">初始餘額（信用卡欠款請輸入負數，例：-5000）</label>
+          <div class="amount-input-wrap">
+            <span class="currency-sign">$</span>
+            <input type="number" id="accountBalance" placeholder="0" inputmode="decimal" />
+          </div>
+        </div>
+
+        <!-- 備註 -->
+        <div class="form-group">
+          <label for="accountNote">備註（選填）</label>
+          <input type="text" id="accountNote" placeholder="例：主要薪轉帳戶..." maxlength="30" />
+        </div>
+
+        <input type="hidden" id="accountEditId" value="" />
+        <button type="submit" class="submit-btn" id="accountSubmitBtn">儲存帳戶</button>
+      </form>
+    </div>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

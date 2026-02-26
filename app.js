@@ -142,9 +142,16 @@ let viewMonth = new Date().getMonth();
 let unsubRecords    = null;
 let unsubAccounts   = null;
 let unsubCategories = null;
+let unsubTemplates  = null;
+let unsubRecurring  = null;
 let allRecords     = [];
 let allAccounts    = [];
-let allCategories  = [];  // 主分類陣列（含 .subs 子陣列）
+let allCategories  = [];
+let allTemplates   = [];
+let allRecurring   = [];
+// 固定收支彈窗暫存的分類選擇
+let recSelectedCategory    = null;
+let recSelectedSubCategory = null;
 let currentPage = 'home';
 let detailAccountId  = null;   // 目前查看明細的帳戶 ID
 let detailMode       = 'month'; // 'month' | 'range' | 'all'
@@ -162,7 +169,9 @@ const userAvatar     = document.getElementById('userAvatar');
 const pageTitle      = document.getElementById('pageTitle');
 const pageHome       = document.getElementById('pageHome');
 const pageAccounts   = document.getElementById('pageAccounts');
+const pageReport     = document.getElementById('pageReport');
 const navHome        = document.getElementById('navHome');
+const navReportBtn   = document.getElementById('navReport');
 const navAccountsBtn = document.getElementById('navAccounts');
 
 // ===== DOM — 記帳 =====
@@ -195,6 +204,16 @@ const calcExpressionEl = document.getElementById('calcExpression');
 const dateInput     = document.getElementById('date');
 const noteInput     = document.getElementById('note');
 const submitBtn     = document.getElementById('submitBtn');
+const saveTplBtn    = document.getElementById('saveTplBtn');
+const openTplListBtn  = document.getElementById('openTplListBtn');
+const tplListOverlay  = document.getElementById('tplListOverlay');
+const closeTplListBtn = document.getElementById('closeTplListBtn');
+const tplList         = document.getElementById('tplList');
+const tplEmpty        = document.getElementById('tplEmpty');
+const tplNameOverlay  = document.getElementById('tplNameOverlay');
+const closeTplNameBtn = document.getElementById('closeTplNameBtn');
+const tplNameInput    = document.getElementById('tplNameInput');
+const confirmSaveTplBtn = document.getElementById('confirmSaveTplBtn');
 const accountSelect = document.getElementById('accountSelect');
 const recordList    = document.getElementById('recordList');
 const emptyState    = document.getElementById('emptyState');
@@ -249,7 +268,54 @@ const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 
 // ===== DOM — 分類管理 =====
 const pageCategories    = document.getElementById('pageCategories');
-const navCategoriesBtn  = document.getElementById('navCategories');
+const pageSettings      = document.getElementById('pageSettings');
+const pageRecurring     = document.getElementById('pageRecurring');
+const navSettingsBtn    = document.getElementById('navSettings');
+const goRecurringBtn    = document.getElementById('goRecurring');
+const goCategoriesBtn   = document.getElementById('goCategories');
+const clearAllDataBtn      = document.getElementById('clearAllDataBtn');
+const clearDataOverlay     = document.getElementById('clearDataOverlay');
+const closeClearDataBtn    = document.getElementById('closeClearDataBtn');
+const clearDataConfirmInput = document.getElementById('clearDataConfirmInput');
+const clearDataProgress    = document.getElementById('clearDataProgress');
+const confirmClearDataBtn  = document.getElementById('confirmClearDataBtn');
+const cancelClearDataBtn   = document.getElementById('cancelClearDataBtn');
+const recurringList     = document.getElementById('recurringList');
+const recurringEmpty    = document.getElementById('recurringEmpty');
+const openRecurringFormBtn  = document.getElementById('openRecurringFormBtn');
+const recurringModalOverlay = document.getElementById('recurringModalOverlay');
+const closeRecurringFormBtn = document.getElementById('closeRecurringFormBtn');
+const recurringForm         = document.getElementById('recurringForm');
+const recurringModalTitle   = document.getElementById('recurringModalTitle');
+const recBtnExpense   = document.getElementById('recBtnExpense');
+const recBtnIncome    = document.getElementById('recBtnIncome');
+const recNameInput    = document.getElementById('recName');
+const recAmountInput      = document.getElementById('recAmount');
+const recAmountInputWrap  = document.getElementById('recAmountInputWrap');
+const recCalcToggleBtn    = document.getElementById('recCalcToggleBtn');
+const recCalcKeyboard     = document.getElementById('recCalcKeyboard');
+const recCalcExpressionEl = document.getElementById('recCalcExpression');
+const recCatPickBtn   = document.getElementById('recCatPickBtn');
+const recCatPickEmoji = document.getElementById('recCatPickEmoji');
+const recCatPickName  = document.getElementById('recCatPickName');
+const recAccountSel   = document.getElementById('recAccount');
+const recFreqN        = document.getElementById('recFreqN');
+const recFreqUnit     = document.getElementById('recFreqUnit');
+const recWeekdayGroup   = document.getElementById('recWeekdayGroup');
+const recWeekdayPicker  = document.getElementById('recWeekdayPicker');
+const recMonthdayGroup  = document.getElementById('recMonthdayGroup');
+const recMonthdayPicker = document.getElementById('recMonthdayPicker');
+const recYeardayGroup   = document.getElementById('recYeardayGroup');
+const recYearMonth      = document.getElementById('recYearMonth');
+const recYearDay        = document.getElementById('recYearDay');
+const recStartDate    = document.getElementById('recStartDate');
+const recNoteInput    = document.getElementById('recNote');
+const recEditIdInput  = document.getElementById('recEditId');
+const recDeleteBtn    = document.getElementById('recDeleteBtn');
+let recCalcRaw  = '';
+let recCalcExpr = '';
+// navCategoriesBtn 已被移除，保留變數避免後面程式碼報錯
+const navCategoriesBtn  = null;
 const categoryMgmtList  = document.getElementById('categoryMgmtList');
 const openCatFormBtn    = document.getElementById('openCatFormBtn');
 const catTabExpense     = document.getElementById('catTabExpense');
@@ -278,14 +344,20 @@ onAuthStateChanged(auth, (user) => {
     subscribeRecords();
     subscribeAccounts();
     subscribeCategories();
+    subscribeTemplates();
+    subscribeRecurring();
   } else {
     currentUser = null;
     showLogin();
     if (unsubRecords)     { unsubRecords();     unsubRecords     = null; }
     if (unsubAccounts)    { unsubAccounts();    unsubAccounts    = null; }
     if (unsubCategories)  { unsubCategories();  unsubCategories  = null; }
+    if (unsubTemplates)   { unsubTemplates();   unsubTemplates   = null; }
+    if (unsubRecurring)   { unsubRecurring();   unsubRecurring   = null; }
     allRecords    = [];
     allAccounts   = [];
+    allTemplates  = [];
+    allRecurring  = [];
     allCategories = [];
   }
 });
@@ -323,7 +395,8 @@ function showApp(user) {
 // ===== 頁面切換 =====
 navHome.addEventListener('click', () => switchPage('home'));
 navAccountsBtn.addEventListener('click', () => switchPage('accounts'));
-navCategoriesBtn.addEventListener('click', () => switchPage('categories'));
+navReportBtn.addEventListener('click', () => switchPage('report'));
+navSettingsBtn.addEventListener('click', () => switchPage('settings'));
 backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
 
 function switchPage(page) {
@@ -332,15 +405,74 @@ function switchPage(page) {
   pageAccounts.style.display      = page === 'accounts'      ? 'block' : 'none';
   pageAccountDetail.style.display = page === 'accountDetail' ? 'block' : 'none';
   pageCategories.style.display    = page === 'categories'    ? 'block' : 'none';
+  pageSettings.style.display      = page === 'settings'      ? 'block' : 'none';
+  pageRecurring.style.display     = page === 'recurring'     ? 'block' : 'none';
+  pageReport.style.display        = page === 'report'        ? 'block' : 'none';
   navHome.classList.toggle('active',        page === 'home');
   navAccountsBtn.classList.toggle('active', page === 'accounts' || page === 'accountDetail');
-  navCategoriesBtn.classList.toggle('active', page === 'categories');
+  navReportBtn.classList.toggle('active',   page === 'report');
+  navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring');
   if (page === 'home')          pageTitle.textContent = '我的記帳本';
   if (page === 'accounts')      pageTitle.textContent = '帳戶管理';
   if (page === 'accountDetail') pageTitle.textContent = '帳戶明細';
   if (page === 'categories')    pageTitle.textContent = '分類管理';
+  if (page === 'settings')      pageTitle.textContent = '設定';
+  if (page === 'recurring')     pageTitle.textContent = '固定收支';
+  if (page === 'report')        pageTitle.textContent = '報表';
   if (page === 'categories')    renderCategoryMgmtList();
+  if (page === 'recurring')     renderRecurringList();
+  if (page === 'report')        renderReport();
 }
+
+// ===== 設定頁按鈕 =====
+goRecurringBtn.addEventListener('click', () => switchPage('recurring'));
+goCategoriesBtn.addEventListener('click', () => switchPage('categories'));
+
+// ===== 清除所有資料 =====
+clearAllDataBtn.addEventListener('click', () => {
+  clearDataConfirmInput.value = '';
+  clearDataProgress.style.display = 'none';
+  confirmClearDataBtn.disabled = false;
+  clearDataOverlay.classList.add('active');
+  setTimeout(() => clearDataConfirmInput.focus(), 100);
+});
+
+const closeClearModal = () => clearDataOverlay.classList.remove('active');
+closeClearDataBtn.addEventListener('click', closeClearModal);
+cancelClearDataBtn.addEventListener('click', closeClearModal);
+clearDataOverlay.addEventListener('click', (e) => { if (e.target === clearDataOverlay) closeClearModal(); });
+
+confirmClearDataBtn.addEventListener('click', async () => {
+  if (clearDataConfirmInput.value.trim() !== '確認刪除') {
+    clearDataConfirmInput.focus();
+    clearDataConfirmInput.style.borderColor = 'var(--red-main)';
+    setTimeout(() => clearDataConfirmInput.style.borderColor = '', 1500);
+    return;
+  }
+
+  confirmClearDataBtn.disabled = true;
+  clearDataProgress.style.display = '';
+
+  // 設 flag 防止 subscribeCategories 在刪除後自動補回預設分類
+  window._clearingData = true;
+
+  const collections = ['records', 'accounts', 'categories', 'templates', 'recurring'];
+  for (const col of collections) {
+    const q = query(collection(db, col), where('uid', '==', currentUser.uid));
+    const snap = await new Promise((res, rej) => {
+      const unsub = onSnapshot(q, (s) => { unsub(); res(s); }, rej);
+    });
+    await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))));
+  }
+
+  window._clearingData = false;
+
+  clearDataProgress.textContent = '✅ 已清除完成';
+  setTimeout(() => {
+    closeClearModal();
+    clearDataProgress.textContent = '刪除中...';
+  }, 1200);
+});
 
 // ===== 帳戶明細 =====
 function openAccountDetail(account) {
@@ -527,6 +659,7 @@ function subscribeAccounts() {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     renderAccountList();
     renderAccountSelect();
+    renderAll();
     // 若目前在帳戶明細頁，即時更新
     if (currentPage === 'accountDetail' && detailAccountId) {
       const acc = allAccounts.find(a => a.docId === detailAccountId);
@@ -545,8 +678,9 @@ function subscribeCategories() {
   );
   unsubCategories = onSnapshot(q, async (snap) => {
     const docs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-    // 若使用者尚無分類，寫入預設值
+    // 若使用者尚無分類，寫入預設值（清除資料期間跳過）
     if (docs.length === 0) {
+      if (window._clearingData) return;
       await seedDefaultCategories();
       return; // onSnapshot 會再次觸發
     }
@@ -591,6 +725,776 @@ async function seedDefaultCategories() {
   }
   await Promise.all(batch);
 }
+
+// ===== Firestore 監聽 — 範本 =====
+function subscribeTemplates() {
+  if (unsubTemplates) unsubTemplates();
+  const q = query(
+    collection(db, 'templates'),
+    where('uid', '==', currentUser.uid)
+  );
+  unsubTemplates = onSnapshot(q, (snap) => {
+    allTemplates = snap.docs
+      .map(d => ({ docId: d.id, ...d.data() }))
+      .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+  }, console.error);
+}
+
+// ===== 範本 UI =====
+let tplActiveType = 'expense';
+
+openTplListBtn.addEventListener('click', () => {
+  // 預設 tab 與目前記帳類型一致
+  const curType = document.querySelector('.type-btn.active')?.dataset.type || 'expense';
+  tplActiveType = curType;
+  document.querySelectorAll('.tpl-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.type === tplActiveType);
+  });
+  renderTplList();
+  tplListOverlay.classList.add('active');
+});
+closeTplListBtn.addEventListener('click', () => { tplListOverlay.classList.remove('active'); });
+tplListOverlay.addEventListener('click', (e) => { if (e.target === tplListOverlay) tplListOverlay.classList.remove('active'); });
+
+document.querySelectorAll('.tpl-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    tplActiveType = tab.dataset.type;
+    document.querySelectorAll('.tpl-tab').forEach(t => t.classList.toggle('active', t === tab));
+    renderTplList();
+  });
+});
+
+closeTplNameBtn.addEventListener('click', () => { tplNameOverlay.classList.remove('active'); });
+tplNameOverlay.addEventListener('click', (e) => { if (e.target === tplNameOverlay) tplNameOverlay.classList.remove('active'); });
+
+saveTplBtn.addEventListener('click', () => {
+  tplNameInput.value = '';
+  tplNameOverlay.classList.add('active');
+  setTimeout(() => tplNameInput.focus(), 100);
+});
+
+confirmSaveTplBtn.addEventListener('click', saveCurrentAsTemplate);
+tplNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveCurrentAsTemplate(); });
+
+async function saveCurrentAsTemplate() {
+  const name = tplNameInput.value.trim();
+  if (!name) { tplNameInput.focus(); return; }
+
+  const type = document.querySelector('.type-btn.active')?.dataset.type || 'expense';
+  const amountVal = parseFloat(document.getElementById('amount').value) || 0;
+  const noteVal   = noteInput.value.trim();
+
+  const tplData = {
+    uid:  currentUser.uid,
+    name,
+    type,
+    amount:    amountVal,
+    note:      noteVal,
+    createdAt: serverTimestamp(),
+  };
+
+  if (type === 'transfer') {
+    tplData.transferFromId = transferFrom.value || '';
+    tplData.transferToId   = transferTo.value   || '';
+  } else {
+    tplData.categoryId      = selectedCategory?.docId      || null;
+    tplData.categoryName    = selectedCategory?.name       || '';
+    tplData.categoryEmoji   = selectedCategory?.emoji      || '';
+    tplData.subCategoryId   = selectedSubCategory?.docId   || null;
+    tplData.subCategoryName = selectedSubCategory?.name    || '';
+    tplData.accountId       = accountSelect.value          || '';
+  }
+
+  const existing = allTemplates.find(t => t.name === name && t.type === type);
+  if (existing) {
+    await updateDoc(doc(db, 'templates', existing.docId), tplData);
+  } else {
+    await addDoc(collection(db, 'templates'), tplData);
+  }
+  tplNameOverlay.classList.remove('active');
+  tplListOverlay.classList.remove('active');
+}
+
+function renderTplList() {
+  tplList.innerHTML = '';
+  const filtered = allTemplates.filter(t => t.type === tplActiveType);
+  if (filtered.length === 0) {
+    tplEmpty.style.display = '';
+    return;
+  }
+  tplEmpty.style.display = 'none';
+
+  filtered.forEach(tpl => {
+    const item = document.createElement('div');
+    item.className = 'tpl-item';
+
+    const icon = tpl.type === 'transfer' ? '🔄' : (tpl.categoryEmoji || '📦');
+    const descParts = [];
+    if (tpl.type === 'transfer') {
+      const fromAcc = allAccounts.find(a => a.docId === tpl.transferFromId);
+      const toAcc   = allAccounts.find(a => a.docId === tpl.transferToId);
+      descParts.push(`${fromAcc?.name || '?'} → ${toAcc?.name || '?'}`);
+    } else {
+      if (tpl.categoryName) {
+        descParts.push(tpl.subCategoryName ? `${tpl.categoryName} / ${tpl.subCategoryName}` : tpl.categoryName);
+      }
+      const acc = allAccounts.find(a => a.docId === tpl.accountId);
+      if (acc) descParts.push(acc.name);
+    }
+    if (tpl.note) descParts.push(`「${tpl.note}」`);
+
+    const amountDisplay = tpl.amount
+      ? `$${tpl.amount.toLocaleString()}`
+      : '不帶金額';
+    const amountClass = tpl.amount ? tpl.type : 'none';
+
+    item.innerHTML = `
+      <div class="tpl-item-icon">${icon}</div>
+      <div class="tpl-item-info">
+        <div class="tpl-item-name">${tpl.name}</div>
+        <div class="tpl-item-desc">${descParts.join('・')}</div>
+      </div>
+      <div class="tpl-item-amount ${amountClass}">${amountDisplay}</div>
+      <button class="tpl-delete-btn" data-id="${tpl.docId}" title="刪除範本">🗑</button>
+    `;
+
+    item.querySelector('.tpl-delete-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm(`刪除範本「${tpl.name}」？`)) return;
+      await deleteDoc(doc(db, 'templates', tpl.docId));
+      renderTplList();
+    });
+
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.tpl-delete-btn')) return;
+      applyTemplate(tpl);
+    });
+
+    tplList.appendChild(item);
+  });
+}
+
+function applyTemplate(tpl) {
+  tplListOverlay.classList.remove('active');
+
+  // 切換類型
+  switchType(tpl.type);
+
+  // 金額
+  if (tpl.amount) {
+    calcRaw  = String(tpl.amount);
+    calcExpr = String(tpl.amount);
+    amountInput.value = String(tpl.amount);
+    calcExpressionEl.textContent = '';
+  }
+
+  // 備註
+  noteInput.value = tpl.note || '';
+
+  if (tpl.type === 'transfer') {
+    if (tpl.transferFromId) transferFrom.value = tpl.transferFromId;
+    if (tpl.transferToId)   transferTo.value   = tpl.transferToId;
+  } else {
+    // 帳戶
+    if (tpl.accountId) accountSelect.value = tpl.accountId;
+
+    // 分類
+    if (tpl.categoryId) {
+      const parent = allCategories.find(c => c.docId === tpl.categoryId);
+      if (parent) {
+        selectedCategory = parent;
+        if (tpl.subCategoryId) {
+          const sub = parent.subs?.find(s => s.docId === tpl.subCategoryId);
+          selectedSubCategory = sub || null;
+        } else {
+          selectedSubCategory = null;
+        }
+        updateCatPickBtn();
+      }
+    }
+  }
+}
+
+// ===== Firestore 監聽 — 固定收支 =====
+function subscribeRecurring() {
+  if (unsubRecurring) unsubRecurring();
+  const q = query(
+    collection(db, 'recurring'),
+    where('uid', '==', currentUser.uid)
+  );
+  unsubRecurring = onSnapshot(q, (snap) => {
+    allRecurring = snap.docs
+      .map(d => ({ docId: d.id, ...d.data() }))
+      .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+    if (currentPage === 'recurring') renderRecurringList();
+    // 登入後自動觸發到期項目
+    processRecurringItems();
+  }, console.error);
+}
+
+// ===== 固定收支：日期計算工具 =====
+// 根據頻率設定，從今天起算第一個符合的執行日
+function calcFirstDate(unit, freqWeekday, freqMonthday, freqYearMonth, freqYearDay) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (unit === 'day') {
+    return toDateStr(today);
+  }
+
+  if (unit === 'week') {
+    if (freqWeekday == null) return toDateStr(today);
+    const d = new Date(today);
+    const diff = (freqWeekday - d.getDay() + 7) % 7;
+    d.setDate(d.getDate() + (diff === 0 ? 0 : diff));
+    return toDateStr(d);
+  }
+
+  if (unit === 'month') {
+    if (freqMonthday == null) return toDateStr(today);
+    const d = new Date(today);
+    if (freqMonthday === 'last') {
+      // 本月最後一天
+      d.setDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate());
+      if (d < today) {
+        // 已過，跳到下個月最後一天
+        d.setMonth(d.getMonth() + 1);
+        d.setDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate());
+      }
+    } else {
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(freqMonthday, lastDay));
+      if (d < today) {
+        d.setMonth(d.getMonth() + 1);
+        const lastDay2 = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(freqMonthday, lastDay2));
+      }
+    }
+    return toDateStr(d);
+  }
+
+  if (unit === 'year') {
+    if (!freqYearMonth || !freqYearDay) return toDateStr(today);
+    const d = new Date(today);
+    d.setMonth(freqYearMonth - 1);
+    const lastDay = new Date(d.getFullYear(), freqYearMonth, 0).getDate();
+    d.setDate(Math.min(freqYearDay, lastDay));
+    if (d < today) d.setFullYear(d.getFullYear() + 1);
+    return toDateStr(d);
+  }
+
+  return toDateStr(today);
+}
+
+// 計算下一次執行日
+// item 用於取得 freqWeekday / freqMonthday / freqYearMonth / freqYearDay
+function addInterval(dateStr, n, unit, item) {
+  const d = new Date(dateStr + 'T00:00:00');
+
+  if (unit === 'day') {
+    d.setDate(d.getDate() + n);
+
+  } else if (unit === 'week') {
+    d.setDate(d.getDate() + n * 7);
+    // 若有指定星期幾，跳到下一個符合的星期
+    if (item?.freqWeekday != null) {
+      const target = item.freqWeekday; // 0=日,1=一...6=六
+      while (d.getDay() !== target) d.setDate(d.getDate() + 1);
+    }
+
+  } else if (unit === 'month') {
+    d.setMonth(d.getMonth() + n);
+    if (item?.freqMonthday != null) {
+      if (item.freqMonthday === 'last') {
+        // 當月最後一天
+        d.setDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate());
+      } else {
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(item.freqMonthday, lastDay));
+      }
+    } else {
+      // 沒有指定號數：防止月份溢位
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      if (d.getDate() > lastDay) d.setDate(lastDay);
+    }
+
+  } else if (unit === 'year') {
+    d.setFullYear(d.getFullYear() + n);
+    if (item?.freqYearMonth && item?.freqYearDay) {
+      d.setMonth(item.freqYearMonth - 1);
+      const lastDay = new Date(d.getFullYear(), item.freqYearMonth, 0).getDate();
+      d.setDate(Math.min(item.freqYearDay, lastDay));
+    }
+  }
+
+  return d.toISOString().slice(0, 10);
+}
+
+function toDateStr(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function todayStr() {
+  return toDateStr(new Date());
+}
+
+// ===== 固定收支：自動觸發 =====
+async function processRecurringItems() {
+  const today = todayStr();
+  for (const item of allRecurring) {
+    if (!item.enabled) continue;
+    let nextDate = item.nextDate || item.startDate;
+    if (!nextDate || nextDate > today) continue;
+
+    // 找到對應帳戶
+    const acc = allAccounts.find(a => a.docId === item.accountId);
+
+    // 連續補齊所有到期的執行次數
+    while (nextDate <= today) {
+      await addDoc(collection(db, 'records'), {
+        uid:          currentUser.uid,
+        type:         item.type,
+        amount:       item.amount,
+        date:         nextDate,
+        note:         item.note || '',
+        accountId:    item.accountId   || null,
+        accountName:  acc?.name        || null,
+        categoryId:   item.categoryId  || null,
+        categoryName: item.categoryName || null,
+        categoryEmoji:item.categoryEmoji || null,
+        subCategoryId:   item.subCategoryId   || null,
+        subCategoryName: item.subCategoryName || null,
+        displayEmoji: item.categoryEmoji || '🔁',
+        displayName:  item.categoryName  || item.name,
+        recurringId:  item.docId,
+        createdAt:    serverTimestamp(),
+      });
+      nextDate = addInterval(nextDate, item.freqN, item.freqUnit, item);
+    }
+
+    // 更新下次執行日
+    await updateDoc(doc(db, 'recurring', item.docId), { nextDate });
+  }
+}
+
+// ===== 固定收支：渲染列表 =====
+function renderRecurringList() {
+  recurringList.innerHTML = '';
+  if (allRecurring.length === 0) {
+    recurringEmpty.style.display = '';
+    return;
+  }
+  recurringEmpty.style.display = 'none';
+
+  allRecurring.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'recurring-item';
+
+    const emoji = item.categoryEmoji || '🔁';
+    const nextDate = item.nextDate || item.startDate || '—';
+    const freqLabel = `每 ${item.freqN} ${{'day':'天','week':'週','month':'月','year':'年'}[item.freqUnit] || '月'}`;
+    const accName = allAccounts.find(a => a.docId === item.accountId)?.name || '';
+    const meta = [freqLabel, accName, item.note].filter(Boolean).join(' · ');
+    const catLabel = item.categoryName
+      ? (item.subCategoryName ? `${item.categoryName} - ${item.subCategoryName}` : item.categoryName)
+      : '';
+
+    div.style.cursor = 'pointer';
+    div.innerHTML = `
+      <div class="recurring-item-icon">${emoji}</div>
+      <div class="recurring-item-info">
+        <div class="recurring-item-name">${item.name}</div>
+        ${catLabel ? `<div class="recurring-item-cat">${catLabel}</div>` : ''}
+        <div class="recurring-item-meta">${meta}</div>
+        <span class="recurring-next-badge">下次：${nextDate}</span>
+      </div>
+      <div class="recurring-item-right">
+        <span class="recurring-item-amount ${item.type}">
+          ${item.type === 'income' ? '+' : '-'}$${item.amount.toLocaleString()}
+        </span>
+        <label class="recurring-toggle" title="開啟/關閉">
+          <input type="checkbox" ${item.enabled ? 'checked' : ''} data-id="${item.docId}" />
+          <span class="recurring-toggle-slider"></span>
+        </label>
+      </div>
+    `;
+
+    div.querySelector('.recurring-toggle input').addEventListener('change', async (e) => {
+      e.stopPropagation();
+      await updateDoc(doc(db, 'recurring', item.docId), { enabled: e.target.checked });
+    });
+
+    div.querySelector('.recurring-toggle').addEventListener('click', (e) => e.stopPropagation());
+
+    div.addEventListener('click', () => openRecurringModal(item));
+
+    recurringList.appendChild(div);
+  });
+}
+
+// ===== 固定收支：彈窗 =====
+let recCurrentType = 'expense';
+
+function openRecurringModal(item = null) {
+  recurringForm.reset();
+  recEditIdInput.value = '';
+  recDeleteBtn.style.display = 'none';
+  recCurrentType = 'expense';
+  recBtnExpense.classList.add('active');
+  recBtnIncome.classList.remove('active');
+  recSelectedCategory    = null;
+  recSelectedSubCategory = null;
+  updateRecCatPickBtn();
+  renderRecAccountSelect();
+
+  // 重置計算機
+  recCalcRaw  = '';
+  recCalcExpr = '';
+  recAmountInput.value = '';
+  recCalcExpressionEl.textContent = '';
+  recCalcKeyboard.style.display = 'none';
+
+  recFreqN.value = '1';
+  recFreqUnit.value = 'month';
+  syncRecFreqUI('month', null);
+
+  if (item) {
+    recurringModalTitle.textContent = '編輯固定項目';
+    recEditIdInput.value = item.docId;
+    recDeleteBtn.style.display = '';
+    recCurrentType = item.type;
+    recBtnExpense.classList.toggle('active', item.type === 'expense');
+    recBtnIncome.classList.toggle('active',  item.type === 'income');
+    recNameInput.value = item.name || '';
+    const amt = item.amount || 0;
+    recCalcRaw  = String(amt);
+    recCalcExpr = String(amt);
+    recAmountInput.value = String(amt);
+    recNoteInput.value   = item.note   || '';
+    recFreqN.value       = item.freqN  || 1;
+    recFreqUnit.value = item.freqUnit || 'month';
+    syncRecFreqUI(item.freqUnit || 'month', item);
+    if (item.accountId) recAccountSel.value = item.accountId;
+    if (item.categoryId) {
+      const parent = allCategories.find(c => c.docId === item.categoryId);
+      if (parent) {
+        recSelectedCategory = parent;
+        recSelectedSubCategory = item.subCategoryId
+          ? (parent.subs?.find(s => s.docId === item.subCategoryId) || null)
+          : null;
+        updateRecCatPickBtn();
+      }
+    }
+  } else {
+    recurringModalTitle.textContent = '新增固定項目';
+    const defaultCat = allCategories.find(c => c.type === 'expense');
+    if (defaultCat) {
+      recSelectedCategory    = defaultCat;
+      recSelectedSubCategory = defaultCat.subs?.[0] || null;
+      updateRecCatPickBtn();
+    }
+  }
+
+  recurringModalOverlay.classList.add('active');
+}
+
+// ===== 頻率 UI 同步 =====
+function syncRecFreqUI(unit, item) {
+  recWeekdayGroup.style.display  = unit === 'week'  ? '' : 'none';
+  recMonthdayGroup.style.display = unit === 'month' ? '' : 'none';
+  recYeardayGroup.style.display  = unit === 'year'  ? '' : 'none';
+
+  if (unit === 'week') {
+    renderRecWeekdayPicker(item?.freqWeekday ?? null);
+  } else if (unit === 'month') {
+    renderRecMonthdayPicker(item?.freqMonthday ?? null);
+  } else if (unit === 'year') {
+    const m = item?.freqYearMonth ?? 1;
+    recYearMonth.value = m;
+    renderRecYearDaySelect(m, item?.freqYearDay ?? null);
+  }
+}
+
+function renderRecWeekdayPicker(selected) {
+  recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(btn => {
+    btn.classList.toggle('active', String(btn.dataset.day) === String(selected));
+  });
+}
+
+function renderRecMonthdayPicker(selected) {
+  recMonthdayPicker.innerHTML = '';
+  for (let d = 1; d <= 31; d++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'monthday-btn' + (d === selected ? ' active' : '');
+    btn.textContent = d;
+    btn.dataset.day = d;
+    btn.addEventListener('click', () => {
+      recMonthdayPicker.querySelectorAll('.monthday-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    recMonthdayPicker.appendChild(btn);
+  }
+  // 最後一天選項
+  const lastBtn = document.createElement('button');
+  lastBtn.type = 'button';
+  lastBtn.className = 'monthday-btn last-day' + (selected === 'last' ? ' active' : '');
+  lastBtn.textContent = '月底';
+  lastBtn.dataset.day = 'last';
+  lastBtn.addEventListener('click', () => {
+    recMonthdayPicker.querySelectorAll('.monthday-btn').forEach(b => b.classList.remove('active'));
+    lastBtn.classList.add('active');
+  });
+  recMonthdayPicker.appendChild(lastBtn);
+}
+
+function renderRecYearDaySelect(month, selectedDay) {
+  const daysInMonth = new Date(2000, month, 0).getDate();
+  recYearDay.innerHTML = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = `${d} 日`;
+    if (d === selectedDay) opt.selected = true;
+    recYearDay.appendChild(opt);
+  }
+}
+
+recFreqUnit.addEventListener('change', () => {
+  syncRecFreqUI(recFreqUnit.value, null);
+});
+
+recYearMonth.addEventListener('change', () => {
+  renderRecYearDaySelect(parseInt(recYearMonth.value), null);
+});
+
+recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+function renderRecAccountSelect() {
+  recAccountSel.innerHTML = '';
+  allAccounts.forEach(acc => {
+    const opt = document.createElement('option');
+    opt.value = acc.docId;
+    opt.textContent = acc.name;
+    recAccountSel.appendChild(opt);
+  });
+}
+
+function updateRecCatPickBtn() {
+  if (recSelectedCategory) {
+    recCatPickEmoji.textContent = recSelectedCategory.emoji || '📦';
+    if (recSelectedSubCategory) {
+      recCatPickName.innerHTML = `${recSelectedCategory.name}<br><span class="cat-pick-sub-label">${recSelectedSubCategory.name}</span>`;
+    } else {
+      recCatPickName.innerHTML = recSelectedCategory.name;
+    }
+  } else {
+    recCatPickEmoji.textContent = '📦';
+    recCatPickName.innerHTML    = '選擇分類';
+  }
+}
+
+openRecurringFormBtn.addEventListener('click', () => openRecurringModal());
+closeRecurringFormBtn.addEventListener('click', () => recurringModalOverlay.classList.remove('active'));
+recurringModalOverlay.addEventListener('click', (e) => {
+  if (e.target === recurringModalOverlay) recurringModalOverlay.classList.remove('active');
+});
+
+// ===== 固定收支計算機 =====
+recCalcToggleBtn.addEventListener('click', () => {
+  const show = recCalcKeyboard.style.display === 'none';
+  recCalcKeyboard.style.display = show ? 'block' : 'none';
+  recAmountInputWrap.classList.toggle('calc-active', show);
+});
+
+recAmountInput.addEventListener('focus', () => {
+  recCalcKeyboard.style.display = 'block';
+  recAmountInputWrap.classList.add('calc-active');
+});
+
+recCalcKeyboard.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-rec-val],[data-rec-action]');
+  if (!btn) return;
+  const val    = btn.dataset.recVal;
+  const action = btn.dataset.recAction;
+  if (val !== undefined) recCalcAppend(val);
+  else if (action === 'clear')     recCalcClear();
+  else if (action === 'backspace') recCalcBackspace();
+  else if (action === 'equal')     recCalcEqual();
+});
+
+recAmountInput.addEventListener('keydown', (e) => {
+  const allowed = ['0','1','2','3','4','5','6','7','8','9','.','%','+','-','*','/'];
+  if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); recCalcEqual(); return; }
+  if (e.key === 'Backspace') { e.preventDefault(); recCalcBackspace(); return; }
+  if (e.key === 'Escape')    { recCalcKeyboard.style.display = 'none'; return; }
+  if (!allowed.includes(e.key)) { e.preventDefault(); return; }
+  e.preventDefault();
+  const sym = e.key === '*' ? '×' : e.key === '/' ? '÷' : e.key === '-' ? '−' : e.key;
+  recCalcAppend(sym);
+});
+
+function recCalcAppend(sym) {
+  const op = sym === '÷' ? '/' : sym === '×' ? '*' : sym === '−' ? '-' : sym;
+  const isOp = ['+','-','*','/','÷','×','−','%'].includes(sym);
+  if (isOp && recCalcRaw === '') return;
+  if (sym === '.' && recCalcRaw.split(/[\+\-\*\/]/).pop().includes('.')) return;
+  recCalcRaw  += op;
+  recCalcExpr += sym;
+  recAmountInput.value = recCalcExpr;
+  recCalcExpressionEl.textContent = '';
+}
+
+function recCalcClear() {
+  recCalcRaw = ''; recCalcExpr = '';
+  recAmountInput.value = '';
+  recCalcExpressionEl.textContent = '';
+}
+
+function recCalcBackspace() {
+  if (!recCalcRaw) return;
+  recCalcRaw  = recCalcRaw.slice(0, -1);
+  recCalcExpr = recCalcExpr.slice(0, -1);
+  recAmountInput.value = recCalcExpr;
+  recCalcExpressionEl.textContent = '';
+}
+
+function recCalcEqual() {
+  if (!recCalcRaw) return;
+  try {
+    const expr = recCalcRaw.replace(/(\d+\.?\d*)%/g, '($1/100)');
+    const result = Function('"use strict"; return (' + expr + ')')();
+    if (!isFinite(result)) { recCalcClear(); return; }
+    const rounded = Math.round(result * 100) / 100;
+    recCalcExpressionEl.textContent = recCalcExpr + ' =';
+    recCalcExpr = String(rounded);
+    recCalcRaw  = String(rounded);
+    recAmountInput.value = recCalcExpr;
+  } catch {
+    recCalcExpressionEl.textContent = '格式錯誤';
+    recCalcRaw = ''; recCalcExpr = '';
+    recAmountInput.value = '';
+  }
+}
+
+recBtnExpense.addEventListener('click', () => {
+  recCurrentType = 'expense';
+  recBtnExpense.classList.add('active');
+  recBtnIncome.classList.remove('active');
+  // 切換類型時重設分類預設值
+  const defaultCat = allCategories.find(c => c.type === 'expense');
+  if (defaultCat) {
+    recSelectedCategory    = defaultCat;
+    recSelectedSubCategory = defaultCat.subs?.[0] || null;
+    updateRecCatPickBtn();
+  }
+});
+
+recBtnIncome.addEventListener('click', () => {
+  recCurrentType = 'income';
+  recBtnIncome.classList.add('active');
+  recBtnExpense.classList.remove('active');
+  const defaultCat = allCategories.find(c => c.type === 'income');
+  if (defaultCat) {
+    recSelectedCategory    = defaultCat;
+    recSelectedSubCategory = defaultCat.subs?.[0] || null;
+    updateRecCatPickBtn();
+  }
+});
+
+// 固定收支的分類選擇：重用現有的 catPickerOverlay
+recCatPickBtn.addEventListener('click', () => {
+  // 暫時切換 picker 模式為固定收支
+  window._recCatPickMode = true;
+  openCatPicker(recCurrentType);
+});
+
+recurringForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name   = recNameInput.value.trim();
+  // 若有未完成算式，先自動計算
+  if (/[\+\-\*\/]/.test(recCalcRaw) && recCalcRaw !== recCalcExpr) recCalcEqual();
+  const amount = parseFloat(recCalcRaw);
+  if (!name || !amount || amount <= 0) return;
+
+  const freqN    = parseInt(recFreqN.value) || 1;
+  const freqUnit = recFreqUnit.value;
+  const editId   = recEditIdInput.value;
+
+  // 讀取頻率細節
+  let freqWeekday   = null;
+  let freqMonthday  = null;
+  let freqYearMonth = null;
+  let freqYearDay   = null;
+  if (freqUnit === 'week') {
+    const activeDay = recWeekdayPicker.querySelector('.weekday-btn.active');
+    freqWeekday = activeDay ? parseInt(activeDay.dataset.day) : null;
+  } else if (freqUnit === 'month') {
+    const activeDay = recMonthdayPicker.querySelector('.monthday-btn.active');
+    freqMonthday = activeDay ? (activeDay.dataset.day === 'last' ? 'last' : parseInt(activeDay.dataset.day)) : null;
+  } else if (freqUnit === 'year') {
+    freqYearMonth = parseInt(recYearMonth.value);
+    freqYearDay   = parseInt(recYearDay.value);
+  }
+
+  // 根據頻率設定自動計算第一次（或下次）執行日
+  const computedNextDate = calcFirstDate(freqUnit, freqWeekday, freqMonthday, freqYearMonth, freqYearDay);
+
+  const data = {
+    uid:      currentUser.uid,
+    type:     recCurrentType,
+    name,
+    amount,
+    freqN,
+    freqUnit,
+    freqWeekday,
+    freqMonthday,
+    freqYearMonth,
+    freqYearDay,
+    note:     recNoteInput.value.trim(),
+    accountId:       recAccountSel.value || null,
+    categoryId:      recSelectedCategory?.docId      || null,
+    categoryName:    recSelectedCategory?.name       || null,
+    categoryEmoji:   recSelectedCategory?.emoji      || null,
+    subCategoryId:   recSelectedSubCategory?.docId   || null,
+    subCategoryName: recSelectedSubCategory?.name    || null,
+    enabled: true,
+  };
+
+  if (editId) {
+    // 編輯時：若頻率設定改變，重新計算下次執行日
+    const existing = allRecurring.find(r => r.docId === editId);
+    const freqChanged = existing && (
+      existing.freqUnit !== freqUnit ||
+      existing.freqWeekday !== freqWeekday ||
+      existing.freqMonthday !== freqMonthday ||
+      existing.freqYearMonth !== freqYearMonth ||
+      existing.freqYearDay !== freqYearDay
+    );
+    if (freqChanged) data.nextDate = computedNextDate;
+    await updateDoc(doc(db, 'recurring', editId), data);
+  } else {
+    data.nextDate  = computedNextDate;
+    data.createdAt = serverTimestamp();
+    await addDoc(collection(db, 'recurring'), data);
+  }
+
+  recurringModalOverlay.classList.remove('active');
+});
+
+recDeleteBtn.addEventListener('click', async () => {
+  const editId = recEditIdInput.value;
+  if (!editId) return;
+  const item = allRecurring.find(r => r.docId === editId);
+  if (!confirm(`刪除「${item?.name || '此項目'}」？`)) return;
+  await deleteDoc(doc(db, 'recurring', editId));
+  recurringModalOverlay.classList.remove('active');
+});
 
 // ===== 月份切換 =====
 prevMonthBtn.addEventListener('click', () => changeMonth(-1));
@@ -707,6 +1611,7 @@ function openCatPicker() {
 
 function closeCatPicker() {
   catPickerOverlay.classList.remove('active');
+  window._recCatPickMode = false;
 }
 
 // 渲染左欄主分類
@@ -716,7 +1621,8 @@ function renderCatPickerParents() {
   const parents = allCategories.filter(c => c.type === currentType);
 
   // 若目前已選主分類，預先展開對應子分類
-  let activeParent = parents.find(c => c.docId === selectedCategory) || parents[0] || null;
+  const curSelCat = window._recCatPickMode ? recSelectedCategory?.docId : selectedCategory;
+  let activeParent = parents.find(c => c.docId === curSelCat) || parents[0] || null;
 
   parents.forEach(cat => {
     const item = document.createElement('div');
@@ -739,14 +1645,22 @@ function renderCatPickerSubs(parentCat) {
 
   if (parentCat.subs && parentCat.subs.length > 0) {
     parentCat.subs.forEach(sub => {
+      const isRecMode = window._recCatPickMode;
+      const curSub = isRecMode ? recSelectedSubCategory?.docId : selectedSubCategory;
       const item = document.createElement('div');
-      item.className = 'cat-picker-sub' +
-        (selectedSubCategory === sub.docId ? ' selected' : '');
+      item.className = 'cat-picker-sub' + (curSub === sub.docId ? ' selected' : '');
       item.textContent = sub.name;
       item.addEventListener('click', () => {
-        selectedCategory    = parentCat.docId;
-        selectedSubCategory = sub.docId;
-        updateCatPickBtn(parentCat, sub);
+        if (window._recCatPickMode) {
+          recSelectedCategory    = parentCat;
+          recSelectedSubCategory = sub;
+          updateRecCatPickBtn();
+          window._recCatPickMode = false;
+        } else {
+          selectedCategory    = parentCat.docId;
+          selectedSubCategory = sub.docId;
+          updateCatPickBtn(parentCat, sub);
+        }
         closeCatPicker();
       });
       catPickerSubs.appendChild(item);
@@ -1574,8 +2488,13 @@ function buildRecordItem(r) {
 
   if (r.type === 'transfer') {
     // 轉帳：顯示「A → B」，金額藍字
-    const fromName = allAccounts.find(a => a.docId === r.transferFromId)?.name || '?';
-    const toName   = allAccounts.find(a => a.docId === r.transferToId)?.name   || '?';
+    // 優先從 allAccounts 找（即時名稱），找不到則從 displayName 解析，最後才顯示 ?
+    const fromAccObj = allAccounts.find(a => a.docId === r.transferFromId);
+    const toAccObj   = allAccounts.find(a => a.docId === r.transferToId);
+    const parsedTo   = r.displayName?.replace(/^轉帳 → /, '');
+    const parsedFrom = r.displayName?.replace(/^轉帳 ← /, '');
+    const fromName = fromAccObj?.name || (r.accountId === r.transferFromId ? r.accountName : parsedFrom) || '?';
+    const toName   = toAccObj?.name   || (r.accountId === r.transferToId   ? r.accountName : parsedTo)   || '?';
     const metaText = r.note || '無備註';
     item.innerHTML = `
       <div class="record-cat-icon transfer-icon">🔄</div>
@@ -1945,3 +2864,578 @@ setDefaultDate();
 renderCategoryGrid();
 renderAccountTypeGrid();
 renderMonthLabel();
+
+// ===== 報表 =====
+let reportYear  = new Date().getFullYear();
+let reportMonth = new Date().getMonth();
+let reportType  = 'expense';   // 'expense' | 'income'
+let reportTab   = 'category';  // 'category' | 'trend'
+// drill-down 狀態：null = 主分類層, string = 已選主分類 docId
+let reportDrillCatId = null;
+let catView = 'month'; // 'month' | 'year'
+let trendMeta = 'expense'; // 'expense' | 'income' | 'balance'
+let pieChartInstance = null;
+let barChartInstance = null;
+
+// DOM
+const reportMonthLabel   = document.getElementById('reportMonthLabel');
+const reportPrevMonth    = document.getElementById('reportPrevMonth');
+const reportNextMonth    = document.getElementById('reportNextMonth');
+const reportTypeBtnExp   = document.getElementById('reportTypeBtnExpense');
+const reportTypeBtnInc   = document.getElementById('reportTypeBtnIncome');
+const reportBreadcrumb   = document.getElementById('reportBreadcrumb');
+const reportBreadcrumbBack  = document.getElementById('reportBreadcrumbBack');
+const reportBreadcrumbLabel = document.getElementById('reportBreadcrumbLabel');
+const reportCategoryList = document.getElementById('reportCategoryList');
+const categoryChartEmpty = document.getElementById('categoryChartEmpty');
+const catViewBtnMonth    = document.getElementById('catViewBtnMonth');
+const catViewBtnYear     = document.getElementById('catViewBtnYear');
+const trendMetaBtnExpense = document.getElementById('trendMetaBtnExpense');
+const trendMetaBtnIncome  = document.getElementById('trendMetaBtnIncome');
+const trendMetaBtnBalance = document.getElementById('trendMetaBtnBalance');
+const trendMetaBtns = [trendMetaBtnExpense, trendMetaBtnIncome, trendMetaBtnBalance];
+const trendYearStats = document.getElementById('trendYearStats');
+const trendMonthList = document.getElementById('trendMonthList');
+const reportTabCategory  = document.getElementById('reportTabCategory');
+const reportTabTrend     = document.getElementById('reportTabTrend');
+
+// 月份切換
+reportPrevMonth.addEventListener('click', () => {
+  const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
+  if (isYearView) {
+    reportYear--;
+  } else {
+    reportMonth--;
+    if (reportMonth < 0) { reportMonth = 11; reportYear--; }
+  }
+  reportDrillCatId = null;
+  renderReport();
+});
+reportNextMonth.addEventListener('click', () => {
+  const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
+  if (isYearView) {
+    reportYear++;
+  } else {
+    reportMonth++;
+    if (reportMonth > 11) { reportMonth = 0; reportYear++; }
+  }
+  reportDrillCatId = null;
+  renderReport();
+});
+
+// 支出/收入/結餘切換
+[
+  [trendMetaBtnExpense, 'expense'],
+  [trendMetaBtnIncome,  'income'],
+  [trendMetaBtnBalance, 'balance'],
+].forEach(([btn, val]) => {
+  btn.addEventListener('click', () => {
+    trendMeta = val;
+    trendMetaBtns.forEach(b => b.classList.toggle('active', b === btn));
+    renderReportTrend();
+  });
+});
+
+// Tab 切換
+document.querySelectorAll('.report-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    reportTab = btn.dataset.tab;
+    document.querySelectorAll('.report-tab').forEach(b => b.classList.toggle('active', b === btn));
+    reportTabCategory.style.display = reportTab === 'category' ? '' : 'none';
+    reportTabTrend.style.display    = reportTab === 'trend'    ? '' : 'none';
+    // 切回類別 tab 時，重設為月模式
+    if (reportTab === 'category') {
+      catView = 'month';
+      catViewBtnMonth.classList.add('active');
+      catViewBtnYear.classList.remove('active');
+    }
+    reportDrillCatId = null;
+    renderReport();
+  });
+});
+
+// 支出/收入切換
+reportTypeBtnExp.addEventListener('click', () => {
+  reportType = 'expense';
+  reportTypeBtnExp.classList.add('active');
+  reportTypeBtnInc.classList.remove('active');
+  reportDrillCatId = null;
+  renderReportCategory();
+});
+reportTypeBtnInc.addEventListener('click', () => {
+  reportType = 'income';
+  reportTypeBtnInc.classList.add('active');
+  reportTypeBtnExp.classList.remove('active');
+  reportDrillCatId = null;
+  renderReportCategory();
+});
+
+// 月/年切換
+catViewBtnMonth.addEventListener('click', () => {
+  catView = 'month';
+  catViewBtnMonth.classList.add('active');
+  catViewBtnYear.classList.remove('active');
+  reportDrillCatId = null;
+  renderReport();
+});
+catViewBtnYear.addEventListener('click', () => {
+  catView = 'year';
+  catViewBtnYear.classList.add('active');
+  catViewBtnMonth.classList.remove('active');
+  reportDrillCatId = null;
+  renderReport();
+});
+
+// 返回上一層
+reportBreadcrumbBack.addEventListener('click', () => {
+  reportDrillCatId = null;
+  renderReportCategory();
+});
+
+function getMonthRecordsByYM(year, month) {
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer');
+}
+
+function renderReport() {
+  const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
+  if (isYearView) {
+    reportMonthLabel.textContent = `${reportYear} 年`;
+  } else {
+    reportMonthLabel.textContent = `${reportYear} 年 ${reportMonth + 1} 月`;
+  }
+  if (reportTab === 'category') renderReportCategory();
+  else renderReportTrend();
+}
+
+// ===== 類別分析 =====
+function getCatViewRecords() {
+  if (catView === 'year') {
+    const prefix = `${reportYear}-`;
+    return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer');
+  }
+  return getMonthRecordsByYM(reportYear, reportMonth);
+}
+
+function renderReportCategory() {
+  const recs = getCatViewRecords().filter(r => r.type === reportType);
+  const total = recs.reduce((s, r) => s + r.amount, 0);
+
+  // 更新麵包屑
+  if (reportDrillCatId) {
+    const cat = allCategories.find(c => c.docId === reportDrillCatId);
+    reportBreadcrumb.style.display = '';
+    reportBreadcrumbLabel.textContent = cat ? `${cat.emoji} ${cat.name}` : '';
+  } else {
+    reportBreadcrumb.style.display = 'none';
+  }
+
+  if (reportDrillCatId) {
+    renderDrillDown(recs, total);
+  } else {
+    renderMainCategories(recs, total);
+  }
+}
+
+function renderMainCategories(recs, total) {
+  // 依主分類彙總
+  const catMap = {};
+  recs.forEach(r => {
+    const key = r.categoryId || '__none__';
+    if (!catMap[key]) {
+      catMap[key] = {
+        id: key,
+        name: r.categoryName || '未分類',
+        emoji: r.categoryEmoji || '📦',
+        amount: 0,
+      };
+    }
+    catMap[key].amount += r.amount;
+  });
+
+  const cats = Object.values(catMap).sort((a, b) => b.amount - a.amount);
+
+  // 圓餅圖
+  renderPieChart(cats, total);
+
+  // 列表
+  reportCategoryList.innerHTML = '';
+  if (cats.length === 0) return;
+
+  cats.forEach(cat => {
+    const pct = total > 0 ? Math.round(cat.amount / total * 100) : 0;
+    const hasSubs = allCategories.find(c => c.docId === cat.id)?.subs?.length > 0;
+    const item = document.createElement('div');
+    item.className = `report-cat-item ${reportType}${hasSubs ? '' : ' no-drill'}`;
+    item.innerHTML = `
+      <div class="report-cat-emoji">${cat.emoji}</div>
+      <div class="report-cat-info">
+        <div class="report-cat-name">${cat.name}</div>
+        <div class="report-cat-bar-wrap">
+          <div class="report-cat-bar" style="width:${pct}%"></div>
+        </div>
+        <div class="report-cat-percent">${pct}%</div>
+      </div>
+      <div>
+        <div class="report-cat-amount ${reportType}">$${formatMoney(cat.amount)}</div>
+      </div>
+      ${hasSubs || cat.id !== '__none__' ? '<div class="report-cat-arrow">›</div>' : ''}
+    `;
+    if (cat.id !== '__none__') {
+      item.addEventListener('click', () => {
+        reportDrillCatId = cat.id;
+        renderReportCategory();
+      });
+    }
+    reportCategoryList.appendChild(item);
+  });
+}
+
+function renderDrillDown(recs, totalAll) {
+  const catRecs = recs.filter(r => r.categoryId === reportDrillCatId);
+  const catTotal = catRecs.reduce((s, r) => s + r.amount, 0);
+
+  // 依子分類彙總
+  const subMap = {};
+  catRecs.forEach(r => {
+    const key = r.subCategoryId || '__none__';
+    if (!subMap[key]) {
+      subMap[key] = {
+        id: key,
+        name: r.subCategoryName || r.categoryName || '其他',
+        amount: 0,
+        records: [],
+      };
+    }
+    subMap[key].amount += r.amount;
+    subMap[key].records.push(r);
+  });
+
+  const subs = Object.values(subMap).sort((a, b) => b.amount - a.amount);
+  const cat  = allCategories.find(c => c.docId === reportDrillCatId);
+
+  // 圓餅圖（子分類）
+  renderPieChart(subs.map(s => ({ ...s, emoji: cat?.emoji || '📦' })), catTotal);
+
+  reportCategoryList.innerHTML = '';
+
+  if (subs.length === 0) return;
+
+  // 若只有一個子分類（或無子分類），直接顯示明細
+  const showDirectRecords = subs.length === 1 && subs[0].id === '__none__';
+
+  if (showDirectRecords) {
+    renderRecordItems(catRecs);
+    return;
+  }
+
+  subs.forEach(sub => {
+    const pct = catTotal > 0 ? Math.round(sub.amount / catTotal * 100) : 0;
+    const item = document.createElement('div');
+    item.className = `report-cat-item ${reportType}`;
+    item.innerHTML = `
+      <div class="report-cat-emoji">${cat?.emoji || '📦'}</div>
+      <div class="report-cat-info">
+        <div class="report-cat-name">${sub.name}</div>
+        <div class="report-cat-bar-wrap">
+          <div class="report-cat-bar" style="width:${pct}%"></div>
+        </div>
+        <div class="report-cat-percent">${pct}%</div>
+      </div>
+      <div>
+        <div class="report-cat-amount ${reportType}">$${formatMoney(sub.amount)}</div>
+      </div>
+      <div class="report-cat-arrow">›</div>
+    `;
+    item.addEventListener('click', () => {
+      // 展開該子分類的明細
+      renderSubRecordDetail(item, sub.records, sub.name);
+    });
+    reportCategoryList.appendChild(item);
+  });
+}
+
+function renderSubRecordDetail(parentItem, records, subName) {
+  // 移除舊的展開區塊
+  const existing = parentItem.nextElementSibling;
+  if (existing?.classList.contains('report-sub-detail')) {
+    existing.remove();
+    parentItem.querySelector('.report-cat-arrow').textContent = '›';
+    return;
+  }
+  // 收起其他展開的
+  document.querySelectorAll('.report-sub-detail').forEach(el => el.remove());
+  document.querySelectorAll('.report-cat-arrow').forEach(el => el.textContent = '›');
+
+  parentItem.querySelector('.report-cat-arrow').textContent = '‹';
+  const wrap = document.createElement('div');
+  wrap.className = 'report-sub-detail';
+  records.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'report-record-item';
+    el.innerHTML = `
+      <div class="report-record-date">${r.date.slice(5)}</div>
+      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}</div>
+      <div class="report-record-amount ${r.type}">$${formatMoney(r.amount)}</div>
+    `;
+    wrap.appendChild(el);
+  });
+  parentItem.after(wrap);
+}
+
+function renderRecordItems(records) {
+  records.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'report-record-item';
+    el.innerHTML = `
+      <div class="report-record-date">${r.date.slice(5)}</div>
+      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}</div>
+      <div class="report-record-amount ${r.type}">$${formatMoney(r.amount)}</div>
+    `;
+    reportCategoryList.appendChild(el);
+  });
+}
+
+// ===== 圓餅圖 =====
+const PIE_COLORS = [
+  '#5B9BD5','#ED7D31','#A9D18E','#FF6B6B','#FFC107',
+  '#9B59B6','#1ABC9C','#E74C3C','#3498DB','#F39C12',
+  '#2ECC71','#E67E22','#16A085','#8E44AD','#D35400',
+];
+
+// 圓餅圖中間顯示總額的 plugin
+const doughnutCenterPlugin = {
+  id: 'doughnutCenter',
+  afterDraw(chart) {
+    if (chart.config.type !== 'doughnut') return;
+    const { ctx, chartArea: { left, right, top, bottom } } = chart;
+    const cx = (left + right) / 2;
+    const cy = (top + bottom) / 2;
+    const total = chart.config.options.plugins?.doughnutCenter?.total ?? 0;
+    const label = chart.config.options.plugins?.doughnutCenter?.label ?? '';
+
+    ctx.save();
+    // 標籤（小字）
+    ctx.font = '500 12px system-ui, sans-serif';
+    ctx.fillStyle = '#999';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, cx, cy - 12);
+    // 金額（大字）
+    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.fillStyle = '#333';
+    ctx.fillText(`$${formatMoney(total)}`, cx, cy + 8);
+    ctx.restore();
+  },
+};
+Chart.register(doughnutCenterPlugin);
+
+function renderPieChart(items, total) {
+  categoryChartEmpty.style.display = items.length === 0 ? '' : 'none';
+
+  if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
+  if (items.length === 0) return;
+
+  const centerLabel = reportType === 'expense' ? '總支出' : '總收入';
+  const ctx = document.getElementById('categoryPieChart').getContext('2d');
+  pieChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: items.map(c => c.name),
+      datasets: [{
+        data: items.map(c => c.amount),
+        backgroundColor: PIE_COLORS.slice(0, items.length),
+        borderWidth: 2,
+        borderColor: '#fff',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 12 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = total > 0 ? Math.round(ctx.parsed / total * 100) : 0;
+              return ` $${formatMoney(ctx.parsed)}（${pct}%）`;
+            },
+          },
+        },
+        doughnutCenter: { total, label: centerLabel },
+      },
+    },
+  });
+}
+
+// ===== 收支趨勢 =====
+function renderReportTrend() {
+  // 12 個月資料
+  const monthData = Array.from({ length: 12 }, (_, m) => {
+    const recs    = getMonthRecordsByYM(reportYear, m).filter(r => r.type !== 'transfer');
+    const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+    const expense = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+    return { month: m, income, expense, balance: income - expense, recs };
+  });
+
+  const labels   = monthData.map(d => `${d.month + 1}月`);
+  const incomes  = monthData.map(d => d.income);
+  const expenses = monthData.map(d => d.expense);
+  const balances = monthData.map(d => d.balance);
+
+  // 長條圖
+  buildBarChart(labels, incomes, expenses, balances);
+
+  // 年統計
+  renderTrendYearStats(incomes, expenses, balances);
+
+  // 月份明細列表
+  renderTrendMonthList(monthData);
+}
+
+function buildBarChart(labels, incomes, expenses, balances) {
+  if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
+  const ctx = document.getElementById('trendBarChart').getContext('2d');
+
+  let datasets = [];
+  if (trendMeta === 'income') {
+    datasets = [{ label: '收入', data: incomes, backgroundColor: 'rgba(46,204,113,0.75)', borderRadius: 4 }];
+  } else if (trendMeta === 'expense') {
+    datasets = [{ label: '支出', data: expenses.map(v => -v), backgroundColor: 'rgba(231,76,60,0.75)', borderRadius: 4 }];
+  } else {
+    // balance：正綠負紅
+    datasets = [{
+      label: '結餘',
+      data: balances,
+      backgroundColor: balances.map(v => v >= 0 ? 'rgba(46,204,113,0.75)' : 'rgba(231,76,60,0.75)'),
+      borderRadius: 4,
+    }];
+  }
+
+  const yTickFmt = v => {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 10000) return `${sign}${(abs / 10000).toFixed(1)}萬`;
+    if (abs >= 1000)  return `${sign}${(abs / 1000).toFixed(0)}k`;
+    return v;
+  };
+
+  barChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const v = c.parsed.y;
+              return ` ${v < 0 ? '-' : '+'}$${formatMoney(Math.abs(v))}`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: yTickFmt, font: { size: 11 } },
+          grid: { color: c => c.tick.value === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)' },
+        },
+        x: { ticks: { font: { size: 12 } } },
+      },
+    },
+  });
+}
+
+function renderTrendYearStats(incomes, expenses, balances) {
+  const totalInc = incomes.reduce((s, v) => s + v, 0);
+  const totalExp = expenses.reduce((s, v) => s + v, 0);
+  const totalBal = totalInc - totalExp;
+  const balClass = totalBal >= 0 ? 'positive' : 'negative';
+
+  trendYearStats.innerHTML = `
+    <div class="trend-year-stats-title">${reportYear} 年統計</div>
+    <div class="trend-year-stats-row">
+      <div class="trend-year-stat-item">
+        <div class="trend-year-stat-label">年收入</div>
+        <div class="trend-year-stat-val income">+$${formatMoney(totalInc)}</div>
+      </div>
+      <div class="trend-year-stat-item">
+        <div class="trend-year-stat-label">年支出</div>
+        <div class="trend-year-stat-val expense">-$${formatMoney(totalExp)}</div>
+      </div>
+      <div class="trend-year-stat-item">
+        <div class="trend-year-stat-label">年結餘</div>
+        <div class="trend-year-stat-val balance ${balClass}">${totalBal >= 0 ? '+' : ''}$${formatMoney(Math.abs(totalBal))}</div>
+      </div>
+    </div>
+  `;
+}
+
+// 月份列表（可展開明細）
+function renderTrendMonthList(monthData) {
+  trendMonthList.innerHTML = '';
+  monthData.forEach(({ month, income, expense, balance, recs }) => {
+    if (income === 0 && expense === 0) return; // 無資料月份略過
+
+    const balClass = balance >= 0 ? 'positive' : 'negative';
+    const row = document.createElement('div');
+    row.className = 'trend-month-row';
+
+    let mainVal = '';
+    if (trendMeta === 'income')  mainVal = `<span class="trend-month-val income">+$${formatMoney(income)}</span>`;
+    else if (trendMeta === 'expense') mainVal = `<span class="trend-month-val expense">-$${formatMoney(expense)}</span>`;
+    else mainVal = `<span class="trend-month-val balance ${balClass}">${balance >= 0 ? '+' : ''}$${formatMoney(Math.abs(balance))}</span>`;
+
+    row.innerHTML = `
+      <div class="trend-month-header">
+        <span class="trend-month-label">${reportYear} 年 ${month + 1} 月</span>
+        <div class="trend-month-right">
+          ${mainVal}
+          <span class="trend-month-arrow">›</span>
+        </div>
+      </div>
+      <div class="trend-month-detail" style="display:none"></div>
+    `;
+
+    const header = row.querySelector('.trend-month-header');
+    const detail = row.querySelector('.trend-month-detail');
+    const arrow  = row.querySelector('.trend-month-arrow');
+
+    header.addEventListener('click', () => {
+      const open = detail.style.display !== 'none';
+      if (open) {
+        detail.style.display = 'none';
+        arrow.textContent = '›';
+        return;
+      }
+      // 渲染明細
+      detail.innerHTML = '';
+      // 篩選依 trendMeta
+      const filtered = trendMeta === 'income'  ? recs.filter(r => r.type === 'income')
+                      : trendMeta === 'expense' ? recs.filter(r => r.type === 'expense')
+                      : recs;
+      if (filtered.length === 0) {
+        detail.innerHTML = '<div class="trend-detail-empty">無資料</div>';
+      } else {
+        filtered.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+          const el = document.createElement('div');
+          el.className = 'report-record-item';
+          const dispName = r.displayName || r.categoryName || '—';
+          el.innerHTML = `
+            <div class="report-record-date">${r.date.slice(5)}</div>
+            <div class="report-record-note">${dispName}${r.note ? ' · ' + r.note : ''}</div>
+            <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</div>
+          `;
+          detail.appendChild(el);
+        });
+      }
+      detail.style.display = '';
+      arrow.textContent = '‹';
+    });
+
+    trendMonthList.appendChild(row);
+  });
+}

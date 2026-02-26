@@ -695,6 +695,164 @@ input[type="text"]:not(#amount):focus {
   color: var(--pink-dark);
 }
 
+/* ===== 範本 ===== */
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tpl-apply-btn {
+  background: var(--pink-light);
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.tpl-apply-btn:hover { background: var(--pink-mid); }
+
+.save-tpl-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px;
+  background: none;
+  border: 1.5px dashed var(--pink-mid);
+  border-radius: var(--radius);
+  color: var(--text-mid);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.save-tpl-btn:hover {
+  border-color: var(--pink-main);
+  color: var(--pink-main);
+  background: var(--pink-light);
+}
+
+#tplListOverlay,
+#tplNameOverlay,
+#clearDataOverlay {
+  z-index: 300;
+}
+
+#catPickerOverlay,
+#recurringModalOverlay {
+  z-index: 250;
+}
+
+.cat-picker-overlay {
+  z-index: 400 !important;
+}
+
+.tpl-list-modal,
+.tpl-name-modal {
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tpl-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.tpl-tab {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--pink-light);
+  color: var(--text-mid);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tpl-tab.active {
+  background: var(--pink-main);
+  color: #fff;
+}
+
+.tpl-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.tpl-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--pink-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 2px solid transparent;
+}
+.tpl-item:hover { background: var(--pink-mid); border-color: var(--pink-main); }
+
+.tpl-item-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.tpl-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tpl-item-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.tpl-item-desc {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tpl-item-amount {
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.tpl-item-amount.expense { color: var(--red-main); }
+.tpl-item-amount.income  { color: var(--green-main); }
+.tpl-item-amount.transfer { color: var(--pink-main); }
+.tpl-item-amount.none { color: var(--text-light); font-size: 12px; }
+
+.tpl-delete-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-light);
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.tpl-delete-btn:hover { color: var(--red-main); }
+
 /* ===== 轉帳 ===== */
 .transfer-accounts-row {
   display: flex;
@@ -1680,4 +1838,572 @@ input[type="text"]:not(#amount):focus {
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: none;
+}
+
+/* ===== 設定頁 ===== */
+.settings-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  background: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.settings-item:hover { background: var(--pink-light); }
+
+.settings-item-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.settings-item-info { flex: 1; }
+
+.settings-item-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.settings-item-desc {
+  font-size: 13px;
+  color: var(--text-mid);
+  margin-top: 2px;
+}
+
+.settings-item-arrow {
+  font-size: 22px;
+  color: var(--text-light);
+}
+
+.settings-item-danger {
+  border: 1.5px solid #ffd0d0;
+  background: #fff5f5;
+}
+.settings-item-danger:hover { background: #ffe0e0; }
+.settings-item-danger .settings-item-title { color: var(--red-main); }
+.settings-item-danger .settings-item-desc  { color: #e57373; }
+
+.clear-data-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.clear-data-warning {
+  font-size: 14px;
+  color: var(--text-dark);
+  line-height: 1.6;
+  background: #fff5f5;
+  border-left: 3px solid var(--red-main);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 0;
+}
+
+.clear-data-confirm-label {
+  font-size: 14px;
+  color: var(--text-mid);
+  margin: 0;
+}
+
+.clear-data-progress {
+  text-align: center;
+  color: var(--text-mid);
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+/* ===== 固定收支頁 ===== */
+.recurring-list {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recurring-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.recurring-item-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.recurring-item-info { flex: 1; min-width: 0; }
+
+.recurring-item-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.recurring-item-cat {
+  font-size: 12px;
+  color: var(--pink-main);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.recurring-item-meta {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-top: 3px;
+}
+
+.recurring-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.recurring-item-amount {
+  font-size: 15px;
+  font-weight: 700;
+}
+.recurring-item-amount.expense { color: var(--red-main); }
+.recurring-item-amount.income  { color: var(--green-main); }
+
+.recurring-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.recurring-toggle input { opacity: 0; width: 0; height: 0; }
+.recurring-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #ccc;
+  border-radius: 22px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.recurring-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.recurring-toggle input:checked + .recurring-toggle-slider { background: var(--pink-main); }
+.recurring-toggle input:checked + .recurring-toggle-slider::before { transform: translateX(18px); }
+
+.recurring-item:hover { background: var(--pink-light); }
+
+/* 頻率輸入列 */
+.freq-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.freq-n-input {
+  width: 60px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text-dark);
+}
+.freq-unit-select { flex: 1; }
+
+/* 下次執行日標籤 */
+.recurring-next-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--pink-light);
+  color: var(--pink-main);
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+/* 星期選擇器 */
+.weekday-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.weekday-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.weekday-btn.active {
+  background: var(--pink-main);
+  border-color: var(--pink-main);
+  color: #fff;
+}
+
+/* 月份日期選擇器 */
+.monthday-picker {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.monthday-btn {
+  padding: 7px 0;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.monthday-btn.active {
+  background: var(--pink-main);
+  border-color: var(--pink-main);
+  color: #fff;
+}
+.monthday-btn.last-day {
+  grid-column: span 1;
+  font-size: 11px;
+}
+
+/* ===== 報表頁面 ===== */
+#pageReport {
+  padding-bottom: 80px;
+  overflow-y: auto;
+}
+
+.report-period-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 16px 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.report-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0 16px 12px;
+  background: var(--pink-light);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.report-tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-mid);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.report-tab.active {
+  background: #fff;
+  color: var(--pink-main);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.report-tab-content {
+  padding: 0 16px;
+}
+
+.report-type-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.report-type-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.report-type-btn.active {
+  background: var(--pink-main);
+  border-color: var(--pink-main);
+  color: #fff;
+}
+
+.report-chart-wrap {
+  position: relative;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+  max-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.report-chart-wrap canvas {
+  max-height: 240px;
+}
+
+.report-chart-empty {
+  position: absolute;
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+/* 麵包屑 */
+.report-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.report-breadcrumb-back {
+  background: var(--pink-light);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pink-main);
+  cursor: pointer;
+}
+#reportBreadcrumbLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+/* 類別列表 */
+.report-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.report-cat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.report-cat-item:hover { background: var(--pink-light); }
+.report-cat-item.no-drill { cursor: default; }
+.report-cat-item.no-drill:hover { background: #fff; }
+
+.report-cat-emoji { font-size: 22px; flex-shrink: 0; }
+
+.report-cat-info { flex: 1; min-width: 0; }
+
+.report-cat-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.report-cat-bar-wrap {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+.report-cat-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+.expense .report-cat-bar { background: var(--red-main); }
+.income  .report-cat-bar { background: var(--green-main); }
+
+.report-cat-amount {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.report-cat-amount.expense { color: var(--red-main); }
+.report-cat-amount.income  { color: var(--green-main); }
+
+.report-cat-percent {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+.report-cat-arrow {
+  font-size: 18px;
+  color: var(--text-light);
+  flex-shrink: 0;
+}
+
+/* 明細列表（drill-down 最底層） */
+.report-record-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.report-record-date {
+  font-size: 12px;
+  color: var(--text-light);
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.report-record-note {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.report-record-amount {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.report-record-amount.expense { color: var(--red-main); }
+.report-record-amount.income  { color: var(--green-main); }
+
+/* 年統計卡片 */
+.trend-year-stats {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.trend-year-stats-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  margin-bottom: 10px;
+}
+.trend-year-stats-row {
+  display: flex;
+  gap: 0;
+}
+.trend-year-stat-item {
+  flex: 1;
+  text-align: center;
+  border-right: 1px solid var(--border);
+}
+.trend-year-stat-item:last-child { border-right: none; }
+.trend-year-stat-label {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-bottom: 4px;
+}
+.trend-year-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+}
+.trend-year-stat-val.income   { color: var(--green-main); }
+.trend-year-stat-val.expense  { color: var(--red-main); }
+.trend-year-stat-val.balance.positive { color: var(--green-main); }
+.trend-year-stat-val.balance.negative { color: var(--red-main); }
+
+/* 月份列表 */
+.trend-month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.trend-month-row {
+  background: #fff;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.trend-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trend-month-header:hover { background: var(--pink-light); }
+.trend-month-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.trend-month-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trend-month-val {
+  font-size: 14px;
+  font-weight: 700;
+}
+.trend-month-val.income   { color: var(--green-main); }
+.trend-month-val.expense  { color: var(--red-main); }
+.trend-month-val.balance.positive { color: var(--green-main); }
+.trend-month-val.balance.negative { color: var(--red-main); }
+.trend-month-arrow {
+  font-size: 18px;
+  color: var(--text-light);
+}
+.trend-month-detail {
+  border-top: 1px solid var(--border);
+  padding: 6px 0;
+}
+.trend-detail-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: 13px;
+  padding: 10px 0;
 }

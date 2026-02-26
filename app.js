@@ -1367,11 +1367,15 @@ function addInterval(dateStr, n, unit, item) {
     }
   }
 
-  return d.toISOString().slice(0, 10);
+  return toDateStr(d);
 }
 
 function toDateStr(date) {
-  return date.toISOString().slice(0, 10);
+  // 用本地時間避免 UTC 時差造成日期偏移
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function todayStr() {
@@ -3943,7 +3947,8 @@ function renderTrendMonthList(monthData) {
   recog.interimResults = false;
   recog.maxAlternatives = 1;
 
-  let listening = false;
+  let listening  = false;
+  let cancelled  = false;
 
   function showToast(msg) {
     voiceToastText.textContent = msg;
@@ -3993,35 +3998,45 @@ function renderTrendMonthList(monthData) {
   // ── 解析語音文字 ──
   function parseVoiceText(text) {
     text = text.trim();
-    const result = { type: 'expense', amount: null, categoryKeyword: '', note: '', date: null };
+    const result = { type: 'expense', amount: null, categoryKeyword: '', note: '', date: null, accountId: null };
 
     // 收入關鍵字
     if (/收入|薪水|薪資|獎金|紅包|退款|退費/.test(text)) {
       result.type = 'income';
     }
 
-    // 日期解析
+    // 日期解析（用本地時間，避免 UTC 時差）
     const today = new Date();
+    const localToday = toDateStr(today);
     if (/昨天/.test(text)) {
       const d = new Date(today); d.setDate(d.getDate() - 1);
-      result.date = d.toISOString().slice(0, 10);
+      result.date = toDateStr(d);
       text = text.replace(/昨天/, '');
     } else if (/前天/.test(text)) {
       const d = new Date(today); d.setDate(d.getDate() - 2);
-      result.date = d.toISOString().slice(0, 10);
+      result.date = toDateStr(d);
       text = text.replace(/前天/, '');
     } else if (/今天/.test(text)) {
-      result.date = today.toISOString().slice(0, 10);
+      result.date = localToday;
       text = text.replace(/今天/, '');
     } else {
-      // 幾號 / 幾月幾號
+      // 幾月幾號 / 幾號
       const dateMatch = text.match(/(\d{1,2})月(\d{1,2})號?/) || text.match(/(\d{1,2})號/);
       if (dateMatch) {
         const month = dateMatch[2] ? parseInt(dateMatch[1]) - 1 : today.getMonth();
         const day   = dateMatch[2] ? parseInt(dateMatch[2]) : parseInt(dateMatch[1]);
         const d = new Date(today.getFullYear(), month, day);
-        result.date = d.toISOString().slice(0, 10);
+        result.date = toDateStr(d);
         text = text.replace(dateMatch[0], '');
+      }
+    }
+
+    // 帳戶辨識（用帳戶名稱比對）
+    for (const acc of allAccounts) {
+      if (text.includes(acc.name)) {
+        result.accountId = acc.docId;
+        text = text.replace(acc.name, '');
+        break;
       }
     }
 
@@ -4089,6 +4104,11 @@ function renderTrendMonthList(monthData) {
       dateInput.value = parsed.date;
     }
 
+    // 帳戶
+    if (parsed.accountId) {
+      accountSelect.value = parsed.accountId;
+    }
+
     // 分類
     const found = findCategory(parsed.categoryKeyword, parsed.type);
     if (found) {
@@ -4109,11 +4129,13 @@ function renderTrendMonthList(monthData) {
   // ── 語音辨識事件 ──
   recog.onstart = () => {
     listening = true;
+    cancelled = false;
     voiceBtn.classList.add('listening');
-    showToast('聆聽中…');
+    showToast('聆聽中… 再按一次取消');
   };
 
   recog.onresult = (e) => {
+    if (cancelled) return;
     const text = e.results[0][0].transcript;
     showToast(`「${text}」`);
     setTimeout(() => {
@@ -4129,6 +4151,7 @@ function renderTrendMonthList(monthData) {
   };
 
   recog.onerror = (e) => {
+    if (cancelled) { hideToast(); return; }
     const msg = e.error === 'not-allowed' ? '請允許麥克風權限'
               : e.error === 'no-speech'   ? '沒有偵測到聲音'
               : '辨識失敗，請再試一次';
@@ -4139,11 +4162,15 @@ function renderTrendMonthList(monthData) {
   recog.onend = () => {
     listening = false;
     voiceBtn.classList.remove('listening');
+    if (cancelled) hideToast();
   };
 
   voiceBtn.addEventListener('click', () => {
     if (listening) {
+      cancelled = true;
       recog.stop();
+      showToast('已取消');
+      setTimeout(hideToast, 1200);
     } else {
       try { recog.start(); } catch { /* 已在執行中 */ }
     }

@@ -94,6 +94,113 @@ body {
   transform: scale(0.98);
 }
 
+/* ===== 訪客登入 ===== */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 16px;
+  color: var(--text-light);
+  font-size: 13px;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--pink-mid);
+}
+.guest-login-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 登入 / 註冊 tab */
+.guest-mode-tabs {
+  display: flex;
+  background: var(--pink-light);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+}
+.guest-mode-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  padding: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.guest-mode-tab.active {
+  background: var(--white);
+  color: var(--pink-main);
+  box-shadow: 0 1px 4px rgba(74,144,226,0.15);
+}
+/* 欄位群組 */
+.guest-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.guest-name-input {
+  width: 100%;
+  border: 1.5px solid var(--pink-mid);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 15px;
+  color: var(--text-dark);
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.guest-name-input:focus {
+  border-color: var(--pink-main);
+}
+.guest-name-input::placeholder {
+  color: var(--text-light);
+}
+.guest-login-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.guest-login-btn:active {
+  opacity: 0.85;
+  transform: scale(0.97);
+}
+.guest-login-warn {
+  font-size: 12px;
+  color: var(--red-main);
+  min-height: 16px;
+  text-align: center;
+}
+.guest-login-hint {
+  font-size: 12px;
+  color: var(--text-light);
+  text-align: center;
+  line-height: 1.5;
+}
+/* 訪客標示（header 右側） */
+.guest-badge {
+  font-size: 12px;
+  color: var(--text-light);
+  background: var(--pink-light);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-weight: 500;
+}
+
 /* ===== 頂部標題 ===== */
 .app-header {
   background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);

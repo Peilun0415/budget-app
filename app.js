@@ -3,8 +3,11 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  updateProfile
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore,
@@ -163,9 +166,16 @@ let detailRangeEnd   = '';
 // ===== DOM — 通用 =====
 const loginScreen    = document.getElementById('loginScreen');
 const appScreen      = document.getElementById('appScreen');
-const googleLoginBtn = document.getElementById('googleLoginBtn');
-const logoutBtn      = document.getElementById('logoutBtn');
-const userAvatar     = document.getElementById('userAvatar');
+const googleLoginBtn  = document.getElementById('googleLoginBtn');
+const logoutBtn       = document.getElementById('logoutBtn');
+const userAvatar      = document.getElementById('userAvatar');
+const guestLoginBtn   = document.getElementById('guestLoginBtn');
+const guestNameInput  = document.getElementById('guestNameInput');
+const guestPassInput  = document.getElementById('guestPassInput');
+const guestLoginWarn  = document.getElementById('guestLoginWarn');
+const guestTabLogin   = document.getElementById('guestTabLogin');
+const guestTabRegister = document.getElementById('guestTabRegister');
+let   guestMode       = 'login'; // 'login' | 'register'
 const pageTitle      = document.getElementById('pageTitle');
 const pageHome       = document.getElementById('pageHome');
 const pageAccounts   = document.getElementById('pageAccounts');
@@ -384,17 +394,94 @@ logoutBtn.addEventListener('click', async () => {
   if (confirm('確定要登出嗎？')) await signOut(auth);
 });
 
+// ===== 訪客登入（暱稱 + 密碼）=====
+guestTabLogin.addEventListener('click', () => setGuestMode('login'));
+guestTabRegister.addEventListener('click', () => setGuestMode('register'));
+
+function setGuestMode(mode) {
+  guestMode = mode;
+  guestTabLogin.classList.toggle('active', mode === 'login');
+  guestTabRegister.classList.toggle('active', mode === 'register');
+  guestLoginBtn.textContent = mode === 'login' ? '登入' : '註冊';
+  guestLoginWarn.textContent = '';
+}
+
+guestLoginBtn.addEventListener('click', () => doGuestAuth());
+guestPassInput.addEventListener('keydown', e => { if (e.key === 'Enter') doGuestAuth(); });
+
+async function doGuestAuth() {
+  const name = guestNameInput.value.trim();
+  const pass = guestPassInput.value;
+
+  if (!name) {
+    guestLoginWarn.textContent = '請輸入暱稱';
+    guestNameInput.focus();
+    return;
+  }
+  if (pass.length < 6) {
+    guestLoginWarn.textContent = '密碼至少需要 6 位';
+    guestPassInput.focus();
+    return;
+  }
+
+  // 暱稱轉成合法 email 格式
+  const email = `${encodeURIComponent(name).toLowerCase()}@guest.app`;
+  guestLoginWarn.textContent = '';
+  guestLoginBtn.disabled = true;
+  guestLoginBtn.textContent = guestMode === 'login' ? '登入中...' : '註冊中...';
+
+  try {
+    if (guestMode === 'register') {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      await updateProfile(cred.user, { displayName: name });
+    } else {
+      await signInWithEmailAndPassword(auth, email, pass);
+    }
+  } catch (err) {
+    console.error(err);
+    const code = err.code;
+    if (code === 'auth/email-already-in-use') {
+      guestLoginWarn.textContent = '此暱稱已被註冊，請直接登入或換一個暱稱';
+    } else if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      guestLoginWarn.textContent = '暱稱或密碼錯誤，或尚未註冊';
+    } else if (code === 'auth/wrong-password') {
+      guestLoginWarn.textContent = '密碼錯誤';
+    } else {
+      guestLoginWarn.textContent = `登入失敗（${code}）`;
+    }
+  } finally {
+    guestLoginBtn.disabled = false;
+    guestLoginBtn.textContent = guestMode === 'login' ? '登入' : '註冊';
+  }
+}
+
 function showLogin() {
   loginScreen.style.display = 'flex';
   appScreen.style.display   = 'none';
+  guestNameInput.value = '';
+  guestPassInput.value = '';
+  guestLoginWarn.textContent = '';
+  setGuestMode('login');
 }
 
 function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
-  if (user.photoURL) {
-    userAvatar.src = user.photoURL;
-    userAvatar.classList.add('visible');
+  // 暱稱登入用戶（非 Google）：顯示暱稱徽章
+  const isNickname = !user.photoURL && user.displayName;
+  document.getElementById('guestBadge')?.remove();
+  if (isNickname) {
+    userAvatar.classList.remove('visible');
+    const badge = document.createElement('span');
+    badge.id = 'guestBadge';
+    badge.className = 'guest-badge';
+    badge.textContent = user.displayName;
+    logoutBtn.insertAdjacentElement('beforebegin', badge);
+  } else {
+    if (user.photoURL) {
+      userAvatar.src = user.photoURL;
+      userAvatar.classList.add('visible');
+    }
   }
 }
 

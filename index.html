@@ -40,7 +40,7 @@
       <!-- 月份導覽 -->
       <div class="month-nav-bar">
         <button class="month-btn" id="prevMonth">‹</button>
-        <span id="currentMonthLabel">2026年2月</span>
+        <span id="currentMonthLabel"></span>
         <button class="month-btn" id="nextMonth">›</button>
       </div>
 
@@ -159,7 +159,7 @@
         <!-- 月份模式 -->
         <div class="detail-month-nav" id="detailMonthNav">
           <button class="month-btn" id="detailPrevMonth">‹</button>
-          <span id="detailMonthLabel">2026年2月</span>
+          <span id="detailMonthLabel"></span>
           <button class="month-btn" id="detailNextMonth">›</button>
         </div>
 
@@ -202,11 +202,11 @@
 
   </div><!-- /app-screen -->
 
-  <!-- 新增記帳彈窗 -->
+  <!-- 新增/編輯記帳彈窗 -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
       <div class="modal-header">
-        <h2>新增記帳</h2>
+        <h2 id="recordModalTitle">新增記帳</h2>
         <button class="close-btn" id="closeFormBtn">✕</button>
       </div>
 
@@ -218,9 +218,40 @@
       <form id="recordForm">
         <div class="form-group">
           <label for="amount">金額</label>
-          <div class="amount-input-wrap">
+          <div class="amount-input-wrap" id="amountInputWrap">
             <span class="currency-sign">$</span>
-            <input type="number" id="amount" placeholder="0" min="0" inputmode="decimal" required />
+            <input type="text" id="amount" placeholder="0" inputmode="none" required />
+            <button type="button" class="calc-toggle-btn" id="calcToggleBtn">🔢</button>
+          </div>
+          <!-- 計算機顯示列 -->
+          <div class="calc-expression" id="calcExpression"></div>
+          <!-- 計算機鍵盤 -->
+          <div class="calc-keyboard" id="calcKeyboard" style="display:none">
+            <div class="calc-grid">
+              <button type="button" class="calc-btn calc-fn" data-action="clear">C</button>
+              <button type="button" class="calc-btn calc-fn" data-action="backspace">⌫</button>
+              <button type="button" class="calc-btn calc-op" data-val="%">%</button>
+              <button type="button" class="calc-btn calc-op" data-val="÷">÷</button>
+
+              <button type="button" class="calc-btn" data-val="7">7</button>
+              <button type="button" class="calc-btn" data-val="8">8</button>
+              <button type="button" class="calc-btn" data-val="9">9</button>
+              <button type="button" class="calc-btn calc-op" data-val="×">×</button>
+
+              <button type="button" class="calc-btn" data-val="4">4</button>
+              <button type="button" class="calc-btn" data-val="5">5</button>
+              <button type="button" class="calc-btn" data-val="6">6</button>
+              <button type="button" class="calc-btn calc-op" data-val="-">−</button>
+
+              <button type="button" class="calc-btn" data-val="1">1</button>
+              <button type="button" class="calc-btn" data-val="2">2</button>
+              <button type="button" class="calc-btn" data-val="3">3</button>
+              <button type="button" class="calc-btn calc-op" data-val="+">+</button>
+
+              <button type="button" class="calc-btn" data-val="0">0</button>
+              <button type="button" class="calc-btn" data-val=".">.</button>
+              <button type="button" class="calc-btn calc-eq" data-action="equal" colspan="2">=</button>
+            </div>
           </div>
         </div>
 
@@ -233,7 +264,6 @@
         <div class="form-group">
           <label for="accountSelect">帳戶</label>
           <select id="accountSelect" class="form-select">
-            <option value="">— 不指定帳戶 —</option>
           </select>
         </div>
 
@@ -247,7 +277,11 @@
           <input type="text" id="note" placeholder="例：午餐、薪水..." maxlength="30" />
         </div>
 
-        <button type="submit" class="submit-btn" id="submitBtn">記下來！</button>
+        <input type="hidden" id="recordEditId" value="" />
+        <div class="form-action-row">
+          <button type="submit" class="submit-btn" id="submitBtn">記下來！</button>
+          <button type="button" class="delete-record-btn" id="deleteRecordBtn" style="display:none">刪除</button>
+        </div>
       </form>
     </div>
   </div>

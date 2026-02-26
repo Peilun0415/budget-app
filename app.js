@@ -98,14 +98,20 @@ const navHome        = document.getElementById('navHome');
 const navAccountsBtn = document.getElementById('navAccounts');
 
 // ===== DOM — 記帳 =====
-const modalOverlay  = document.getElementById('modalOverlay');
+const modalOverlay      = document.getElementById('modalOverlay');
+const recordModalTitle  = document.getElementById('recordModalTitle');
+const recordEditId      = document.getElementById('recordEditId');
+const deleteRecordBtn   = document.getElementById('deleteRecordBtn');
 const openFormBtn   = document.getElementById('openFormBtn');
 const closeFormBtn  = document.getElementById('closeFormBtn');
 const recordForm    = document.getElementById('recordForm');
 const btnExpense    = document.getElementById('btnExpense');
 const btnIncome     = document.getElementById('btnIncome');
 const categoryGrid  = document.getElementById('categoryGrid');
-const amountInput   = document.getElementById('amount');
+const amountInput      = document.getElementById('amount');
+const calcToggleBtn    = document.getElementById('calcToggleBtn');
+const calcKeyboard     = document.getElementById('calcKeyboard');
+const calcExpressionEl = document.getElementById('calcExpression');
 const dateInput     = document.getElementById('date');
 const noteInput     = document.getElementById('note');
 const submitBtn     = document.getElementById('submitBtn');
@@ -313,14 +319,11 @@ function renderAccountDetail(account) {
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    const header = document.createElement('div');
-    header.className = 'date-group-header';
-    header.textContent = formatDateDisplay(date);
-    accountDetailList.appendChild(header);
+    accountDetailList.appendChild(buildDateHeader(date, groups[date]));
 
     groups[date].forEach(r => {
       const item = document.createElement('div');
-      item.className = 'record-item';
+      item.className = 'record-item record-item-clickable';
       item.innerHTML = `
         <div class="record-cat-icon ${r.type}-icon">${r.categoryEmoji}</div>
         <div class="record-info">
@@ -329,12 +332,10 @@ function renderAccountDetail(account) {
         </div>
         <div class="record-right">
           <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
-          <button class="delete-btn" title="刪除">🗑</button>
+          <span class="record-edit-hint">›</span>
         </div>
       `;
-      item.querySelector('.delete-btn').addEventListener('click', () => {
-        if (confirm('確定要刪除這筆記錄嗎？')) deleteRecord(r.docId);
-      });
+      item.addEventListener('click', () => openModal(r));
       accountDetailList.appendChild(item);
     });
   });
@@ -430,7 +431,8 @@ function subscribeAccounts() {
     orderBy('createdAt', 'asc')
   );
   unsubAccounts = onSnapshot(q, (snap) => {
-    allAccounts = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    allAccounts = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     renderAccountList();
     renderAccountSelect();
     // 若目前在帳戶明細頁，即時更新
@@ -453,16 +455,47 @@ function changeMonth(delta) {
 }
 
 // ===== 記帳彈窗 =====
-openFormBtn.addEventListener('click', openModal);
+openFormBtn.addEventListener('click', () => openModal());
 closeFormBtn.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
-function openModal() {
+deleteRecordBtn.addEventListener('click', async () => {
+  const editId = recordEditId.value;
+  if (!editId) return;
+  if (confirm('確定要刪除這筆記錄嗎？')) {
+    await deleteRecord(editId);
+    closeModal();
+  }
+});
+
+function openModal(record = null) {
+  if (record) {
+    recordEditId.value = record.docId;
+    recordModalTitle.textContent = '編輯記帳';
+    submitBtn.textContent = '儲存修改';
+    deleteRecordBtn.style.display = 'block';
+    switchType(record.type);
+    selectedCategory = record.categoryId;
+    renderCategoryGrid();
+    calcExpr = String(record.amount);
+    calcRaw  = String(record.amount);
+    amountInput.value   = calcExpr;
+    dateInput.value     = record.date;
+    noteInput.value     = record.note || '';
+    accountSelect.value = record.accountId || '';
+  } else {
+    recordEditId.value = '';
+    recordModalTitle.textContent = '新增記帳';
+    submitBtn.textContent = '記下來！';
+    deleteRecordBtn.style.display = 'none';
+  }
   modalOverlay.classList.add('active');
   setTimeout(() => amountInput.focus(), 300);
 }
+
 function closeModal() {
   modalOverlay.classList.remove('active');
+  resetForm();
 }
 
 // ===== 切換收入/支出 =====
@@ -492,14 +525,19 @@ function renderCategoryGrid() {
 // ===== 帳戶下拉選單（記帳表單用）=====
 function renderAccountSelect() {
   const prev = accountSelect.value;
-  accountSelect.innerHTML = '<option value="">— 不指定帳戶 —</option>';
   allAccounts.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.docId;
     opt.textContent = `${a.emoji} ${a.name}`;
     accountSelect.appendChild(opt);
   });
-  if (prev) accountSelect.value = prev;
+  if (prev) {
+    // 編輯模式：還原原本選的帳戶
+    accountSelect.value = prev;
+  } else if (!recordEditId.value && allAccounts.length > 0) {
+    // 新增模式：預設選第一個帳戶
+    accountSelect.value = allAccounts[0].docId;
+  }
 }
 
 // ===== 日期 =====
@@ -516,22 +554,30 @@ function formatDateDisplay(dateStr) {
   return `${parseInt(m)}月${parseInt(d)}日`;
 }
 
-// ===== 提交記帳 =====
+// ===== 提交記帳（新增 / 編輯）=====
 recordForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const amount = parseFloat(amountInput.value);
+  // 若算式尚未按 =，擋住儲存
+  if (/[+\-*/]/.test(calcRaw)) {
+    calcExpressionEl.textContent = '請先按 = 完成計算';
+    calcExpressionEl.style.color = 'var(--red-main)';
+    shakeEl(amountInput.parentElement);
+    return;
+  }
+  calcExpressionEl.style.color = '';
+  const amount = parseFloat(calcRaw) || parseFloat(amountInput.value);
   if (!amount || amount <= 0) { shakeEl(amountInput.parentElement); return; }
   if (!selectedCategory)      { shakeEl(categoryGrid); return; }
 
-  const cat = CATEGORIES[currentType].find(c => c.id === selectedCategory);
+  const cat      = CATEGORIES[currentType].find(c => c.id === selectedCategory);
   const selAccId = accountSelect.value;
   const selAcc   = allAccounts.find(a => a.docId === selAccId);
+  const editId   = recordEditId.value;
 
   submitBtn.disabled = true;
   submitBtn.textContent = '儲存中...';
   try {
-    await addDoc(collection(db, 'records'), {
-      uid:           currentUser.uid,
+    const data = {
       type:          currentType,
       amount,
       categoryId:    selectedCategory,
@@ -541,29 +587,40 @@ recordForm.addEventListener('submit', async (e) => {
       accountName:   selAcc ? selAcc.name : null,
       date:          dateInput.value,
       note:          noteInput.value.trim(),
-      createdAt:     serverTimestamp(),
-    });
-    resetForm();
+    };
+    if (editId) {
+      await updateDoc(doc(db, 'records', editId), data);
+    } else {
+      await addDoc(collection(db, 'records'), {
+        uid: currentUser.uid,
+        ...data,
+        createdAt: serverTimestamp(),
+      });
+    }
     closeModal();
   } catch (err) {
     console.error(err);
     alert('儲存失敗，請確認網路連線');
   } finally {
     submitBtn.disabled = false;
-    submitBtn.textContent = '記下來！';
+    submitBtn.textContent = editId ? '儲存修改' : '記下來！';
   }
 });
 
 function resetForm() {
-  amountInput.value = '';
-  noteInput.value   = '';
-  accountSelect.value = '';
-  selectedCategory  = null;
-  currentType       = 'expense';
+  recordEditId.value  = '';
+  amountInput.value   = '';
+  noteInput.value     = '';
+  accountSelect.value = allAccounts.length > 0 ? allAccounts[0].docId : '';
+  selectedCategory    = null;
+  currentType         = 'expense';
   btnExpense.classList.add('active');
   btnIncome.classList.remove('active');
+  recordModalTitle.textContent = '新增記帳';
+  submitBtn.textContent = '記下來！';
   setDefaultDate();
   renderCategoryGrid();
+  resetCalc();
 }
 
 async function deleteRecord(docId) {
@@ -632,12 +689,14 @@ accountForm.addEventListener('submit', async (e) => {
         name, balance, note,
       });
     } else {
+      const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
       await addDoc(collection(db, 'accounts'), {
         uid:      currentUser.uid,
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
         name, balance, note,
+        order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });
     }
@@ -727,8 +786,9 @@ function renderAccountList() {
 
       const item = document.createElement('div');
       item.className = 'account-item';
-      item.style.cursor = 'pointer';
+      item.dataset.docId = a.docId;
       item.innerHTML = `
+        <span class="drag-handle" title="拖曳排序">⠿</span>
         <div class="account-type-icon">${a.emoji}</div>
         <div class="account-info">
           <div class="account-name">${a.name}</div>
@@ -743,7 +803,7 @@ function renderAccountList() {
         </div>
       `;
       item.addEventListener('click', (e) => {
-        if (!e.target.closest('.account-actions')) openAccountDetail(a);
+        if (!e.target.closest('.account-actions') && !e.target.closest('.drag-handle')) openAccountDetail(a);
       });
       item.querySelector('.edit-btn').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -753,6 +813,7 @@ function renderAccountList() {
         e.stopPropagation();
         if (confirm(`確定要刪除「${a.name}」嗎？`)) deleteAccount(a.docId);
       });
+      initDragHandle(item, item.querySelector('.drag-handle'));
       accountList.appendChild(item);
     });
   });
@@ -803,14 +864,11 @@ function renderList() {
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    const header = document.createElement('div');
-    header.className = 'date-group-header';
-    header.textContent = formatDateDisplay(date);
-    recordList.appendChild(header);
+    recordList.appendChild(buildDateHeader(date, groups[date]));
 
     groups[date].forEach(r => {
       const item = document.createElement('div');
-      item.className = 'record-item';
+      item.className = 'record-item record-item-clickable';
       const metaText = [r.accountName, r.note].filter(Boolean).join(' · ') || '無備註';
       item.innerHTML = `
         <div class="record-cat-icon ${r.type}-icon">${r.categoryEmoji}</div>
@@ -820,12 +878,10 @@ function renderList() {
         </div>
         <div class="record-right">
           <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
-          <button class="delete-btn" title="刪除">🗑</button>
+          <span class="record-edit-hint">›</span>
         </div>
       `;
-      item.querySelector('.delete-btn').addEventListener('click', () => {
-        if (confirm('確定要刪除這筆記錄嗎？')) deleteRecord(r.docId);
-      });
+      item.addEventListener('click', () => openModal(r));
       recordList.appendChild(item);
     });
   });
@@ -833,6 +889,33 @@ function renderList() {
 
 function formatMoney(n) {
   return n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+}
+
+// ===== 建立日期分組標題（含當日小計）=====
+function buildDateHeader(date, dayRecs) {
+  const inc = dayRecs.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
+  const exp = dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+
+  const header = document.createElement('div');
+  header.className = 'date-group-header';
+
+  const dateSpan = document.createElement('span');
+  dateSpan.textContent = formatDateDisplay(date);
+
+  const summarySpan = document.createElement('span');
+  summarySpan.className = 'date-group-summary';
+
+  const net = inc - exp;
+  const netText = net === 0
+    ? `$0`
+    : net > 0
+      ? `+$${formatMoney(net)}`
+      : `-$${formatMoney(Math.abs(net))}`;
+  summarySpan.innerHTML = `<span class="${net >= 0 ? 'dgs-income' : 'dgs-expense'}">${netText}</span>`;
+
+  header.appendChild(dateSpan);
+  header.appendChild(summarySpan);
+  return header;
 }
 
 function shakeEl(el) {
@@ -853,6 +936,216 @@ shakeStyle.textContent = `
   }
 `;
 document.head.appendChild(shakeStyle);
+
+// ===== 帳戶拖曳排序 =====
+let dragSrcItem = null;
+
+function initDragHandle(item, handle) {
+  // --- Mouse（電腦）---
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragSrcItem = item;
+    item.classList.add('dragging');
+
+    const onMouseMove = (e) => {
+      const target = getAccountItemAt(e.clientX, e.clientY);
+      highlightDragOver(target);
+    };
+    const onMouseUp = (e) => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      const target = getAccountItemAt(e.clientX, e.clientY);
+      finishDrag(target);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+
+  // --- Touch（手機）---
+  handle.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    dragSrcItem = item;
+    item.classList.add('dragging');
+
+    const onTouchMove = (e) => {
+      const t = e.touches[0];
+      const target = getAccountItemAt(t.clientX, t.clientY);
+      highlightDragOver(target);
+    };
+    const onTouchEnd = (e) => {
+      handle.removeEventListener('touchmove', onTouchMove);
+      handle.removeEventListener('touchend', onTouchEnd);
+      const t = e.changedTouches[0];
+      const target = getAccountItemAt(t.clientX, t.clientY);
+      finishDrag(target);
+    };
+    handle.addEventListener('touchmove', onTouchMove, { passive: false });
+    handle.addEventListener('touchend', onTouchEnd);
+  }, { passive: false });
+}
+
+function getAccountItemAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('.account-item') : null;
+}
+
+function highlightDragOver(target) {
+  document.querySelectorAll('.account-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (target && target !== dragSrcItem) target.classList.add('drag-over');
+}
+
+async function finishDrag(target) {
+  document.querySelectorAll('.account-item').forEach(el => {
+    el.classList.remove('dragging', 'drag-over');
+  });
+  if (!target || target === dragSrcItem || !dragSrcItem) { dragSrcItem = null; return; }
+
+  // 取得目前畫面上所有帳戶卡片的 docId 順序
+  const items = [...accountList.querySelectorAll('.account-item')];
+  const srcIdx = items.indexOf(dragSrcItem);
+  const dstIdx = items.indexOf(target);
+  if (srcIdx === -1 || dstIdx === -1) { dragSrcItem = null; return; }
+
+  // 重排陣列
+  const ordered = [...allAccounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const [moved] = ordered.splice(srcIdx, 1);
+  ordered.splice(dstIdx, 0, moved);
+
+  dragSrcItem = null;
+
+  // 批次寫入新 order
+  try {
+    await Promise.all(ordered.map((a, i) =>
+      updateDoc(doc(db, 'accounts', a.docId), { order: i })
+    ));
+  } catch (err) { console.error(err); }
+}
+
+// ===== 計算機 =====
+let calcExpr = '';   // 目前算式字串（用於顯示）
+let calcRaw  = '';   // 實際運算用字串（÷→/ ×→* −→-）
+
+function calcSymbolToOp(sym) {
+  if (sym === '÷') return '/';
+  if (sym === '×') return '*';
+  if (sym === '−') return '-';
+  return sym;
+}
+
+function updateCalcDisplay() {
+  amountInput.value   = calcExpr || '';
+  calcExpressionEl.textContent = '';
+}
+
+function calcAppend(val) {
+  // 只允許數字、小數點、運算符
+  if (!/^[0-9+\-−×÷%.]+$/.test(val)) return;
+  // 防止連續輸入兩個運算符
+  const ops = ['+', '−', '×', '÷', '%'];
+  const lastChar = calcExpr.slice(-1);
+  if (ops.includes(val) && ops.includes(lastChar)) {
+    calcExpr = calcExpr.slice(0, -1);
+    calcRaw  = calcRaw.slice(-1) === calcSymbolToOp(lastChar) ? calcRaw.slice(0, -1) : calcRaw;
+  }
+  // 防止多個小數點
+  if (val === '.') {
+    const parts = calcExpr.split(/[+\-×÷%]/);
+    if (parts[parts.length - 1].includes('.')) return;
+  }
+  calcExpr += val;
+  calcRaw  += calcSymbolToOp(val);
+  updateCalcDisplay();
+}
+
+function calcEqual() {
+  if (!calcRaw) return;
+  try {
+    // 處理 % 運算：把 "數字%" 轉成 "數字/100"
+    const expr = calcRaw.replace(/(\d+\.?\d*)%/g, '($1/100)');
+    const result = Function('"use strict"; return (' + expr + ')')();
+    if (!isFinite(result)) { calcClear(); return; }
+    const rounded = Math.round(result * 100) / 100;
+    calcExpressionEl.textContent = calcExpr + ' =';
+    calcExpr = String(rounded);
+    calcRaw  = String(rounded);
+    amountInput.value = calcExpr;
+  } catch {
+    calcExpressionEl.textContent = '格式錯誤';
+    calcExpr = '';
+    calcRaw  = '';
+    amountInput.value = '';
+  }
+}
+
+function calcBackspace() {
+  if (!calcExpr) return;
+  const lastSym = calcExpr.slice(-1);
+  calcExpr = calcExpr.slice(0, -1);
+  const lastOp = calcRaw.slice(-1);
+  // 如果 raw 最後一個字元對應的是符號，一起移除
+  if (calcSymbolToOp(lastSym) === lastOp || lastSym === lastOp) {
+    calcRaw = calcRaw.slice(0, -1);
+  }
+  updateCalcDisplay();
+}
+
+function calcClear() {
+  calcExpr = '';
+  calcRaw  = '';
+  calcExpressionEl.textContent = '';
+  amountInput.value = '';
+}
+
+// 電腦鍵盤輸入攔截
+amountInput.addEventListener('keydown', (e) => {
+  e.preventDefault();
+  const key = e.key;
+  if (/^[0-9]$/.test(key))         calcAppend(key);
+  else if (key === '.')             calcAppend('.');
+  else if (key === '+')             calcAppend('+');
+  else if (key === '-')             calcAppend('−');
+  else if (key === '*')             calcAppend('×');
+  else if (key === '/')             calcAppend('÷');
+  else if (key === '%')             calcAppend('%');
+  else if (key === 'Enter' || key === '=') calcEqual();
+  else if (key === 'Backspace')     calcBackspace();
+  else if (key === 'Escape' || key === 'Delete') calcClear();
+});
+
+// 防止貼上、語音輸入等繞過 keydown 的輸入
+amountInput.addEventListener('paste', (e) => e.preventDefault());
+amountInput.addEventListener('input', () => {
+  // 強制還原成 calcExpr（不允許任何外部修改）
+  amountInput.value = calcExpr || '';
+});
+
+// 切換計算機顯示
+calcToggleBtn.addEventListener('click', () => {
+  const isOpen = calcKeyboard.style.display !== 'none';
+  calcKeyboard.style.display = isOpen ? 'none' : 'grid';
+  calcToggleBtn.classList.toggle('active', !isOpen);
+});
+
+// 鍵盤按鈕事件
+calcKeyboard.addEventListener('click', (e) => {
+  const btn = e.target.closest('.calc-btn');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const val    = btn.dataset.val;
+  if (action === 'clear')     calcClear();
+  else if (action === 'backspace') calcBackspace();
+  else if (action === 'equal')     calcEqual();
+  else if (val)               calcAppend(val);
+});
+
+// 重設計算機狀態（在 resetForm 時呼叫）
+function resetCalc() {
+  calcExpr = '';
+  calcRaw  = '';
+  calcExpressionEl.textContent = '';
+  calcKeyboard.style.display = 'none';
+  calcToggleBtn.classList.remove('active');
+}
 
 // ===== 初始化 =====
 setDefaultDate();

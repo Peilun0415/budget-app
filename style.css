@@ -507,11 +507,15 @@ body {
   text-overflow: ellipsis;
   max-width: 90%;
 }
-.tank-spent {
+.tank-remain {
   font-size: 14px;
   font-weight: 800;
   line-height: 1.2;
+  color: var(--text-dark);
   text-shadow: 0 1px 3px rgba(255,255,255,0.6);
+}
+.tank-remain.over {
+  color: var(--red-main);
 }
 .tank-limit {
   font-size: 10px;
@@ -1080,6 +1084,8 @@ body {
 input[type="date"],
 input[type="text"] {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   background: var(--pink-light);
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
@@ -1089,6 +1095,8 @@ input[type="text"] {
   outline: none;
   transition: border-color 0.2s;
   font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 input[type="date"]:focus,
@@ -1786,6 +1794,10 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 
 .range-date-input {
   flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
   background: var(--pink-light);
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
@@ -2791,11 +2803,39 @@ input.form-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 12px 16px 8px;
+  gap: 6px;
+  padding: 4px 16px 10px;
+}
+
+.report-period-bar .month-btn {
+  width: 28px;
+  height: 28px;
   font-size: 16px;
+  border-radius: 50%;
+  background: var(--pink-light);
+  color: var(--pink-main);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.report-period-bar .month-btn:active {
+  background: var(--pink-mid);
+}
+
+.report-period-bar span {
+  background: var(--pink-light);
+  color: var(--pink-dark);
+  font-size: 13px;
   font-weight: 700;
-  color: var(--text-dark);
+  padding: 5px 14px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+  min-width: 90px;
+  text-align: center;
 }
 
 .report-tabs {
@@ -2829,27 +2869,46 @@ input.form-input {
   padding: 0 16px;
 }
 
-.report-type-toggle {
+.report-ctrl-bar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
-.report-type-btn {
-  flex: 1;
-  padding: 8px 0;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
+
+.report-pill-group {
+  display: flex;
+  background: var(--pink-light);
+  border-radius: 99px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.report-pill {
+  border: none;
+  border-radius: 99px;
+  background: transparent;
   color: var(--text-mid);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
+  padding: 4px 12px;
   cursor: pointer;
   transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
 }
-.report-type-btn.active {
-  background: var(--pink-main);
-  border-color: var(--pink-main);
-  color: #fff;
+
+.report-pill.active {
+  background: var(--white);
+  color: var(--pink-main);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* 主要切換群組（支出/收入/結餘）大一點 */
+.report-pill-group--main .report-pill {
+  font-size: 14px;
+  padding: 6px 16px;
 }
 
 .report-chart-wrap {

@@ -2882,10 +2882,14 @@ function renderHomeBudget() {
   // 水位卡片產生器
   function makeTankCard(opts) {
     const { icon, label, spent, limit, pct, over, wide } = opts;
-    const fillPct   = Math.min(pct, 100);
-    const statusTxt = over
+    const fillPct    = Math.min(pct, 100);
+    const remaining  = limit - spent;
+    const statusTxt  = over
       ? `<span class="tank-status-over">超支 $${formatMoney(spent - limit)}</span>`
       : `<span class="tank-status-pct">${pct}%</span>`;
+    const remainTxt  = over
+      ? `<div class="tank-remain over">超支 $${formatMoney(spent - limit)}</div>`
+      : `<div class="tank-remain">剩 $${formatMoney(remaining)}</div>`;
     return `
       <div class="hb-tank-card${wide ? ' hb-tank-wide' : ''}">
         <div class="tank-status">${statusTxt}</div>
@@ -2894,7 +2898,7 @@ function renderHomeBudget() {
           <div class="tank-content">
             <div class="tank-icon">${icon}</div>
             <div class="tank-label">${label}</div>
-            <div class="tank-spent">$${formatMoney(spent)}</div>
+            ${remainTxt}
             <div class="tank-limit">/ $${formatMoney(limit)}</div>
           </div>
         </div>
@@ -3436,6 +3440,11 @@ const reportCategoryList = document.getElementById('reportCategoryList');
 const categoryChartEmpty = document.getElementById('categoryChartEmpty');
 const catViewBtnMonth    = document.getElementById('catViewBtnMonth');
 const catViewBtnYear     = document.getElementById('catViewBtnYear');
+const reportPeriodBarCat = document.getElementById('reportPeriodBarCat');
+const trendYearNav       = document.getElementById('trendYearNav');
+const trendYearLabel     = document.getElementById('trendYearLabel');
+const trendPrevYearBtn   = document.getElementById('trendPrevYear');
+const trendNextYearBtn   = document.getElementById('trendNextYear');
 const trendMetaBtnExpense = document.getElementById('trendMetaBtnExpense');
 const trendMetaBtnIncome  = document.getElementById('trendMetaBtnIncome');
 const trendMetaBtnBalance = document.getElementById('trendMetaBtnBalance');
@@ -3481,6 +3490,10 @@ reportNextMonth.addEventListener('click', () => {
     renderReportTrend();
   });
 });
+
+// 趨勢年份切換
+trendPrevYearBtn.addEventListener('click', () => { reportYear--; renderReport(); });
+trendNextYearBtn.addEventListener('click', () => { reportYear++; renderReport(); });
 
 // Tab 切換
 document.querySelectorAll('.report-tab').forEach(btn => {
@@ -3549,6 +3562,15 @@ function renderReport() {
     reportMonthLabel.textContent = `${reportYear} 年`;
   } else {
     reportMonthLabel.textContent = `${reportYear} 年 ${reportMonth + 1} 月`;
+  }
+  // 月份列只在類別分析 Tab 顯示
+  if (reportPeriodBarCat) {
+    reportPeriodBarCat.style.display = reportTab === 'category' ? '' : 'none';
+  }
+  // 年份列只在趨勢 Tab 顯示
+  if (trendYearNav) {
+    trendYearNav.style.display = reportTab === 'trend' ? '' : 'none';
+    trendYearLabel.textContent = `${reportYear} 年`;
   }
   if (reportTab === 'category') renderReportCategory();
   else renderReportTrend();

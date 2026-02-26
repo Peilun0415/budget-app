@@ -424,12 +424,6 @@
 
     <!-- ===== 報表頁面 ===== -->
     <div id="pageReport" style="display:none">
-      <!-- 月份選擇 -->
-      <div class="report-period-bar">
-        <button class="month-btn" id="reportPrevMonth">‹</button>
-        <span id="reportMonthLabel"></span>
-        <button class="month-btn" id="reportNextMonth">›</button>
-      </div>
 
       <!-- Tab 切換 -->
       <div class="report-tabs">
@@ -439,15 +433,22 @@
 
       <!-- ===== 類別分析 Tab ===== -->
       <div id="reportTabCategory" class="report-tab-content">
-        <!-- 支出/收入切換 -->
-        <div class="report-type-toggle">
-          <button class="report-type-btn active" id="reportTypeBtnExpense">支出</button>
-          <button class="report-type-btn" id="reportTypeBtnIncome">收入</button>
+        <!-- 支出/收入 + 月/年切換（同一列） -->
+        <div class="report-ctrl-bar">
+          <div class="report-pill-group report-pill-group--main">
+            <button class="report-pill active" id="reportTypeBtnExpense">支出</button>
+            <button class="report-pill" id="reportTypeBtnIncome">收入</button>
+          </div>
+          <div class="report-pill-group">
+            <button class="report-pill active" id="catViewBtnMonth">月</button>
+            <button class="report-pill" id="catViewBtnYear">年</button>
+          </div>
         </div>
-        <!-- 月/年切換 -->
-        <div class="report-type-toggle" style="margin-bottom:12px">
-          <button class="report-type-btn active" id="catViewBtnMonth">月</button>
-          <button class="report-type-btn" id="catViewBtnYear">年</button>
+        <!-- 月份選擇 -->
+        <div class="report-period-bar" id="reportPeriodBarCat">
+          <button class="month-btn" id="reportPrevMonth">‹</button>
+          <span id="reportMonthLabel"></span>
+          <button class="month-btn" id="reportNextMonth">›</button>
         </div>
         <!-- 圓餅圖 -->
         <div class="report-chart-wrap">
@@ -466,10 +467,18 @@
       <!-- ===== 收支趨勢 Tab ===== -->
       <div id="reportTabTrend" class="report-tab-content" style="display:none">
         <!-- 支出/收入/結餘切換 -->
-        <div class="report-type-toggle" style="margin-bottom:12px">
-          <button class="report-type-btn active" id="trendMetaBtnExpense">支出</button>
-          <button class="report-type-btn" id="trendMetaBtnIncome">收入</button>
-          <button class="report-type-btn" id="trendMetaBtnBalance">結餘</button>
+        <div class="report-ctrl-bar">
+          <div class="report-pill-group report-pill-group--main">
+            <button class="report-pill active" id="trendMetaBtnExpense">支出</button>
+            <button class="report-pill" id="trendMetaBtnIncome">收入</button>
+            <button class="report-pill" id="trendMetaBtnBalance">結餘</button>
+          </div>
+        </div>
+        <!-- 年份切換 -->
+        <div class="report-period-bar" id="trendYearNav">
+          <button class="month-btn" id="trendPrevYear">‹</button>
+          <span id="trendYearLabel"></span>
+          <button class="month-btn" id="trendNextYear">›</button>
         </div>
         <!-- 長條圖 -->
         <div class="report-chart-wrap" style="max-height:300px">

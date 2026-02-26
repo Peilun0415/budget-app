@@ -586,7 +586,6 @@ clearAllDataBtn.addEventListener('click', () => {
   clearDataProgress.style.display = 'none';
   confirmClearDataBtn.disabled = false;
   clearDataOverlay.classList.add('active');
-  setTimeout(() => clearDataConfirmInput.focus(), 100);
 });
 
 const closeClearModal = () => clearDataOverlay.classList.remove('active');
@@ -731,7 +730,6 @@ editMonthBudgetBtn.addEventListener('click', () => {
   monthBudgetInput.value = budget ? budget.amount : '';
   deleteMonthBudgetBtn.style.display = budget ? '' : 'none';
   monthBudgetOverlay.classList.add('active');
-  setTimeout(() => monthBudgetInput.focus(), 100);
 });
 const closeMonthBudgetModal = () => monthBudgetOverlay.classList.remove('active');
 closeMonthBudgetBtn.addEventListener('click', closeMonthBudgetModal);
@@ -776,7 +774,6 @@ function openCatBudgetModal(budget = null) {
   });
 
   catBudgetOverlay.classList.add('active');
-  setTimeout(() => catBudgetAmtInput.focus(), 100);
 }
 
 addCatBudgetBtn.addEventListener('click', () => openCatBudgetModal());
@@ -1116,7 +1113,6 @@ tplNameOverlay.addEventListener('click', (e) => { if (e.target === tplNameOverla
 saveTplBtn.addEventListener('click', () => {
   tplNameInput.value = '';
   tplNameOverlay.classList.add('active');
-  setTimeout(() => tplNameInput.focus(), 100);
 });
 
 confirmSaveTplBtn.addEventListener('click', saveCurrentAsTemplate);
@@ -1922,7 +1918,6 @@ function openModal(record = null) {
     deleteRecordBtn.style.display = 'none';
   }
   modalOverlay.classList.add('active');
-  setTimeout(() => amountInput.focus(), 300);
 }
 
 function closeModal() {
@@ -2288,7 +2283,6 @@ function openAccountModal(account = null) {
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
   accountModalOverlay.classList.add('active');
-  setTimeout(() => accountNameInput.focus(), 300);
 }
 
 function closeAccountModal() {
@@ -2431,7 +2425,6 @@ function openCatModal(catDoc = null, parentDoc = null) {
   }
 
   catModalOverlay.classList.add('active');
-  setTimeout(() => catNameInput.focus(), 200);
 }
 
 function closeCatModal() {

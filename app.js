@@ -389,7 +389,13 @@ const deleteCatBtn      = document.getElementById('deleteCatBtn');
 let catSelectedType     = 'expense';
 
 // ===== 認證 =====
+const splashScreen = document.getElementById('splashScreen');
+function hideSplash() {
+  splashScreen.classList.add('hidden');
+}
+
 onAuthStateChanged(auth, (user) => {
+  hideSplash();
   if (user) {
     currentUser = user;
     showApp(user);

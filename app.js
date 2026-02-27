@@ -363,7 +363,7 @@ const catBudgetEmpty       = document.getElementById('catBudgetEmpty');
 const catBudgetOverlay     = document.getElementById('catBudgetOverlay');
 const catBudgetModalTitle  = document.getElementById('catBudgetModalTitle');
 const closeCatBudgetBtn    = document.getElementById('closeCatBudgetBtn');
-const catBudgetCatSelect   = document.getElementById('catBudgetCatSelect');
+const catBudgetCatGrid     = document.getElementById('catBudgetCatGrid');
 const catBudgetAmtInput    = document.getElementById('catBudgetAmtInput');
 const saveCatBudgetBtn     = document.getElementById('saveCatBudgetBtn');
 const deleteCatBudgetBtn   = document.getElementById('deleteCatBudgetBtn');
@@ -1178,30 +1178,51 @@ function renderCatBudgetList() {
   });
   if (catBudgets.length === 0) return;
 
-  // 計算今年各類別支出
+  // 計算今年各類別/子分類支出
   const thisYear = new Date().getFullYear();
   const yearPrefix = `${thisYear}-`;
   const spentMap = {};
   allRecords
     .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
     .forEach(r => {
-      const key = r.categoryId || '__none__';
-      spentMap[key] = (spentMap[key] || 0) + r.amount;
+      // 主分類 key
+      const catKey = r.categoryId || '__none__';
+      spentMap[catKey] = (spentMap[catKey] || 0) + r.amount;
+      // 子分類 key（格式同排除：catId::subId）
+      if (r.subCategoryId) {
+        const subKey = `${r.categoryId}::${r.subCategoryId}`;
+        spentMap[subKey] = (spentMap[subKey] || 0) + r.amount;
+      }
     });
 
   catBudgets.forEach(b => {
-    const spent = spentMap[b.categoryId] || 0;
+    // 支援多選 categoryItems，或舊格式單選
+    const items = b.categoryItems?.length
+      ? b.categoryItems
+      : [{ catId: b.categoryId, subId: b.subCategoryId || null, emoji: b.subCategoryEmoji || b.categoryEmoji || '📦', label: b.subCategoryName ? `${b.categoryName}・${b.subCategoryName}` : b.categoryName }];
+
+    const spent = items.reduce((sum, ci) => {
+      const key = ci.subId ? `${ci.catId}::${ci.subId}` : ci.catId;
+      return sum + (spentMap[key] || 0);
+    }, 0);
+
     const limit = b.amount;
     const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
     const over  = spent > limit;
     const warn  = pct >= 80;
 
+    // 顯示名稱：多選時用第一項 emoji + 所有 label 合併
+    const displayEmoji = items[0]?.emoji || '📦';
+    const displayName  = items.length > 1
+      ? items.map(i => i.label).join('、')
+      : (items[0]?.label || '未知分類');
+
     const item = document.createElement('div');
     item.className = 'cat-budget-item';
     item.innerHTML = `
-      <div class="cat-budget-emoji">${b.categoryEmoji || '📦'}</div>
+      <div class="cat-budget-emoji">${displayEmoji}</div>
       <div class="cat-budget-info">
-        <div class="cat-budget-name">${b.categoryName || '未知分類'}</div>
+        <div class="cat-budget-name">${displayName}</div>
         <div class="cat-budget-bar-row">
           <div class="cat-budget-progress-wrap">
             <div class="cat-budget-progress-bar${over ? ' danger' : warn ? ' warning' : ''}" style="width:${pct}%"></div>
@@ -1328,24 +1349,142 @@ deleteMonthBudgetBtn.addEventListener('click', async () => {
 });
 
 // 類別預算 modal
+// 多選陣列：[{ catId, subId, emoji, label }, ...]
+let catBudgetSelectedItems = [];
+
+// 將選取項目轉成唯一 key
+function catItemKey(catId, subId) {
+  return subId ? `${catId}::${subId}` : catId;
+}
+
+function isCatItemSelected(catId, subId) {
+  return catBudgetSelectedItems.some(i => catItemKey(i.catId, i.subId) === catItemKey(catId, subId));
+}
+
+function toggleCatItem(catId, subId, emoji, label) {
+  const key = catItemKey(catId, subId);
+  const idx = catBudgetSelectedItems.findIndex(i => catItemKey(i.catId, i.subId) === key);
+  if (idx >= 0) {
+    catBudgetSelectedItems.splice(idx, 1);
+  } else {
+    catBudgetSelectedItems.push({ catId, subId, emoji, label });
+  }
+  renderCatBudgetCatGrid();
+  renderCatBudgetSelectedTags();
+}
+
 function openCatBudgetModal(budget = null) {
   editingCatBudgetId = budget?.docId || null;
   catBudgetModalTitle.textContent = budget ? '編輯類別預算' : '新增類別預算';
   catBudgetAmtInput.value = budget ? budget.amount : '';
   deleteCatBudgetBtn.style.display = budget ? '' : 'none';
 
-  // 填入支出主分類選項
-  catBudgetCatSelect.innerHTML = '';
-  const expenseCats = allCategories.filter(c => c.type === 'expense' && !c.parentId);
-  expenseCats.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.docId;
-    opt.textContent = `${c.emoji} ${c.name}`;
-    if (budget && c.docId === budget.categoryId) opt.selected = true;
-    catBudgetCatSelect.appendChild(opt);
-  });
+  // 還原已選項目（支援舊格式單選 & 新格式多選）
+  if (budget?.categoryItems) {
+    catBudgetSelectedItems = budget.categoryItems.map(ci => ({
+      catId: ci.catId, subId: ci.subId || null,
+      emoji: ci.emoji, label: ci.label,
+    }));
+  } else if (budget?.categoryId) {
+    // 舊格式相容
+    catBudgetSelectedItems = [{
+      catId:  budget.categoryId,
+      subId:  budget.subCategoryId || null,
+      emoji:  budget.subCategoryEmoji || budget.categoryEmoji || '📦',
+      label:  budget.subCategoryName
+        ? `${budget.categoryName}・${budget.subCategoryName}`
+        : budget.categoryName,
+    }];
+  } else {
+    catBudgetSelectedItems = [];
+  }
 
+  renderCatBudgetCatGrid();
+  renderCatBudgetSelectedTags();
   catBudgetOverlay.classList.add('active');
+}
+
+// 已選標籤列
+function renderCatBudgetSelectedTags() {
+  let tagsEl = catBudgetCatGrid.parentElement.querySelector('.cat-budget-selected-tags');
+  if (!tagsEl) {
+    tagsEl = document.createElement('div');
+    tagsEl.className = 'cat-budget-selected-tags';
+    catBudgetCatGrid.parentElement.insertBefore(tagsEl, catBudgetCatGrid);
+  }
+  if (catBudgetSelectedItems.length === 0) {
+    tagsEl.innerHTML = '<span class="cat-budget-tags-hint">尚未選擇分類</span>';
+    return;
+  }
+  tagsEl.innerHTML = catBudgetSelectedItems.map(i =>
+    `<span class="cat-budget-tag">${i.emoji} ${i.label} <span class="cat-budget-tag-x" data-key="${catItemKey(i.catId, i.subId)}">✕</span></span>`
+  ).join('');
+  tagsEl.querySelectorAll('.cat-budget-tag-x').forEach(x => {
+    x.addEventListener('click', e => {
+      e.stopPropagation();
+      const key = x.dataset.key;
+      catBudgetSelectedItems = catBudgetSelectedItems.filter(i => catItemKey(i.catId, i.subId) !== key);
+      renderCatBudgetCatGrid();
+      renderCatBudgetSelectedTags();
+    });
+  });
+}
+
+function renderCatBudgetCatGrid() {
+  catBudgetCatGrid.innerHTML = '';
+  const expCats = allCategories.filter(c => c.type === 'expense');
+
+  expCats.forEach(cat => {
+    if (cat.subs && cat.subs.length > 0) {
+      const isAnySel = isCatItemSelected(cat.docId, null) || cat.subs.some(s => isCatItemSelected(cat.docId, s.docId));
+      const selCount = (isCatItemSelected(cat.docId, null) ? 1 : 0) + cat.subs.filter(s => isCatItemSelected(cat.docId, s.docId)).length;
+      const group = document.createElement('div');
+      group.className = 'exclude-group' + (isAnySel ? ' open' : '');
+
+      const header = document.createElement('div');
+      header.className = 'exclude-group-header';
+      header.innerHTML = `
+        <span class="exclude-group-emoji">${cat.emoji}</span>
+        <span class="exclude-group-name">${cat.name}</span>
+        ${isAnySel ? `<span class="exclude-group-badge">${selCount}</span>` : ''}
+        <span class="exclude-group-arrow">›</span>`;
+      header.addEventListener('click', () => group.classList.toggle('open'));
+
+      const body = document.createElement('div');
+      body.className = 'exclude-group-body';
+
+      // 主分類本身（全部子項目合計）
+      const isParentSel = isCatItemSelected(cat.docId, null);
+      const parentItem = document.createElement('div');
+      parentItem.className = 'cat-budget-pick-item cat-budget-pick-parent' + (isParentSel ? ' selected' : '');
+      parentItem.innerHTML = `<span>${cat.emoji}</span><span>${cat.name}（全部）</span>`;
+      parentItem.addEventListener('click', () => toggleCatItem(cat.docId, null, cat.emoji, cat.name));
+      body.appendChild(parentItem);
+
+      cat.subs.forEach(sub => {
+        const isSel = isCatItemSelected(cat.docId, sub.docId);
+        const item = document.createElement('div');
+        item.className = 'cat-budget-pick-item' + (isSel ? ' selected' : '');
+        item.innerHTML = `<span>${sub.emoji || cat.emoji}</span><span>${sub.name}</span>`;
+        item.addEventListener('click', () => {
+          const label = `${cat.name}・${sub.name}`;
+          toggleCatItem(cat.docId, sub.docId, sub.emoji || cat.emoji, label);
+        });
+        body.appendChild(item);
+      });
+
+      group.appendChild(header);
+      group.appendChild(body);
+      catBudgetCatGrid.appendChild(group);
+    } else {
+      const isSel = isCatItemSelected(cat.docId, null);
+      const item = document.createElement('div');
+      item.className = 'cat-budget-pick-item' + (isSel ? ' selected' : '');
+      item.innerHTML = `<span>${cat.emoji}</span><span>${cat.name}</span>`;
+      item.addEventListener('click', () => toggleCatItem(cat.docId, null, cat.emoji, cat.name));
+      catBudgetCatGrid.appendChild(item);
+    }
+  });
 }
 
 addCatBudgetBtn.addEventListener('click', () => openCatBudgetModal());
@@ -1356,28 +1495,34 @@ catBudgetOverlay.addEventListener('click', e => { if (e.target === catBudgetOver
 saveCatBudgetBtn.addEventListener('click', async () => {
   const amount = parseInt(catBudgetAmtInput.value, 10);
   if (!amount || amount <= 0) { catBudgetAmtInput.focus(); return; }
-  const selCat = allCategories.find(c => c.docId === catBudgetCatSelect.value);
-  if (!selCat) return;
+  if (catBudgetSelectedItems.length === 0) { shakeEl(catBudgetCatGrid); return; }
+
+  // 新格式：categoryItems 陣列，同時保留第一項的舊欄位供相容
+  const first = catBudgetSelectedItems[0];
+  const firstCat = allCategories.find(c => c.docId === first.catId);
+  const firstSub = first.subId ? firstCat?.subs?.find(s => s.docId === first.subId) : null;
 
   const data = {
     uid: currentUser.uid,
     type: 'category',
     amount,
-    categoryId:    selCat.docId,
-    categoryName:  selCat.name,
-    categoryEmoji: selCat.emoji,
+    categoryItems: catBudgetSelectedItems.map(i => ({
+      catId: i.catId, subId: i.subId || null,
+      emoji: i.emoji, label: i.label,
+    })),
+    // 相容舊欄位（取第一項）
+    categoryId:       firstCat?.docId   || null,
+    categoryName:     firstCat?.name    || '',
+    categoryEmoji:    firstCat?.emoji   || '📦',
+    subCategoryId:    firstSub?.docId   || null,
+    subCategoryName:  firstSub?.name    || null,
+    subCategoryEmoji: firstSub?.emoji   || null,
   };
 
   if (editingCatBudgetId) {
     await updateDoc(doc(db, 'budgets', editingCatBudgetId), data);
   } else {
-    // 若同分類已有預算則覆蓋
-    const existing = allBudgets.find(b => b.type === 'category' && b.categoryId === selCat.docId);
-    if (existing) {
-      await updateDoc(doc(db, 'budgets', existing.docId), data);
-    } else {
-      await addDoc(collection(db, 'budgets'), data);
-    }
+    await addDoc(collection(db, 'budgets'), data);
   }
   closeCatBudgetModal();
 });
@@ -3556,23 +3701,37 @@ function renderHomeBudget() {
     allRecords
       .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
       .forEach(r => {
-        const key = r.categoryId || '__none__';
-        spentMap[key] = (spentMap[key] || 0) + r.amount;
+        const catKey = r.categoryId || '__none__';
+        spentMap[catKey] = (spentMap[catKey] || 0) + r.amount;
+        if (r.subCategoryId) {
+          const subKey = `${r.categoryId}::${r.subCategoryId}`;
+          spentMap[subKey] = (spentMap[subKey] || 0) + r.amount;
+        }
       });
 
     const sorted = [...catBudgets]
       .map(b => {
-        const spent = spentMap[b.categoryId] || 0;
-        const pct   = b.amount > 0 ? Math.round(spent / b.amount * 100) : 0;
-        return { ...b, spent, pct, over: spent > b.amount };
+        const items = b.categoryItems?.length
+          ? b.categoryItems
+          : [{ catId: b.categoryId, subId: b.subCategoryId || null, emoji: b.subCategoryEmoji || b.categoryEmoji || '📦', label: b.subCategoryName ? `${b.categoryName}・${b.subCategoryName}` : b.categoryName }];
+        const spent = items.reduce((sum, ci) => {
+          const key = ci.subId ? `${ci.catId}::${ci.subId}` : ci.catId;
+          return sum + (spentMap[key] || 0);
+        }, 0);
+        const pct = b.amount > 0 ? Math.round(spent / b.amount * 100) : 0;
+        return { ...b, spent, pct, over: spent > b.amount, _items: items };
       })
       .sort((a, b) => b.pct - a.pct)
       .slice(0, 4);
 
     sorted.forEach(b => {
+      const displayIcon  = b._items[0]?.emoji || '📦';
+      const displayLabel = b._items.length > 1
+        ? b._items.map(i => i.label).join('、')
+        : (b._items[0]?.label || '未知');
       html += makeTankCard({
-        icon: b.categoryEmoji || '📦',
-        label: b.categoryName || '未知',
+        icon: displayIcon,
+        label: displayLabel,
         spent: b.spent,
         limit: b.amount,
         pct: Math.min(b.pct, 100),
@@ -4051,7 +4210,8 @@ let reportMonth = new Date().getMonth();
 let reportType  = 'expense';   // 'expense' | 'income'
 let reportTab   = 'category';  // 'category' | 'trend'
 // drill-down 狀態：null = 主分類層, string = 已選主分類 docId
-let reportDrillCatId = null;
+let reportDrillCatId    = null;
+let reportDrillCatColor = '#5B9BD5';
 let catView = 'month'; // 'month' | 'year'
 let trendMeta = 'expense'; // 'expense' | 'income' | 'balance'
 let pieChartInstance = null;
@@ -4260,17 +4420,19 @@ function renderMainCategories(recs, total) {
   reportCategoryList.innerHTML = '';
   if (cats.length === 0) return;
 
-  cats.forEach(cat => {
-    const pct = total > 0 ? Math.round(cat.amount / total * 100) : 0;
+  cats.forEach((cat, idx) => {
+    const pct   = total > 0 ? Math.round(cat.amount / total * 100) : 0;
+    const color = PIE_COLORS[idx % PIE_COLORS.length];
     const hasSubs = allCategories.find(c => c.docId === cat.id)?.subs?.length > 0;
     const item = document.createElement('div');
     item.className = `report-cat-item ${reportType}${hasSubs ? '' : ' no-drill'}`;
+    item.style.borderLeftColor = color;
     item.innerHTML = `
       <div class="report-cat-emoji">${cat.emoji}</div>
       <div class="report-cat-info">
         <div class="report-cat-name">${cat.name}</div>
         <div class="report-cat-bar-wrap">
-          <div class="report-cat-bar" style="width:${pct}%"></div>
+          <div class="report-cat-bar" style="width:${pct}%;background:${color}"></div>
         </div>
         <div class="report-cat-percent">${pct}%</div>
       </div>
@@ -4281,7 +4443,8 @@ function renderMainCategories(recs, total) {
     `;
     if (cat.id !== '__none__') {
       item.addEventListener('click', () => {
-        reportDrillCatId = cat.id;
+        reportDrillCatId    = cat.id;
+        reportDrillCatColor = color;
         renderReportCategory();
       });
     }
@@ -4327,16 +4490,18 @@ function renderDrillDown(recs, totalAll) {
     return;
   }
 
-  subs.forEach(sub => {
-    const pct = catTotal > 0 ? Math.round(sub.amount / catTotal * 100) : 0;
-    const item = document.createElement('div');
+  subs.forEach((sub, idx) => {
+    const pct   = catTotal > 0 ? Math.round(sub.amount / catTotal * 100) : 0;
+    const color = PIE_COLORS[idx % PIE_COLORS.length];
+    const item  = document.createElement('div');
     item.className = `report-cat-item ${reportType}`;
+    item.style.borderLeftColor = color;
     item.innerHTML = `
-      <div class="report-cat-emoji">${cat?.emoji || '📦'}</div>
+      <div class="report-cat-emoji">${sub.emoji || cat?.emoji || '📦'}</div>
       <div class="report-cat-info">
         <div class="report-cat-name">${sub.name}</div>
         <div class="report-cat-bar-wrap">
-          <div class="report-cat-bar" style="width:${pct}%"></div>
+          <div class="report-cat-bar" style="width:${pct}%;background:${color}"></div>
         </div>
         <div class="report-cat-percent">${pct}%</div>
       </div>

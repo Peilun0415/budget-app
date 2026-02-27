@@ -3103,6 +3103,7 @@ input.form-input {
   box-shadow: var(--shadow);
   cursor: pointer;
   transition: background 0.15s;
+  border-left: 6px solid #e0e0e0;
 }
 .report-cat-item:hover { background: var(--pink-light); }
 .report-cat-item.no-drill { cursor: default; }
@@ -3276,6 +3277,83 @@ input.form-input {
   color: var(--text-light);
   font-size: 13px;
   padding: 10px 0;
+}
+
+/* 類別預算分類選擇格 */
+.cat-budget-cat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cat-budget-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e8e8e8;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-dark);
+  transition: all 0.15s;
+}
+
+.cat-budget-pick-item:hover {
+  background: var(--pink-light);
+}
+
+.cat-budget-pick-item.selected {
+  border-color: var(--pink-main);
+  background: #fff0f6;
+  color: var(--pink-dark);
+  font-weight: 600;
+}
+
+.cat-budget-pick-parent {
+  border-style: dashed;
+  font-weight: 600;
+  color: var(--text-mid);
+}
+
+.cat-budget-pick-parent.selected {
+  border-style: solid;
+}
+
+.cat-budget-selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  min-height: 28px;
+}
+
+.cat-budget-tags-hint {
+  font-size: 13px;
+  color: var(--text-light);
+  padding: 4px 0;
+}
+
+.cat-budget-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--pink-light);
+  color: var(--pink-dark);
+  border: 1.5px solid var(--pink-main);
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cat-budget-tag-x {
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0.7;
+  margin-left: 2px;
 }
 
 /* ===== 專案頁面 ===== */

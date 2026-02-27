@@ -1744,7 +1744,7 @@ function renderRecAccountSelect() {
 
 function updateRecCatPickBtn() {
   if (recSelectedCategory) {
-    recCatPickEmoji.textContent = recSelectedCategory.emoji || '📦';
+    recCatPickEmoji.textContent = recSelectedSubCategory?.emoji || recSelectedCategory.emoji || '📦';
     if (recSelectedSubCategory) {
       recCatPickName.innerHTML = `${recSelectedCategory.name}<br><span class="cat-pick-sub-label">${recSelectedSubCategory.name}</span>`;
     } else {
@@ -2154,7 +2154,7 @@ function updateCatPickBtn(parentCat, subCat) {
     catPickName.innerHTML    = '選擇分類';
     return;
   }
-  catPickEmoji.textContent = parentCat.emoji;
+  catPickEmoji.textContent = (subCat?.emoji) || parentCat.emoji;
   if (subCat) {
     catPickName.innerHTML = `${parentCat.name}<br><span class="cat-pick-sub-label">${subCat.name}</span>`;
   } else {

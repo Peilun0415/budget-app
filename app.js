@@ -155,6 +155,10 @@ let allRecurring   = [];
 let allBudgets     = []; // { docId, type:'month'|'category', amount, categoryId?, categoryName?, categoryEmoji? }
 let unsubBudgets   = null;
 let editingCatBudgetId = null; // 目前編輯的類別預算 docId
+let allProjects    = [];
+let unsubProjects  = null;
+let currentProjectId = null; // 目前查看的專案 docId
+let splitMode      = 'equal'; // 'equal' | 'custom'
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
 let recSelectedSubCategory = null;
@@ -286,6 +290,41 @@ const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 const billingCycleBar    = document.getElementById('billingCycleBar');
 const billingCycleBtn    = document.getElementById('billingCycleBtn');
+
+// ===== DOM — 專案 =====
+const pageProjects          = document.getElementById('pageProjects');
+const pageProjectDetail     = document.getElementById('pageProjectDetail');
+const navProjectsBtn        = document.getElementById('navProjects');
+const addProjectBtn         = document.getElementById('addProjectBtn');
+const projectList           = document.getElementById('projectList');
+const projectEmpty          = document.getElementById('projectEmpty');
+const projectModalOverlay   = document.getElementById('projectModalOverlay');
+const projectModalTitle     = document.getElementById('projectModalTitle');
+const closeProjectModalBtn  = document.getElementById('closeProjectModalBtn');
+const projectForm           = document.getElementById('projectForm');
+const projectNameInput      = document.getElementById('projectNameInput');
+const projectMembersInput   = document.getElementById('projectMembersInput');
+const projectStartInput     = document.getElementById('projectStartInput');
+const projectEndInput       = document.getElementById('projectEndInput');
+const projectEditId         = document.getElementById('projectEditId');
+const projectSubmitBtn      = document.getElementById('projectSubmitBtn');
+const deleteProjectBtn      = document.getElementById('deleteProjectBtn');
+const projectDetailName     = document.getElementById('projectDetailName');
+const projectDetailDates    = document.getElementById('projectDetailDates');
+const projectDetailMembers  = document.getElementById('projectDetailMembers');
+const projectSettleSummary  = document.getElementById('projectSettleSummary');
+const projectRecordList     = document.getElementById('projectRecordList');
+const projectEditBtn        = document.getElementById('projectEditBtn');
+const recordProjectSelect   = document.getElementById('recordProjectSelect');
+const recordProjectGroup    = document.getElementById('recordProjectGroup');
+const splitGroup            = document.getElementById('splitGroup');
+const splitPayer            = document.getElementById('splitPayer');
+const splitMemberChecks     = document.getElementById('splitMemberChecks');
+const splitModeEqual        = document.getElementById('splitModeEqual');
+const splitModeCustom       = document.getElementById('splitModeCustom');
+const splitCustomArea       = document.getElementById('splitCustomArea');
+const splitCustomInputs     = document.getElementById('splitCustomInputs');
+const splitPreview          = document.getElementById('splitPreview');
 
 // ===== DOM — 分類管理 =====
 const pageCategories    = document.getElementById('pageCategories');
@@ -461,6 +500,7 @@ onAuthStateChanged(auth, (user) => {
     subscribeTemplates();
     subscribeRecurring();
     subscribeBudgets();
+    subscribeProjects();
   } else {
     currentUser = null;
     showLogin();
@@ -470,12 +510,14 @@ onAuthStateChanged(auth, (user) => {
     if (unsubTemplates)   { unsubTemplates();   unsubTemplates   = null; }
     if (unsubRecurring)   { unsubRecurring();   unsubRecurring   = null; }
     if (unsubBudgets)     { unsubBudgets();     unsubBudgets     = null; }
+    if (unsubProjects)    { unsubProjects();    unsubProjects    = null; }
     allRecords    = [];
     allAccounts   = [];
     allTemplates  = [];
     allRecurring  = [];
     allCategories = [];
     allBudgets    = [];
+    allProjects   = [];
   }
 });
 
@@ -610,8 +652,11 @@ function switchPage(page) {
   pageRecurring.style.display     = page === 'recurring'     ? 'block' : 'none';
   pageBudget.style.display        = page === 'budget'        ? 'block' : 'none';
   pageReport.style.display        = page === 'report'        ? 'block' : 'none';
+  pageProjects.style.display      = page === 'projects'      ? 'block' : 'none';
+  pageProjectDetail.style.display = page === 'projectDetail' ? 'block' : 'none';
   navHome.classList.toggle('active',        page === 'home');
   navAccountsBtn.classList.toggle('active', page === 'accounts' || page === 'accountDetail');
+  navProjectsBtn.classList.toggle('active', page === 'projects' || page === 'projectDetail');
   navReportBtn.classList.toggle('active',   page === 'report');
   navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring' || page === 'budget');
   if (page === 'home')          pageTitle.textContent = '我的記帳本';
@@ -622,11 +667,18 @@ function switchPage(page) {
   if (page === 'recurring')     pageTitle.textContent = '固定收支';
   if (page === 'budget')        pageTitle.textContent = '預算管理';
   if (page === 'report')        pageTitle.textContent = '報表';
+  if (page === 'projects')      pageTitle.textContent = '專案';
+  if (page === 'projectDetail') {
+    const proj = allProjects.find(p => p.docId === currentProjectId);
+    pageTitle.textContent = proj ? proj.name : '專案詳情';
+  }
   if (page === 'home')          renderHomeBudget();
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
   if (page === 'budget')        renderBudgetPage();
   if (page === 'report')        renderReport();
+  if (page === 'projects')      renderProjectList();
+  if (page === 'projectDetail') renderProjectDetail();
 }
 
 // ===== 主頁預算小卡 =====
@@ -690,6 +742,346 @@ function subscribeBudgets() {
     if (currentPage === 'budget') renderBudgetPage();
     if (currentPage === 'home')   renderHomeBudget();
   });
+}
+
+// ===== 專案訂閱 =====
+function subscribeProjects() {
+  const q = query(collection(db, 'projects'), where('uid', '==', currentUser.uid));
+  unsubProjects = onSnapshot(q, snap => {
+    allProjects = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    if (currentPage === 'projects') renderProjectList();
+    if (currentPage === 'projectDetail') renderProjectDetail();
+    updateRecordProjectSelect();
+  });
+}
+
+// ===== 頁面切換（專案） =====
+navProjectsBtn.addEventListener('click', () => switchPage('projects'));
+
+// ===== 專案列表 =====
+function renderProjectList() {
+  Array.from(projectList.children).forEach(el => {
+    if (!el.classList.contains('project-empty')) el.remove();
+  });
+  if (allProjects.length === 0) {
+    projectEmpty.style.display = '';
+    return;
+  }
+  projectEmpty.style.display = 'none';
+  allProjects.forEach(proj => {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    const members = (proj.members || []).join('、');
+    const dateStr = proj.startDate && proj.endDate
+      ? `${proj.startDate} ～ ${proj.endDate}`
+      : proj.startDate || '';
+    // 計算此專案的總花費
+    const total = calcProjectTotal(proj);
+    card.innerHTML = `
+      <div class="project-card-main">
+        <div class="project-card-name">${proj.name}</div>
+        <div class="project-card-meta">${dateStr ? `📅 ${dateStr}` : ''}${members ? ` · 👥 ${members}` : ''}</div>
+      </div>
+      <div class="project-card-amount">$${formatMoney(total)}</div>`;
+    card.addEventListener('click', () => openProjectDetail(proj));
+    projectList.appendChild(card);
+  });
+}
+
+function calcProjectTotal(proj) {
+  return allRecords
+    .filter(r => r.projectId === proj.docId && r.type === 'expense')
+    .reduce((s, r) => s + r.amount, 0);
+}
+
+addProjectBtn.addEventListener('click', () => openProjectModal());
+
+function openProjectModal(proj = null) {
+  projectEditId.value          = proj ? proj.docId : '';
+  projectModalTitle.textContent = proj ? '編輯專案' : '新增專案';
+  projectNameInput.value       = proj ? proj.name : '';
+  projectMembersInput.value    = proj ? (proj.members || []).join('、') : '';
+  projectStartInput.value      = proj?.startDate || '';
+  projectEndInput.value        = proj?.endDate   || '';
+  deleteProjectBtn.style.display = proj ? '' : 'none';
+  projectModalOverlay.classList.add('active');
+}
+
+function closeProjectModal() {
+  projectModalOverlay.classList.remove('active');
+}
+
+closeProjectModalBtn.addEventListener('click', closeProjectModal);
+projectModalOverlay.addEventListener('click', e => {
+  if (e.target === projectModalOverlay) closeProjectModal();
+});
+
+projectForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name    = projectNameInput.value.trim();
+  const members = projectMembersInput.value.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  const startDate = projectStartInput.value || null;
+  const endDate   = projectEndInput.value   || null;
+  const editId    = projectEditId.value;
+  projectSubmitBtn.disabled = true;
+  try {
+    if (editId) {
+      await updateDoc(doc(db, 'projects', editId), { name, members, startDate, endDate });
+    } else {
+      await addDoc(collection(db, 'projects'), {
+        uid: currentUser.uid, name, members, startDate, endDate,
+        createdAt: serverTimestamp(),
+      });
+    }
+    closeProjectModal();
+  } catch (err) { console.error(err); alert('儲存失敗'); }
+  finally { projectSubmitBtn.disabled = false; }
+});
+
+deleteProjectBtn.addEventListener('click', async () => {
+  const editId = projectEditId.value;
+  if (editId && confirm('確定要刪除此專案？（記帳記錄不會被刪除）')) {
+    await deleteDoc(doc(db, 'projects', editId));
+    closeProjectModal();
+    switchPage('projects');
+  }
+});
+
+// ===== 專案詳情 =====
+function openProjectDetail(proj) {
+  currentProjectId = proj.docId;
+  renderProjectDetail();
+  switchPage('projectDetail');
+}
+
+function renderProjectDetail() {
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj) return;
+
+  projectDetailName.textContent = proj.name;
+  const dateStr = proj.startDate && proj.endDate
+    ? `${proj.startDate} ～ ${proj.endDate}`
+    : proj.startDate || '未設定日期';
+  projectDetailDates.textContent = `📅 ${dateStr}`;
+  projectDetailMembers.textContent = proj.members?.length
+    ? `👥 ${proj.members.join('、')}` : '';
+
+  // 此專案的所有支出記錄
+  const recs = allRecords.filter(r => r.projectId === proj.docId && r.type === 'expense');
+
+  // 結算計算
+  renderProjectSettle(proj, recs);
+
+  // 明細列表
+  projectRecordList.innerHTML = '';
+  if (recs.length === 0) {
+    projectRecordList.innerHTML = '<div class="project-empty">還沒有相關記帳記錄</div>';
+    return;
+  }
+  // 依日期排序
+  [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'project-record-item';
+    const payerLabel = r.splitPayer ? `${r.splitPayer} 付` : '';
+    const splitLabel = r.splitData ? `（${r.splitData.map(s => `${s.name}$${formatMoney(s.amount)}`).join('、')}）` : '';
+    item.innerHTML = `
+      <div class="project-rec-left">
+        <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
+        <div class="project-rec-info">
+          <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
+          <div class="project-rec-meta">${r.date}${r.note ? ' · ' + r.note : ''}${payerLabel ? ' · ' + payerLabel : ''}${splitLabel}</div>
+        </div>
+      </div>
+      <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>`;
+    projectRecordList.appendChild(item);
+  });
+}
+
+function renderProjectSettle(proj, recs) {
+  const members = proj.members || [];
+  if (members.length < 2) {
+    projectSettleSummary.innerHTML = `<div class="settle-total">總花費 $${formatMoney(recs.reduce((s,r)=>s+r.amount,0))}</div>`;
+    return;
+  }
+
+  // 計算每人應付 / 實際付出
+  const paid   = {};  // 實際付出
+  const owed   = {};  // 應付
+  members.forEach(m => { paid[m] = 0; owed[m] = 0; });
+
+  recs.forEach(r => {
+    const payer = r.splitPayer;
+    const splits = r.splitData;
+    if (payer && splits && splits.length > 0) {
+      if (paid[payer] !== undefined) paid[payer] += r.amount;
+      splits.forEach(s => {
+        if (owed[s.name] !== undefined) owed[s.name] += s.amount;
+      });
+    } else {
+      // 沒有分帳資料，算在第一個成員（自己）
+      const self = members[0];
+      if (paid[self] !== undefined) paid[self] += r.amount;
+      if (owed[self] !== undefined) owed[self] += r.amount;
+    }
+  });
+
+  // 計算每人淨額（負 = 欠別人，正 = 別人欠你）
+  const net = {};
+  members.forEach(m => { net[m] = paid[m] - owed[m]; });
+
+  const total = recs.reduce((s, r) => s + r.amount, 0);
+
+  let html = `<div class="settle-total">總花費 $${formatMoney(total)}</div><div class="settle-list">`;
+  members.forEach(m => {
+    const n = net[m];
+    const cls = n > 0 ? 'settle-positive' : n < 0 ? 'settle-negative' : '';
+    const label = n > 0 ? `待收 $${formatMoney(n)}` : n < 0 ? `待付 $${formatMoney(Math.abs(n))}` : '已結清';
+    html += `<div class="settle-item ${cls}"><span class="settle-name">${m}</span><span class="settle-label">${label}</span></div>`;
+  });
+  html += '</div>';
+  projectSettleSummary.innerHTML = html;
+}
+
+projectEditBtn.addEventListener('click', () => {
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (proj) openProjectModal(proj);
+});
+
+// ===== 記帳 modal 的專案選單 =====
+function updateRecordProjectSelect() {
+  const prev = recordProjectSelect.value;
+  recordProjectSelect.innerHTML = '<option value="">不屬於任何專案</option>';
+  allProjects.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.docId;
+    opt.textContent = p.name;
+    recordProjectSelect.appendChild(opt);
+  });
+  if (prev) recordProjectSelect.value = prev;
+  updateSplitGroupVisibility();
+}
+
+recordProjectSelect.addEventListener('change', updateSplitGroupVisibility);
+
+function updateSplitGroupVisibility() {
+  const projId = recordProjectSelect.value;
+  const proj   = allProjects.find(p => p.docId === projId);
+  if (!proj || !proj.members || proj.members.length < 2) {
+    splitGroup.style.display = 'none';
+    return;
+  }
+  splitGroup.style.display = '';
+  renderSplitUI(proj);
+}
+
+function renderSplitUI(proj) {
+  const members = proj.members || [];
+  // 付款人
+  splitPayer.innerHTML = '';
+  members.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    splitPayer.appendChild(opt);
+  });
+  // 參與成員勾選
+  splitMemberChecks.innerHTML = '';
+  members.forEach(m => {
+    const label = document.createElement('label');
+    label.className = 'exclude-cat-item checked';
+    label.innerHTML = `<input type="checkbox" value="${m}" checked /><span class="exclude-cat-name">${m}</span>`;
+    label.querySelector('input').addEventListener('change', () => {
+      label.classList.toggle('checked', label.querySelector('input').checked);
+      updateSplitPreview();
+    });
+    splitMemberChecks.appendChild(label);
+  });
+  updateSplitPreview();
+}
+
+splitModeEqual.addEventListener('click', () => {
+  splitMode = 'equal';
+  splitModeEqual.classList.add('active');
+  splitModeCustom.classList.remove('active');
+  splitCustomArea.style.display = 'none';
+  updateSplitPreview();
+});
+
+splitModeCustom.addEventListener('click', () => {
+  splitMode = 'custom';
+  splitModeCustom.classList.add('active');
+  splitModeEqual.classList.remove('active');
+  splitCustomArea.style.display = '';
+  renderCustomSplitInputs();
+});
+
+function renderCustomSplitInputs() {
+  const members = getCheckedMembers();
+  const amount  = parseFloat(document.getElementById('amount').value) || 0;
+  splitCustomInputs.innerHTML = '';
+  members.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'split-custom-row';
+    row.innerHTML = `
+      <span class="split-custom-name">${m}</span>
+      <div class="amount-input-wrap split-custom-input-wrap">
+        <span class="currency-sign">$</span>
+        <input type="number" class="split-custom-input" data-member="${m}" placeholder="0" inputmode="decimal" />
+      </div>`;
+    row.querySelector('input').addEventListener('input', updateSplitPreview);
+    splitCustomInputs.appendChild(row);
+  });
+}
+
+function getCheckedMembers() {
+  return [...splitMemberChecks.querySelectorAll('input:checked')].map(el => el.value);
+}
+
+function updateSplitPreview() {
+  const amount  = parseFloat(document.getElementById('amount').value) || 0;
+  const members = getCheckedMembers();
+  if (members.length === 0) { splitPreview.innerHTML = ''; return; }
+
+  let splits = [];
+  if (splitMode === 'equal') {
+    const each = Math.round(amount / members.length);
+    splits = members.map(m => ({ name: m, amount: each }));
+  } else {
+    splits = members.map(m => {
+      const inp = splitCustomInputs.querySelector(`input[data-member="${m}"]`);
+      return { name: m, amount: parseFloat(inp?.value) || 0 };
+    });
+  }
+
+  const payer = splitPayer.value;
+  splitPreview.innerHTML = splits.map(s => {
+    const diff = s.name === payer ? s.amount - amount : s.amount;
+    const label = s.name === payer
+      ? `付 $${formatMoney(amount)}，實際負擔 $${formatMoney(s.amount)}`
+      : `欠 ${payer} $${formatMoney(s.amount)}`;
+    return `<div class="split-preview-row"><span>${s.name}</span><span>${label}</span></div>`;
+  }).join('');
+}
+
+function getSplitData() {
+  const projId = recordProjectSelect.value;
+  const proj   = allProjects.find(p => p.docId === projId);
+  if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitData: null };
+
+  const members = getCheckedMembers();
+  const amount  = parseFloat(document.getElementById('amount').value) || 0;
+  let splits = [];
+  if (splitMode === 'equal') {
+    const each = Math.round(amount / members.length);
+    splits = members.map(m => ({ name: m, amount: each }));
+  } else {
+    splits = members.map(m => {
+      const inp = splitCustomInputs.querySelector(`input[data-member="${m}"]`);
+      return { name: m, amount: parseFloat(inp?.value) || 0 };
+    });
+  }
+  return { splitPayer: splitPayer.value, splitData: splits };
 }
 
 function renderBudgetPage() {
@@ -2107,6 +2499,9 @@ function openModal(record = null) {
     amountInput.value = calcExpr;
     dateInput.value   = record.date;
     noteInput.value   = record.note || '';
+    // 還原專案
+    recordProjectSelect.value = record.projectId || '';
+    updateSplitGroupVisibility();
   } else {
     recordEditId.value = '';
     recordModalTitle.textContent = '新增記帳';
@@ -2413,6 +2808,7 @@ recordForm.addEventListener('submit', async (e) => {
     const selAccId = accountSelect.value;
     const selAcc   = allAccounts.find(a => a.docId === selAccId);
 
+    const { splitPayer: sp, splitData: sd } = getSplitData();
     const data = {
       type:             currentType,
       amount,
@@ -2428,6 +2824,9 @@ recordForm.addEventListener('submit', async (e) => {
       accountName:      selAcc ? selAcc.name : null,
       date:             dateInput.value,
       note:             noteInput.value.trim(),
+      projectId:        recordProjectSelect.value || null,
+      splitPayer:       sp || null,
+      splitData:        sd || null,
     };
     if (editId) {
       await updateDoc(doc(db, 'records', editId), data);
@@ -2452,6 +2851,11 @@ function resetForm() {
   noteInput.value     = '';
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
+  recordProjectSelect.value = '';
+  splitGroup.style.display = 'none';
+  splitMode = 'equal';
+  splitModeEqual.classList.add('active');
+  splitModeCustom.classList.remove('active');
   // 回到支出模式（會自動切換 UI 顯示）
   switchType('expense');
   setDefaultDate();

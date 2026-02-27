@@ -511,6 +511,10 @@
         <span class="nav-icon">🏦</span>
         <span class="nav-label">帳戶</span>
       </button>
+      <button class="nav-btn" id="navProjects" data-page="projects">
+        <span class="nav-icon">🗂️</span>
+        <span class="nav-label">專案</span>
+      </button>
       <button class="nav-btn" id="navReport" data-page="report">
         <span class="nav-icon">📊</span>
         <span class="nav-label">報表</span>
@@ -520,6 +524,34 @@
         <span class="nav-label">設定</span>
       </button>
     </nav>
+
+    <!-- ===== 專案列表頁 ===== -->
+    <div id="pageProjects" style="display:none">
+      <div class="project-list-header">
+        <button class="add-project-btn" id="addProjectBtn">＋ 新增專案</button>
+      </div>
+      <div id="projectList">
+        <div class="project-empty" id="projectEmpty">還沒有專案，點上方按鈕新增</div>
+      </div>
+    </div>
+
+    <!-- ===== 專案詳情頁 ===== -->
+    <div id="pageProjectDetail" style="display:none">
+      <div class="project-detail-hero">
+        <div class="project-detail-name" id="projectDetailName"></div>
+        <div class="project-detail-dates" id="projectDetailDates"></div>
+        <div class="project-detail-members" id="projectDetailMembers"></div>
+      </div>
+
+      <!-- 結算總覽 -->
+      <div class="project-settle-summary" id="projectSettleSummary"></div>
+
+      <!-- 花費明細 -->
+      <div class="project-section-title">花費明細</div>
+      <div id="projectRecordList"></div>
+
+      <button class="project-edit-btn" id="projectEditBtn">編輯專案</button>
+    </div>
 
   </div><!-- /app-screen -->
 
@@ -617,12 +649,80 @@
           <input type="text" id="note" placeholder="例：午餐、薪水..." maxlength="30" />
         </div>
 
+        <!-- 所屬專案 -->
+        <div class="form-group" id="recordProjectGroup">
+          <label class="form-label">所屬專案（選填）</label>
+          <select id="recordProjectSelect" class="form-select">
+            <option value="">不屬於任何專案</option>
+          </select>
+        </div>
+
+        <!-- 分帳設定（選擇專案後才顯示） -->
+        <div id="splitGroup" style="display:none">
+          <div class="split-header">
+            <span class="split-title">分帳設定</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">付款人</label>
+            <select id="splitPayer" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">參與成員</label>
+            <div id="splitMemberChecks" class="split-member-checks"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">分攤方式</label>
+            <div class="split-mode-toggle">
+              <button type="button" class="split-mode-btn active" id="splitModeEqual">平均分攤</button>
+              <button type="button" class="split-mode-btn" id="splitModeCustom">自訂金額</button>
+            </div>
+          </div>
+          <div id="splitCustomArea" style="display:none">
+            <div id="splitCustomInputs"></div>
+          </div>
+          <div class="split-preview" id="splitPreview"></div>
+        </div>
+
         <input type="hidden" id="recordEditId" value="" />
         <div class="form-action-row">
           <button type="submit" class="submit-btn" id="submitBtn">記下來！</button>
           <button type="button" class="delete-record-btn" id="deleteRecordBtn" style="display:none">刪除</button>
         </div>
         <button type="button" class="save-tpl-btn" id="saveTplBtn">📌 儲存為範本</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 建立/編輯專案 modal -->
+  <div class="modal-overlay" id="projectModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="projectModalTitle">新增專案</h2>
+        <button class="close-btn" id="closeProjectModalBtn">✕</button>
+      </div>
+      <form id="projectForm">
+        <div class="form-group">
+          <label class="form-label">專案名稱</label>
+          <input type="text" id="projectNameInput" class="form-input" placeholder="例：日本旅遊 2025" maxlength="30" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">成員（用逗號分隔）</label>
+          <input type="text" id="projectMembersInput" class="form-input" placeholder="例：我、小明、小美" maxlength="100" />
+          <p class="billing-day-hint">「我」會自動代入你的帳戶，其他為同行者</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">開始日期</label>
+          <input type="date" id="projectStartInput" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">結束日期</label>
+          <input type="date" id="projectEndInput" class="form-input" />
+        </div>
+        <input type="hidden" id="projectEditId" value="" />
+        <div class="modal-actions">
+          <button type="submit" class="btn-save" id="projectSubmitBtn">儲存</button>
+          <button type="button" class="btn-delete" id="deleteProjectBtn" style="display:none">刪除專案</button>
+        </div>
       </form>
     </div>
   </div>

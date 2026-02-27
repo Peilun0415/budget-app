@@ -1250,11 +1250,13 @@ async function saveCurrentAsTemplate() {
     tplData.transferFromId = transferFrom.value || '';
     tplData.transferToId   = transferTo.value   || '';
   } else {
-    tplData.categoryId      = selectedCategory?.docId      || null;
-    tplData.categoryName    = selectedCategory?.name       || '';
-    tplData.categoryEmoji   = selectedCategory?.emoji      || '';
-    tplData.subCategoryId   = selectedSubCategory?.docId   || null;
-    tplData.subCategoryName = selectedSubCategory?.name    || '';
+    const tplParent = allCategories.find(c => c.docId === selectedCategory) || null;
+    const tplSub    = tplParent?.subs?.find(s => s.docId === selectedSubCategory) || null;
+    tplData.categoryId      = tplParent?.docId   || null;
+    tplData.categoryName    = tplParent?.name     || '';
+    tplData.categoryEmoji   = tplParent?.emoji    || '';
+    tplData.subCategoryId   = tplSub?.docId       || null;
+    tplData.subCategoryName = tplSub?.name        || '';
     tplData.accountId       = accountSelect.value          || '';
   }
 
@@ -1355,14 +1357,12 @@ function applyTemplate(tpl) {
     if (tpl.categoryId) {
       const parent = allCategories.find(c => c.docId === tpl.categoryId);
       if (parent) {
-        selectedCategory = parent;
-        if (tpl.subCategoryId) {
-          const sub = parent.subs?.find(s => s.docId === tpl.subCategoryId);
-          selectedSubCategory = sub || null;
-        } else {
-          selectedSubCategory = null;
-        }
-        updateCatPickBtn();
+        selectedCategory = parent.docId;
+        const sub = tpl.subCategoryId
+          ? parent.subs?.find(s => s.docId === tpl.subCategoryId) || null
+          : null;
+        selectedSubCategory = sub ? sub.docId : null;
+        updateCatPickBtn(parent, sub);
       }
     }
   }

@@ -2091,6 +2091,12 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   border-left-color: var(--pink-main);
 }
 
+.cat-picker-sub-emoji {
+  font-size: 16px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
 .cat-picker-sub-only {
   display: flex;
   align-items: center;

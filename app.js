@@ -2126,7 +2126,9 @@ function renderCatPickerSubs(parentCat) {
       const curSub = isRecMode ? recSelectedSubCategory?.docId : selectedSubCategory;
       const item = document.createElement('div');
       item.className = 'cat-picker-sub' + (curSub === sub.docId ? ' selected' : '');
-      item.textContent = sub.name;
+      item.innerHTML = sub.emoji
+        ? `<span class="cat-picker-sub-emoji">${sub.emoji}</span><span>${sub.name}</span>`
+        : sub.name;
       item.addEventListener('click', () => {
         if (window._recCatPickMode) {
           recSelectedCategory    = parentCat;

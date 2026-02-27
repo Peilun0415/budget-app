@@ -781,9 +781,13 @@ function renderProjectList() {
     card.innerHTML = `
       <div class="project-card-main">
         <div class="project-card-name">${proj.name}</div>
-        <div class="project-card-meta">${dateStr ? `📅 ${dateStr}` : ''}${members ? ` · 👥 ${members}` : ''}</div>
+        ${dateStr ? `<div class="project-card-date">📅 ${dateStr}</div>` : ''}
+        ${members ? `<div class="project-card-members">👥 ${members}</div>` : ''}
       </div>
-      <div class="project-card-amount">$${formatMoney(total)}</div>`;
+      <div class="project-card-right">
+        <div class="project-card-amount">$${formatMoney(total)}</div>
+        <div class="project-card-amount-label">總花費</div>
+      </div>`;
     card.addEventListener('click', () => openProjectDetail(proj));
     projectList.appendChild(card);
   });
@@ -801,7 +805,7 @@ function openProjectModal(proj = null) {
   projectEditId.value          = proj ? proj.docId : '';
   projectModalTitle.textContent = proj ? '編輯專案' : '新增專案';
   projectNameInput.value       = proj ? proj.name : '';
-  projectMembersInput.value    = proj ? (proj.members || []).join('、') : '';
+  projectMembersInput.value    = proj ? (proj.members || []).filter(m => m !== '我').join('、') : '';
   projectStartInput.value      = proj?.startDate || '';
   projectEndInput.value        = proj?.endDate   || '';
   deleteProjectBtn.style.display = proj ? '' : 'none';
@@ -820,7 +824,8 @@ projectModalOverlay.addEventListener('click', e => {
 projectForm.addEventListener('submit', async e => {
   e.preventDefault();
   const name    = projectNameInput.value.trim();
-  const members = projectMembersInput.value.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  const others  = projectMembersInput.value.split(/[,，、]/).map(s => s.trim()).filter(s => s && s !== '我');
+  const members = ['我', ...others];
   const startDate = projectStartInput.value || null;
   const endDate   = projectEndInput.value   || null;
   const editId    = projectEditId.value;
@@ -883,14 +888,20 @@ function renderProjectDetail() {
   [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(r => {
     const item = document.createElement('div');
     item.className = 'project-record-item';
-    const payerLabel = r.splitPayer ? `${r.splitPayer} 付` : '';
-    const splitLabel = r.splitData ? `（${r.splitData.map(s => `${s.name}$${formatMoney(s.amount)}`).join('、')}）` : '';
+    const noteMeta = [r.date, r.note].filter(Boolean).join(' · ');
+    const splitTags = r.splitData
+      ? r.splitData.map(s => `<span class="rec-split-tag">${s.name} $${formatMoney(s.amount)}</span>`).join('')
+      : '';
+    const payerRow = r.splitPayer
+      ? `<div class="project-rec-split">${r.splitPayer} 付 · ${splitTags}</div>`
+      : '';
     item.innerHTML = `
       <div class="project-rec-left">
         <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
         <div class="project-rec-info">
           <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
-          <div class="project-rec-meta">${r.date}${r.note ? ' · ' + r.note : ''}${payerLabel ? ' · ' + payerLabel : ''}${splitLabel}</div>
+          <div class="project-rec-meta">${noteMeta}</div>
+          ${payerRow}
         </div>
       </div>
       <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>`;
@@ -985,12 +996,28 @@ function renderSplitUI(proj) {
     opt.textContent = m;
     splitPayer.appendChild(opt);
   });
-  // 參與成員勾選
+  // 參與成員勾選（預設只勾第一位「我」）
   splitMemberChecks.innerHTML = '';
-  members.forEach(m => {
+
+  // 全員快捷按鈕
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'split-all-btn';
+  allBtn.textContent = '全員';
+  allBtn.addEventListener('click', () => {
+    splitMemberChecks.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.checked = true;
+      cb.closest('label').classList.add('checked');
+    });
+    updateSplitPreview();
+  });
+  splitMemberChecks.appendChild(allBtn);
+
+  members.forEach((m, i) => {
+    const defaultChecked = i === 0; // 只預設勾第一位
     const label = document.createElement('label');
-    label.className = 'exclude-cat-item checked';
-    label.innerHTML = `<input type="checkbox" value="${m}" checked /><span class="exclude-cat-name">${m}</span>`;
+    label.className = 'exclude-cat-item' + (defaultChecked ? ' checked' : '');
+    label.innerHTML = `<input type="checkbox" value="${m}" ${defaultChecked ? 'checked' : ''} /><span class="exclude-cat-name">${m}</span>`;
     label.querySelector('input').addEventListener('change', () => {
       label.classList.toggle('checked', label.querySelector('input').checked);
       updateSplitPreview();
@@ -999,6 +1026,8 @@ function renderSplitUI(proj) {
   });
   updateSplitPreview();
 }
+
+splitPayer.addEventListener('change', updateSplitPreview);
 
 splitModeEqual.addEventListener('click', () => {
   splitMode = 'equal';
@@ -1055,11 +1084,22 @@ function updateSplitPreview() {
   }
 
   const payer = splitPayer.value;
+  const onlyPayer = splits.length === 1 && splits[0].name === payer;
+
   splitPreview.innerHTML = splits.map(s => {
-    const diff = s.name === payer ? s.amount - amount : s.amount;
-    const label = s.name === payer
-      ? `付 $${formatMoney(amount)}，實際負擔 $${formatMoney(s.amount)}`
-      : `欠 ${payer} $${formatMoney(s.amount)}`;
+    let label;
+    if (onlyPayer) {
+      // 只有付款人自己 → 純自費
+      label = `自費 $${formatMoney(amount)}`;
+    } else if (s.name === payer) {
+      const payerOwn = s.amount;
+      const payerAdvanced = amount - payerOwn;
+      label = payerAdvanced > 0
+        ? `付 $${formatMoney(amount)}，代墊 $${formatMoney(payerAdvanced)}，自負 $${formatMoney(payerOwn)}`
+        : `自費 $${formatMoney(amount)}`;
+    } else {
+      label = `欠 ${payer} $${formatMoney(s.amount)}`;
+    }
     return `<div class="split-preview-row"><span>${s.name}</span><span>${label}</span></div>`;
   }).join('');
 }

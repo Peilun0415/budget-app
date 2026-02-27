@@ -3315,25 +3315,44 @@ input.form-input {
   gap: 12px;
 }
 
-.project-card-main { flex: 1; min-width: 0; }
-
-.project-card-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin-bottom: 3px;
+.project-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.project-card-meta {
+.project-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.project-card-date,
+.project-card-members {
   font-size: 12px;
   color: var(--text-mid);
 }
 
+.project-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .project-card-amount {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--pink-dark);
   white-space: nowrap;
+}
+
+.project-card-amount-label {
+  font-size: 11px;
+  color: var(--text-light);
 }
 
 /* 專案詳情 */
@@ -3446,6 +3465,28 @@ input.form-input {
   font-weight: 700;
   color: #e53935;
   white-space: nowrap;
+  align-self: flex-start;
+  padding-top: 2px;
+}
+
+.project-rec-split {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.rec-split-tag {
+  background: var(--pink-light);
+  color: var(--pink-dark);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .project-edit-btn {
@@ -3508,6 +3549,17 @@ input.form-input {
   margin-top: 6px;
 }
 
+.split-all-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--pink-main);
+  background: var(--pink-main);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .split-custom-row {
   display: flex;
   align-items: center;
@@ -3523,7 +3575,22 @@ input.form-input {
   flex-shrink: 0;
 }
 
-.split-custom-input-wrap { flex: 1; }
+.split-custom-input-wrap {
+  width: 110px;
+  flex-shrink: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.split-custom-input-wrap input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 6px 8px;
+  font-size: 14px;
+}
 
 .split-preview {
   background: #f8f8f8;

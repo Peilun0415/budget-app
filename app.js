@@ -2189,7 +2189,13 @@ function renderAccountSelect() {
   transferFrom.innerHTML  = '';
   transferTo.innerHTML    = '';
 
-  allAccounts.forEach(a => {
+  const sortedAccounts = [...allAccounts].sort((a, b) => {
+    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
+    if (tDiff !== 0) return tDiff;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
+  sortedAccounts.forEach(a => {
     const makeOpt = () => {
       const opt = document.createElement('option');
       opt.value = a.docId;

@@ -1753,6 +1753,102 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   color: var(--text-mid);
 }
 
+/* 月預算排除類別選擇格 */
+.exclude-cat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* 可折疊群組 */
+.exclude-group {
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.exclude-group-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+  user-select: none;
+}
+
+.exclude-group-emoji { font-size: 16px; }
+
+.exclude-group-name { flex: 1; }
+
+.exclude-group-badge {
+  background: var(--pink-main);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.exclude-group-arrow {
+  font-size: 16px;
+  color: var(--text-mid);
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.exclude-group.open .exclude-group-arrow {
+  transform: rotate(90deg);
+}
+
+.exclude-group-body {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  background: white;
+  border-top: 1px solid #f0f0f0;
+}
+
+.exclude-group.open .exclude-group-body {
+  display: flex;
+}
+
+/* 個別項目膠囊 */
+.exclude-cat-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  border: 1.5px solid #e0e0e0;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-dark);
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.exclude-cat-item input[type=checkbox] {
+  display: none;
+}
+
+.exclude-cat-item.checked {
+  border-color: var(--pink-main);
+  background: #fff0f6;
+  color: var(--pink-dark);
+  font-weight: 600;
+}
+
+.exclude-cat-emoji {
+  font-size: 15px;
+}
+
 .detail-filter-bar {
   background: var(--white);
   padding: 12px 16px;

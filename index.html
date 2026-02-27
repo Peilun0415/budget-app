@@ -366,6 +366,11 @@
           <label class="form-label">金額（元）</label>
           <input type="number" id="monthBudgetInput" class="form-input" placeholder="例：30000" min="0" />
         </div>
+        <div class="form-group">
+          <label class="form-label">排除類別（不計入月預算）</label>
+          <p class="billing-day-hint">勾選後，該類別的支出不會算進月預算消耗</p>
+          <div class="exclude-cat-grid" id="excludeCatGrid"></div>
+        </div>
         <div class="modal-actions">
           <button class="btn-save" id="saveMonthBudgetBtn">儲存</button>
           <button class="btn-delete" id="deleteMonthBudgetBtn" style="display:none">刪除預算</button>
@@ -823,7 +828,7 @@
 
         <!-- 初始餘額 -->
         <div class="form-group">
-          <label for="accountBalance">初始餘額（信用卡欠款請輸入負數，例：-5000）</label>
+          <label for="accountBalance" id="accountBalanceLabel">初始餘額</label>
           <div class="amount-input-wrap">
             <span class="currency-sign">$</span>
             <input type="number" id="accountBalance" placeholder="0" inputmode="decimal" />

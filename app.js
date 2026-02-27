@@ -130,7 +130,7 @@ const ACCOUNT_TYPES = [
   { id: 'cash',     emoji: '💵', name: '現金' },
   { id: 'credit',   emoji: '💳', name: '信用卡' },
   { id: 'stock',    emoji: '📈', name: '證券' },
-  { id: 'saving',   emoji: '🐖', name: '存款' },
+  { id: 'loan',     emoji: '🏦', name: '貸款' },
   { id: 'other',    emoji: '📂', name: '其他' },
 ];
 
@@ -317,6 +317,7 @@ const closeMonthBudgetBtn  = document.getElementById('closeMonthBudgetBtn');
 const monthBudgetInput     = document.getElementById('monthBudgetInput');
 const saveMonthBudgetBtn   = document.getElementById('saveMonthBudgetBtn');
 const deleteMonthBudgetBtn = document.getElementById('deleteMonthBudgetBtn');
+const excludeCatGrid       = document.getElementById('excludeCatGrid');
 const addCatBudgetBtn      = document.getElementById('addCatBudgetBtn');
 const catBudgetList        = document.getElementById('catBudgetList');
 const catBudgetEmpty       = document.getElementById('catBudgetEmpty');
@@ -621,6 +622,7 @@ function switchPage(page) {
   if (page === 'recurring')     pageTitle.textContent = '固定收支';
   if (page === 'budget')        pageTitle.textContent = '預算管理';
   if (page === 'report')        pageTitle.textContent = '報表';
+  if (page === 'home')          renderHomeBudget();
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
   if (page === 'budget')        renderBudgetPage();
@@ -706,11 +708,17 @@ function renderMonthBudget() {
   budgetMonthEmpty.style.display = 'none';
   budgetMonthInfo.style.display  = '';
 
-  // 計算本月支出
+  // 計算本月支出（排除指定類別）
   const now = new Date();
   const ym  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const excluded = budget.excludedCategoryIds || [];
   const spent = allRecords
-    .filter(r => r.type === 'expense' && r.date?.startsWith(ym))
+    .filter(r => {
+      if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
+      if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
+      if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
+      return true;
+    })
     .reduce((s, r) => s + r.amount, 0);
 
   const limit = budget.amount;
@@ -784,20 +792,97 @@ editMonthBudgetBtn.addEventListener('click', () => {
   const budget = allBudgets.find(b => b.type === 'month');
   monthBudgetInput.value = budget ? budget.amount : '';
   deleteMonthBudgetBtn.style.display = budget ? '' : 'none';
+  renderExcludeCatGrid(budget?.excludedCategoryIds || []);
   monthBudgetOverlay.classList.add('active');
 });
 const closeMonthBudgetModal = () => monthBudgetOverlay.classList.remove('active');
 closeMonthBudgetBtn.addEventListener('click', closeMonthBudgetModal);
 monthBudgetOverlay.addEventListener('click', e => { if (e.target === monthBudgetOverlay) closeMonthBudgetModal(); });
 
+function renderExcludeCatGrid(excluded = []) {
+  excludeCatGrid.innerHTML = '';
+  const expCats = allCategories.filter(c => c.type === 'expense');
+
+  expCats.forEach(cat => {
+    if (cat.subs && cat.subs.length > 0) {
+      // 有子分類 → 可折疊群組
+      const anyChecked = cat.subs.some(s => excluded.includes(`${cat.docId}::${s.docId}`));
+      const group = document.createElement('div');
+      group.className = 'exclude-group';
+
+      // 群組標題（點擊展開/收合）
+      const header = document.createElement('div');
+      header.className = 'exclude-group-header';
+      header.innerHTML = `
+        <span class="exclude-group-emoji">${cat.emoji}</span>
+        <span class="exclude-group-name">${cat.name}</span>
+        ${anyChecked ? `<span class="exclude-group-badge">${cat.subs.filter(s => excluded.includes(`${cat.docId}::${s.docId}`)).length}</span>` : ''}
+        <span class="exclude-group-arrow">›</span>`;
+
+      const body = document.createElement('div');
+      body.className = 'exclude-group-body';
+
+      cat.subs.forEach(sub => {
+        const id = `${cat.docId}::${sub.docId}`;
+        const checked = excluded.includes(id);
+        const item = document.createElement('label');
+        item.className = 'exclude-cat-item' + (checked ? ' checked' : '');
+        item.innerHTML = `
+          <input type="checkbox" value="${id}" ${checked ? 'checked' : ''} />
+          <span class="exclude-cat-emoji">${sub.emoji || cat.emoji}</span>
+          <span class="exclude-cat-name">${sub.name}</span>`;
+        item.querySelector('input').addEventListener('change', () => {
+          item.classList.toggle('checked', item.querySelector('input').checked);
+          // 更新 badge
+          const checkedCount = body.querySelectorAll('input:checked').length;
+          const badge = header.querySelector('.exclude-group-badge');
+          if (checkedCount > 0) {
+            if (badge) badge.textContent = checkedCount;
+            else header.querySelector('.exclude-group-arrow').insertAdjacentHTML('beforebegin',
+              `<span class="exclude-group-badge">${checkedCount}</span>`);
+          } else if (badge) badge.remove();
+        });
+        body.appendChild(item);
+      });
+
+      header.addEventListener('click', () => {
+        group.classList.toggle('open');
+      });
+
+      group.appendChild(header);
+      group.appendChild(body);
+      excludeCatGrid.appendChild(group);
+    } else {
+      // 無子分類 → 直接顯示
+      const checked = excluded.includes(cat.docId);
+      const item = document.createElement('label');
+      item.className = 'exclude-cat-item' + (checked ? ' checked' : '');
+      item.innerHTML = `
+        <input type="checkbox" value="${cat.docId}" ${checked ? 'checked' : ''} />
+        <span class="exclude-cat-emoji">${cat.emoji}</span>
+        <span class="exclude-cat-name">${cat.name}</span>`;
+      item.querySelector('input').addEventListener('change', () => {
+        item.classList.toggle('checked', item.querySelector('input').checked);
+      });
+      excludeCatGrid.appendChild(item);
+    }
+  });
+}
+
+function getExcludedCategoryIds() {
+  return [...excludeCatGrid.querySelectorAll('input[type=checkbox]:checked')]
+    .map(el => el.value);
+}
+
 saveMonthBudgetBtn.addEventListener('click', async () => {
   const amount = parseInt(monthBudgetInput.value, 10);
   if (!amount || amount <= 0) { monthBudgetInput.focus(); return; }
+  const excludedCategoryIds = getExcludedCategoryIds();
   const existing = allBudgets.find(b => b.type === 'month');
   if (existing) {
-    await updateDoc(doc(db, 'budgets', existing.docId), { amount });
+    await updateDoc(doc(db, 'budgets', existing.docId), { amount, excludedCategoryIds });
   } else {
-    await addDoc(collection(db, 'budgets'), { uid: currentUser.uid, type: 'month', amount });
+    await addDoc(collection(db, 'budgets'), { uid: currentUser.uid, type: 'month', amount, excludedCategoryIds });
   }
   closeMonthBudgetModal();
 });
@@ -2417,8 +2502,18 @@ function openAccountModal(account = null) {
   accountModalOverlay.classList.add('active');
 }
 
+const accountBalanceLabel = document.getElementById('accountBalanceLabel');
+
 function updateBillingDayVisibility() {
   billingDayGroup.style.display = selectedAccountType === 'credit' ? '' : 'none';
+  // 動態更新餘額說明
+  if (selectedAccountType === 'credit') {
+    accountBalanceLabel.textContent = '初始餘額（信用卡欠款請輸入負數，例：-5000）';
+  } else if (selectedAccountType === 'loan') {
+    accountBalanceLabel.textContent = '貸款金額（請輸入負數，例：房貸100萬填 -1000000）';
+  } else {
+    accountBalanceLabel.textContent = '初始餘額';
+  }
 }
 
 function closeAccountModal() {
@@ -2828,15 +2923,15 @@ function renderAccountList() {
 
   accountEmptyState.style.display = 'none';
 
-  // 資產帳戶：餘額為正才算資產
-  // 信用卡：餘額為負代表欠款（負債），餘額為正代表已還清有溢繳
+  // 信用卡、貸款：餘額為負代表欠款（負債），餘額為正代表已還清有溢繳
+  const LIABILITY_TYPES = ['credit', 'loan'];
   let totalAsset     = 0;
   let totalLiability = 0;
   allAccounts.forEach(a => {
     const bal = calcAccountBalance(a);
-    if (a.typeId === 'credit') {
-      if (bal < 0) totalLiability += Math.abs(bal); // 欠款累計到負債
-      else         totalAsset     += bal;            // 溢繳算資產
+    if (LIABILITY_TYPES.includes(a.typeId)) {
+      if (bal < 0) totalLiability += Math.abs(bal);
+      else         totalAsset     += bal;
     } else {
       totalAsset += bal;
     }
@@ -2994,8 +3089,14 @@ function renderHomeBudget() {
 
   // ── 月預算（佔整列）──
   if (monthBudget) {
+    const excluded = monthBudget.excludedCategoryIds || [];
     const spent = allRecords
-      .filter(r => r.type === 'expense' && r.date?.startsWith(ym))
+      .filter(r => {
+        if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
+        if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
+        if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
+        return true;
+      })
       .reduce((s, r) => s + r.amount, 0);
     const limit = monthBudget.amount;
     const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;

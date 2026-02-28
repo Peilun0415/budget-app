@@ -883,7 +883,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 2px 0 6px;
+  margin: 10px 0 6px;
   padding: 4px 12px;
   border: 1.5px dashed var(--border);
   border-radius: 20px;
@@ -1395,15 +1395,28 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .tpl-delete-btn:hover { color: var(--red-main); }
 
 /* ===== 轉帳 ===== */
+.date-account-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+.date-account-item {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0 !important;
+}
+
 .transfer-accounts-row {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  margin-bottom: 18px;
 }
 
 .transfer-acc-group {
   flex: 1;
-  margin-bottom: 0;
+  margin-bottom: 0 !important;
 }
 
 .transfer-arrow {
@@ -3929,6 +3942,11 @@ input.form-input {
 .reward-track-remain.over { color: var(--red-main); }
 
 /* 分帳 UI */
+#rewardActivityGroup .form-group,
+#splitGroup .form-group {
+  margin-bottom: 18px;
+}
+
 .split-header {
   padding: 4px 0 8px;
   border-top: 1px solid #f0f0f0;

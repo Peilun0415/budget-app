@@ -668,15 +668,16 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="date">日期</label>
-          <input type="date" id="date" required />
-        </div>
-
-        <!-- 一般記帳：帳戶選擇 -->
-        <div class="form-group" id="accountGroup">
-          <label for="accountSelect">帳戶</label>
-          <select id="accountSelect" class="form-select"></select>
+        <!-- 日期 + 帳戶 同一列（轉帳時帳戶欄隱藏，改用下方轉帳區塊） -->
+        <div class="date-account-row">
+          <div class="form-group date-account-item">
+            <label for="date">日期</label>
+            <input type="date" id="date" required />
+          </div>
+          <div class="form-group date-account-item" id="accountGroup">
+            <label for="accountSelect">帳戶</label>
+            <select id="accountSelect" class="form-select"></select>
+          </div>
         </div>
 
         <!-- 轉帳專用：從/到帳戶 -->

@@ -20,7 +20,8 @@ import {
   where,
   orderBy,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  getDocs
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ===== Firebase 設定 =====
@@ -205,8 +206,12 @@ const btnIncome     = document.getElementById('btnIncome');
 const btnTransfer   = document.getElementById('btnTransfer');
 const accountGroup  = document.getElementById('accountGroup');
 const transferGroup = document.getElementById('transferGroup');
-const transferFrom  = document.getElementById('transferFrom');
-const transferTo    = document.getElementById('transferTo');
+const transferFrom        = document.getElementById('transferFrom');
+const transferTo          = document.getElementById('transferTo');
+const exchangeToggle      = document.getElementById('exchangeToggle');
+const exchangeAmountGroup = document.getElementById('exchangeAmountGroup');
+const exchangeAmountInput = document.getElementById('exchangeAmount');
+const exchangeHint        = document.getElementById('exchangeHint');
 const categoryGrid     = document.getElementById('categoryGrid');
 const catPickBtn       = document.getElementById('catPickBtn');
 const catPickEmoji     = document.getElementById('catPickEmoji');
@@ -281,6 +286,8 @@ const accountTypeGrid      = document.getElementById('accountTypeGrid');
 const accountNameInput     = document.getElementById('accountName');
 const accountBalanceInput  = document.getElementById('accountBalance');
 const accountNoteInput     = document.getElementById('accountNote');
+const accountCurrencyInput      = document.getElementById('accountCurrency');
+const accountIncludeInTotal     = document.getElementById('accountIncludeInTotal');
 const accountSubmitBtn     = document.getElementById('accountSubmitBtn');
 const accountEditId        = document.getElementById('accountEditId');
 const accountModalTitle    = document.getElementById('accountModalTitle');
@@ -933,11 +940,32 @@ projectForm.addEventListener('submit', async e => {
 
 deleteProjectBtn.addEventListener('click', async () => {
   const editId = projectEditId.value;
-  if (editId && confirm('確定要刪除此專案？（記帳記錄不會被刪除）')) {
-    await deleteDoc(doc(db, 'projects', editId));
-    closeProjectModal();
-    switchPage('projects');
-  }
+  if (!editId) return;
+
+  // 查詢該專案底下的記錄數量
+  const q = query(
+    collection(db, 'records'),
+    where('uid', '==', currentUser.uid),
+    where('projectId', '==', editId)
+  );
+  const snap = await getDocs(q);
+  const count = snap.size;
+
+  const msg = count > 0
+    ? `確定要刪除此專案？\n\n此專案共有 ${count} 筆記帳記錄，刪除後將一併移除，無法復原。`
+    : '確定要刪除此專案？\n\n此專案目前沒有記帳記錄。';
+
+  if (!confirm(msg)) return;
+
+  // 刪除所有相關記錄
+  const batch = [];
+  snap.forEach(d => batch.push(deleteDoc(doc(db, 'records', d.id))));
+  await Promise.all(batch);
+
+  // 刪除專案本身
+  await deleteDoc(doc(db, 'projects', editId));
+  closeProjectModal();
+  switchPage('projects');
 });
 
 // ===== 專案詳情 =====
@@ -2956,6 +2984,23 @@ function openModal(record = null) {
     if (record.type === 'transfer') {
       transferFrom.value = record.transferFromId || '';
       transferTo.value   = record.transferToId   || '';
+      // 還原換匯：找配對的收入那筆，若金額不同則展開換匯欄位
+      const paired = record.transferId
+        ? allRecords.filter(r => r.transferId === record.transferId)
+        : [];
+      const outRec = paired.find(r => r.type === 'expense') || record;
+      const inRec  = paired.find(r => r.type === 'income');
+      if (inRec && inRec.amount !== outRec.amount) {
+        exchangeToggle.checked = true;
+        exchangeAmountGroup.style.display = '';
+        exchangeAmountInput.value = inRec.amount;
+        // hint 在 amountInput 設值後觸發
+        setTimeout(updateExchangeHint, 0);
+      } else {
+        exchangeToggle.checked = false;
+        exchangeAmountGroup.style.display = 'none';
+        exchangeAmountInput.value = '';
+      }
     } else {
       selectedCategory    = record.categoryId    || null;
       selectedSubCategory = record.subCategoryId || null;
@@ -3014,8 +3059,38 @@ function switchType(type) {
   // 轉帳不需要外幣欄位
   foreignAmountGroup.style.display = isTransfer ? 'none' : '';
 
-  if (!isTransfer) setDefaultCategory();
+  if (!isTransfer) {
+    setDefaultCategory();
+    // 切換到非轉帳時重置換匯
+    exchangeToggle.checked = false;
+    exchangeAmountGroup.style.display = 'none';
+    exchangeAmountInput.value = '';
+    exchangeHint.textContent = '';
+  }
 }
+
+// 換匯 toggle
+exchangeToggle.addEventListener('change', () => {
+  exchangeAmountGroup.style.display = exchangeToggle.checked ? '' : 'none';
+  if (!exchangeToggle.checked) {
+    exchangeAmountInput.value = '';
+    exchangeHint.textContent = '';
+  }
+});
+
+// 換匯匯率提示（輸入到帳金額時即時計算）
+function updateExchangeHint() {
+  const fromAmt = parseFloat(amountInput.value) || 0;
+  const toAmt   = parseFloat(exchangeAmountInput.value) || 0;
+  if (!exchangeToggle.checked || fromAmt <= 0 || toAmt <= 0) {
+    exchangeHint.textContent = '';
+    return;
+  }
+  const rate = (toAmt / fromAmt).toFixed(4);
+  exchangeHint.textContent = `匯率約 1 : ${rate}`;
+}
+exchangeAmountInput.addEventListener('input', updateExchangeHint);
+amountInput.addEventListener('input', updateExchangeHint);
 
 // 自動選該 type 第一個主分類的第一個子分類（無子分類則選主分類）
 function setDefaultCategory() {
@@ -3227,6 +3302,11 @@ recordForm.addEventListener('submit', async (e) => {
       const note = noteInput.value.trim();
       const date = dateInput.value;
 
+      // 換匯：到帳金額可與轉出金額不同
+      const isExchange   = exchangeToggle.checked && !!exchangeAmountInput.value;
+      const toAmount     = isExchange ? (parseFloat(exchangeAmountInput.value) || amount) : amount;
+      const exchangeRate = isExchange && amount > 0 ? +(toAmount / amount).toFixed(6) : null;
+
       if (editId) {
         // 編輯：找到配對的另一筆，一起更新
         const rec = allRecords.find(r => r.docId === editId);
@@ -3240,32 +3320,38 @@ recordForm.addEventListener('submit', async (e) => {
           amount, date, note,
           accountId: fromId, accountName: fromAcc?.name || null,
           transferFromId: fromId, transferToId: toId,
-          displayName: `轉帳 → ${toAcc?.name || ''}`,
+          exchangeRate: exchangeRate || null,
+          displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
         }));
         if (inRec) updates.push(updateDoc(doc(db, 'records', inRec.docId), {
-          amount, date, note,
+          amount: toAmount, date, note,
           accountId: toId, accountName: toAcc?.name || null,
           transferFromId: fromId, transferToId: toId,
-          displayName: `轉帳 ← ${fromAcc?.name || ''}`,
+          exchangeRate: exchangeRate || null,
+          displayName: isExchange ? `換匯 ← ${fromAcc?.name || ''}` : `轉帳 ← ${fromAcc?.name || ''}`,
         }));
         await Promise.all(updates);
       } else {
         // 新增：建立兩筆並用同一個 transferId 關聯
         const transferId = `tf_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-        const base = { uid: currentUser.uid, type: 'transfer', amount, date, note,
+        const base = { uid: currentUser.uid, type: 'transfer', date, note,
           transferId, transferFromId: fromId, transferToId: toId,
-          displayEmoji: '🔄', categoryId: null, categoryName: null,
+          exchangeRate: exchangeRate || null,
+          displayEmoji: isExchange ? '💱' : '🔄',
+          categoryId: null, categoryName: null,
           createdAt: serverTimestamp() };
         await Promise.all([
           addDoc(collection(db, 'records'), {
             ...base,
+            amount,
             accountId: fromId, accountName: fromAcc?.name || null,
-            displayName: `轉帳 → ${toAcc?.name || ''}`,
+            displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
           }),
           addDoc(collection(db, 'records'), {
             ...base,
+            amount: toAmount,
             accountId: toId, accountName: toAcc?.name || null,
-            displayName: `轉帳 ← ${fromAcc?.name || ''}`,
+            displayName: isExchange ? `換匯 ← ${fromAcc?.name || ''}` : `轉帳 ← ${fromAcc?.name || ''}`,
           }),
         ]);
       }
@@ -3336,6 +3422,10 @@ function resetForm() {
   foreignAmountInput.value   = '';
   foreignAmountRow.style.display = 'none';
   foreignToggleLabel.textContent = '＋ 外幣金額';
+  exchangeToggle.checked = false;
+  exchangeAmountGroup.style.display = 'none';
+  exchangeAmountInput.value = '';
+  exchangeHint.textContent = '';
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   recordProjectSelect.value = '';
@@ -3385,10 +3475,12 @@ for (let d = 1; d <= 31; d++) {
 function openAccountModal(account = null) {
   accountEditId.value = account ? account.docId : '';
   accountModalTitle.textContent = account ? '編輯帳戶' : '新增帳戶';
-  accountNameInput.value    = account ? account.name    : '';
-  accountBalanceInput.value = account ? account.balance : '';
-  accountNoteInput.value    = account ? account.note    : '';
-  accountBillingDay.value   = account?.billingDay ?? '';
+  accountNameInput.value     = account ? account.name     : '';
+  accountBalanceInput.value  = account ? account.balance  : '';
+  accountNoteInput.value     = account ? account.note     : '';
+  accountCurrencyInput.value      = account?.currency ?? '';
+  accountIncludeInTotal.checked   = account ? (account.includeInTotal !== false) : true;
+  accountBillingDay.value         = account?.billingDay ?? '';
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
   updateBillingDayVisibility();
@@ -3432,9 +3524,11 @@ accountForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!selectedAccountType) { shakeEl(accountTypeGrid); return; }
 
-  const name       = accountNameInput.value.trim();
-  const balance    = parseFloat(accountBalanceInput.value) || 0;
-  const note       = accountNoteInput.value.trim();
+  const name            = accountNameInput.value.trim();
+  const balance         = parseFloat(accountBalanceInput.value) || 0;
+  const note            = accountNoteInput.value.trim();
+  const currency        = accountCurrencyInput.value || null;
+  const includeInTotal  = accountIncludeInTotal.checked;
   const billingDay = selectedAccountType === 'credit' && accountBillingDay.value
     ? parseInt(accountBillingDay.value) : null;
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
@@ -3449,7 +3543,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay,
+        name, balance, note, billingDay, currency, includeInTotal,
       });
     } else {
       const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
@@ -3458,7 +3552,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay,
+        name, balance, note, billingDay, currency, includeInTotal,
         order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });
@@ -3820,8 +3914,24 @@ function renderAccountList() {
   const LIABILITY_TYPES = ['credit', 'loan'];
   let totalAsset     = 0;
   let totalLiability = 0;
+  // 外幣帳戶不納入台幣總計，另外收集
+  const fxSummary = {}; // { JPY: { asset: 0, liability: 0 }, ... }
   allAccounts.forEach(a => {
     const bal = calcAccountBalance(a);
+    const included = a.includeInTotal !== false;
+    if (!included) return; // 不計入總資產，直接跳過
+
+    if (a.currency) {
+      // 外幣帳戶：另外收集，不納入台幣總計
+      if (!fxSummary[a.currency]) fxSummary[a.currency] = { asset: 0, liability: 0 };
+      if (LIABILITY_TYPES.includes(a.typeId)) {
+        if (bal < 0) fxSummary[a.currency].liability += Math.abs(bal);
+        else         fxSummary[a.currency].asset     += bal;
+      } else {
+        fxSummary[a.currency].asset += bal;
+      }
+      return;
+    }
     if (LIABILITY_TYPES.includes(a.typeId)) {
       if (bal < 0) totalLiability += Math.abs(bal);
       else         totalAsset     += bal;
@@ -3829,13 +3939,31 @@ function renderAccountList() {
       totalAsset += bal;
     }
   });
-  // 淨資產 = 資產 - 負債
+  // 淨資產 = 資產 - 負債（僅台幣）
   const netWorth = totalAsset - totalLiability;
 
   accountsNetWorth.textContent       = `$${formatMoney(netWorth)}`;
   accountsNetWorth.style.color       = netWorth < 0 ? '#ffb3b3' : 'white';
   accountsTotalAsset.textContent     = `$${formatMoney(totalAsset)}`;
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
+
+  // 外幣帳戶參考列（插入在總覽卡片下方）
+  const existingFxBar = document.getElementById('fxSummaryBar');
+  if (existingFxBar) existingFxBar.remove();
+  const fxEntries = Object.entries(fxSummary);
+  if (fxEntries.length > 0) {
+    const bar = document.createElement('div');
+    bar.id = 'fxSummaryBar';
+    bar.className = 'fx-summary-bar';
+    bar.innerHTML = '<span class="fx-summary-label">外幣帳戶（參考）</span>' +
+      fxEntries.map(([cur, { asset, liability }]) => {
+        const net = asset - liability;
+        const sign = net < 0 ? '-' : '';
+        return `<span class="fx-summary-item">${cur} ${sign}${formatMoney(Math.abs(net))}</span>`;
+      }).join('');
+    // 插在 accountList 前
+    accountList.parentNode.insertBefore(bar, accountList);
+  }
 
   // 依 typeOrder → typeName 分組，組內依 order 排序
   const groupMap = {};
@@ -3868,9 +3996,10 @@ function renderAccountList() {
     accounts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(a => {
       const curBal   = calcAccountBalance(a);
       const balColor = curBal < 0 ? 'var(--red-main)' : 'var(--purple-main)';
+      const balPrefix = a.currency ? a.currency + ' ' : '$';
       const balText  = curBal < 0
-        ? `-$${formatMoney(Math.abs(curBal))}`
-        : `$${formatMoney(curBal)}`;
+        ? `-${balPrefix}${formatMoney(Math.abs(curBal))}`
+        : `${balPrefix}${formatMoney(curBal)}`;
 
       const item = document.createElement('div');
       item.className = 'account-item';
@@ -3879,7 +4008,11 @@ function renderAccountList() {
         <span class="drag-handle item-drag-handle" title="拖曳排序">⠿</span>
         <div class="account-type-icon">${a.emoji}</div>
         <div class="account-info">
-          <div class="account-name">${a.name}</div>
+          <div class="account-name">
+            ${a.name}
+            ${a.currency ? `<span class="account-currency-tag">${a.currency}</span>` : ''}
+            ${a.includeInTotal === false ? `<span class="account-exclude-tag">不計入</span>` : ''}
+          </div>
           ${a.note ? `<div class="account-note">${a.note}</div>` : ''}
         </div>
         <div class="account-right">

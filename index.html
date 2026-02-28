@@ -693,6 +693,20 @@
               <select id="transferTo" class="form-select"></select>
             </div>
           </div>
+          <!-- 換匯：到帳金額不同 -->
+          <label class="exchange-toggle-label">
+            <input type="checkbox" id="exchangeToggle" />
+            <span>換匯（到帳金額不同）</span>
+          </label>
+          <div id="exchangeAmountGroup" style="display:none">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="exchangeAmount">到帳金額</label>
+              <div class="amount-input-wrap" id="exchangeAmountWrap">
+                <input type="number" id="exchangeAmount" placeholder="0" inputmode="decimal" min="0" />
+              </div>
+            </div>
+            <p class="exchange-hint" id="exchangeHint"></p>
+          </div>
         </div>
 
         <div class="form-group">
@@ -1027,6 +1041,36 @@
           </select>
           <p class="billing-day-hint">設定後，查看明細時會自動顯示本期帳單範圍</p>
         </div>
+
+        <!-- 外幣幣別（選填，選了就是外幣帳戶） -->
+        <div class="form-group">
+          <label for="accountCurrency">幣別（選填，台幣請留空）</label>
+          <select id="accountCurrency" class="form-select">
+            <option value="">TWD 台幣（預設）</option>
+            <option value="JPY">JPY 日圓</option>
+            <option value="USD">USD 美元</option>
+            <option value="EUR">EUR 歐元</option>
+            <option value="KRW">KRW 韓圓</option>
+            <option value="HKD">HKD 港幣</option>
+            <option value="GBP">GBP 英鎊</option>
+            <option value="AUD">AUD 澳幣</option>
+            <option value="SGD">SGD 新幣</option>
+            <option value="THB">THB 泰銖</option>
+            <option value="CNY">CNY 人民幣</option>
+          </select>
+        </div>
+
+        <!-- 計入總資產開關 -->
+        <label class="account-include-toggle">
+          <div class="toggle-label-wrap">
+            <span class="toggle-label-main">計入總資產</span>
+            <span class="toggle-label-sub">關閉後此帳戶不納入淨資產計算</span>
+          </div>
+          <div class="toggle-switch">
+            <input type="checkbox" id="accountIncludeInTotal" checked />
+            <span class="toggle-slider"></span>
+          </div>
+        </label>
 
         <!-- 備註 -->
         <div class="form-group">

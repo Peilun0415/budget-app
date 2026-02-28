@@ -208,7 +208,8 @@ const accountGroup  = document.getElementById('accountGroup');
 const transferGroup = document.getElementById('transferGroup');
 const transferFrom        = document.getElementById('transferFrom');
 const transferTo          = document.getElementById('transferTo');
-const exchangeToggle      = document.getElementById('exchangeToggle');
+const exchangeToggleBtn   = document.getElementById('exchangeToggleBtn');
+let   exchangeOn          = false; // 換匯開關狀態
 const exchangeAmountGroup = document.getElementById('exchangeAmountGroup');
 const exchangeAmountInput = document.getElementById('exchangeAmount');
 const exchangeHint        = document.getElementById('exchangeHint');
@@ -2991,15 +2992,11 @@ function openModal(record = null) {
       const outRec = paired.find(r => r.type === 'expense') || record;
       const inRec  = paired.find(r => r.type === 'income');
       if (inRec && inRec.amount !== outRec.amount) {
-        exchangeToggle.checked = true;
-        exchangeAmountGroup.style.display = '';
+        setExchangeOn(true);
         exchangeAmountInput.value = inRec.amount;
-        // hint 在 amountInput 設值後觸發
         setTimeout(updateExchangeHint, 0);
       } else {
-        exchangeToggle.checked = false;
-        exchangeAmountGroup.style.display = 'none';
-        exchangeAmountInput.value = '';
+        setExchangeOn(false);
       }
     } else {
       selectedCategory    = record.categoryId    || null;
@@ -3062,27 +3059,29 @@ function switchType(type) {
   if (!isTransfer) {
     setDefaultCategory();
     // 切換到非轉帳時重置換匯
-    exchangeToggle.checked = false;
-    exchangeAmountGroup.style.display = 'none';
-    exchangeAmountInput.value = '';
-    exchangeHint.textContent = '';
+    setExchangeOn(false);
   }
 }
 
-// 換匯 toggle
-exchangeToggle.addEventListener('change', () => {
-  exchangeAmountGroup.style.display = exchangeToggle.checked ? '' : 'none';
-  if (!exchangeToggle.checked) {
+// 換匯開關控制函式
+function setExchangeOn(val) {
+  exchangeOn = val;
+  exchangeAmountGroup.style.display = val ? '' : 'none';
+  exchangeToggleBtn.classList.toggle('active', val);
+  if (!val) {
     exchangeAmountInput.value = '';
-    exchangeHint.textContent = '';
+    exchangeHint.textContent  = '';
   }
-});
+}
+
+// 換匯 toggle 按鈕
+exchangeToggleBtn.addEventListener('click', () => setExchangeOn(!exchangeOn));
 
 // 換匯匯率提示（輸入到帳金額時即時計算）
 function updateExchangeHint() {
   const fromAmt = parseFloat(amountInput.value) || 0;
   const toAmt   = parseFloat(exchangeAmountInput.value) || 0;
-  if (!exchangeToggle.checked || fromAmt <= 0 || toAmt <= 0) {
+  if (!exchangeOn || fromAmt <= 0 || toAmt <= 0) {
     exchangeHint.textContent = '';
     return;
   }
@@ -3303,7 +3302,7 @@ recordForm.addEventListener('submit', async (e) => {
       const date = dateInput.value;
 
       // 換匯：到帳金額可與轉出金額不同
-      const isExchange   = exchangeToggle.checked && !!exchangeAmountInput.value;
+      const isExchange   = exchangeOn && !!exchangeAmountInput.value;
       const toAmount     = isExchange ? (parseFloat(exchangeAmountInput.value) || amount) : amount;
       const exchangeRate = isExchange && amount > 0 ? +(toAmount / amount).toFixed(6) : null;
 
@@ -3422,10 +3421,7 @@ function resetForm() {
   foreignAmountInput.value   = '';
   foreignAmountRow.style.display = 'none';
   foreignToggleLabel.textContent = '＋ 外幣金額';
-  exchangeToggle.checked = false;
-  exchangeAmountGroup.style.display = 'none';
-  exchangeAmountInput.value = '';
-  exchangeHint.textContent = '';
+  setExchangeOn(false);
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   recordProjectSelect.value = '';

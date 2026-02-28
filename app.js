@@ -159,6 +159,7 @@ let allProjects    = [];
 let unsubProjects  = null;
 let currentProjectId = null; // 目前查看的專案 docId
 let splitMode      = 'equal'; // 'equal' | 'custom'
+let tempRewardActivities = []; // 專案 modal 中暫存的回饋活動
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
 let recSelectedSubCategory = null;
@@ -317,6 +318,12 @@ const projectRecordList     = document.getElementById('projectRecordList');
 const projectEditBtn        = document.getElementById('projectEditBtn');
 const recordProjectSelect   = document.getElementById('recordProjectSelect');
 const recordProjectGroup    = document.getElementById('recordProjectGroup');
+const rewardActivityGroup   = document.getElementById('rewardActivityGroup');
+const rewardActivitySelect  = document.getElementById('rewardActivitySelect');
+const rewardActivityList    = document.getElementById('rewardActivityList');
+const addRewardActivityBtn  = document.getElementById('addRewardActivityBtn');
+const projectRewardSection  = document.getElementById('projectRewardSection');
+const projectRewardList     = document.getElementById('projectRewardList');
 const splitGroup            = document.getElementById('splitGroup');
 const splitPayer            = document.getElementById('splitPayer');
 const splitMemberChecks     = document.getElementById('splitMemberChecks');
@@ -809,8 +816,53 @@ function openProjectModal(proj = null) {
   projectStartInput.value      = proj?.startDate || '';
   projectEndInput.value        = proj?.endDate   || '';
   deleteProjectBtn.style.display = proj ? '' : 'none';
+  // 載入回饋活動
+  tempRewardActivities = (proj?.rewardActivities || []).map(a => ({ ...a }));
+  renderRewardActivityEditor();
   projectModalOverlay.classList.add('active');
 }
+
+function renderRewardActivityEditor() {
+  rewardActivityList.innerHTML = '';
+  tempRewardActivities.forEach((act, idx) => {
+    const row = document.createElement('div');
+    row.className = 'reward-edit-row';
+    row.innerHTML = `
+      <input type="text" class="reward-edit-name form-input" placeholder="活動名稱" value="${act.name || ''}" maxlength="30" />
+      <div class="reward-edit-right">
+        <input type="number" class="reward-edit-limit form-input" placeholder="刷卡上限金額" value="${act.limit || ''}" min="0" inputmode="decimal" />
+        <select class="reward-edit-currency form-select">
+          <option value="TWD" ${act.currency === 'TWD' || !act.currency ? 'selected' : ''}>TWD</option>
+          <option value="JPY" ${act.currency === 'JPY' ? 'selected' : ''}>JPY</option>
+          <option value="USD" ${act.currency === 'USD' ? 'selected' : ''}>USD</option>
+          <option value="EUR" ${act.currency === 'EUR' ? 'selected' : ''}>EUR</option>
+          <option value="KRW" ${act.currency === 'KRW' ? 'selected' : ''}>KRW</option>
+          <option value="HKD" ${act.currency === 'HKD' ? 'selected' : ''}>HKD</option>
+        </select>
+        <button type="button" class="reward-del-btn" data-idx="${idx}">✕</button>
+      </div>
+    `;
+    row.querySelector('.reward-edit-name').addEventListener('input', e => {
+      tempRewardActivities[idx].name = e.target.value;
+    });
+    row.querySelector('.reward-edit-limit').addEventListener('input', e => {
+      tempRewardActivities[idx].limit = parseFloat(e.target.value) || 0;
+    });
+    row.querySelector('.reward-edit-currency').addEventListener('change', e => {
+      tempRewardActivities[idx].currency = e.target.value;
+    });
+    row.querySelector('.reward-del-btn').addEventListener('click', () => {
+      tempRewardActivities.splice(idx, 1);
+      renderRewardActivityEditor();
+    });
+    rewardActivityList.appendChild(row);
+  });
+}
+
+addRewardActivityBtn.addEventListener('click', () => {
+  tempRewardActivities.push({ id: `r_${Date.now()}`, name: '', limit: 0, currency: 'TWD' });
+  renderRewardActivityEditor();
+});
 
 function closeProjectModal() {
   projectModalOverlay.classList.remove('active');
@@ -829,13 +881,15 @@ projectForm.addEventListener('submit', async e => {
   const startDate = projectStartInput.value || null;
   const endDate   = projectEndInput.value   || null;
   const editId    = projectEditId.value;
+  // 過濾掉名稱為空的活動
+  const rewardActivities = tempRewardActivities.filter(a => a.name.trim());
   projectSubmitBtn.disabled = true;
   try {
     if (editId) {
-      await updateDoc(doc(db, 'projects', editId), { name, members, startDate, endDate });
+      await updateDoc(doc(db, 'projects', editId), { name, members, startDate, endDate, rewardActivities });
     } else {
       await addDoc(collection(db, 'projects'), {
-        uid: currentUser.uid, name, members, startDate, endDate,
+        uid: currentUser.uid, name, members, startDate, endDate, rewardActivities,
         createdAt: serverTimestamp(),
       });
     }
@@ -878,6 +932,9 @@ function renderProjectDetail() {
   // 結算計算
   renderProjectSettle(proj, recs);
 
+  // 回饋追蹤
+  renderProjectReward(proj, recs);
+
   // 明細列表
   projectRecordList.innerHTML = '';
   if (recs.length === 0) {
@@ -887,7 +944,7 @@ function renderProjectDetail() {
   // 依日期排序
   [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(r => {
     const item = document.createElement('div');
-    item.className = 'project-record-item';
+    item.className = 'project-record-item project-record-item-clickable';
     const noteMeta = [r.date, r.note].filter(Boolean).join(' · ');
     const splitTags = r.splitData
       ? r.splitData.map(s => `<span class="rec-split-tag">${s.name} $${formatMoney(s.amount)}</span>`).join('')
@@ -904,7 +961,11 @@ function renderProjectDetail() {
           ${payerRow}
         </div>
       </div>
-      <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>`;
+      <div class="project-rec-right">
+        <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>
+        <span class="project-rec-edit-icon">✏️</span>
+      </div>`;
+    item.addEventListener('click', () => openModal(r));
     projectRecordList.appendChild(item);
   });
 }
@@ -954,6 +1015,50 @@ function renderProjectSettle(proj, recs) {
   projectSettleSummary.innerHTML = html;
 }
 
+function renderProjectReward(proj, recs) {
+  const acts = (proj.rewardActivities || []).filter(a => a.name);
+  if (acts.length === 0) {
+    projectRewardSection.style.display = 'none';
+    return;
+  }
+  projectRewardSection.style.display = '';
+  projectRewardList.innerHTML = '';
+
+  acts.forEach(act => {
+    // 回饋追蹤用實際刷卡金額（全額），因為信用卡帳單是全額計算
+    const spent = recs
+      .filter(r => r.rewardActivityId === act.id)
+      .reduce((s, r) => s + r.amount, 0);
+
+    const limit     = act.limit || 0;
+    const currency  = act.currency || 'TWD';
+    const remaining = limit - spent;
+    const pct       = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
+    const over      = spent > limit;
+    const warn      = pct >= 80 && !over;
+
+    const card = document.createElement('div');
+    card.className = 'reward-track-card';
+    card.innerHTML = `
+      <div class="reward-track-header">
+        <span class="reward-track-name">${act.name}</span>
+        <span class="reward-track-currency">${currency}</span>
+        ${over ? '<span class="reward-track-badge over">已達上限</span>' : warn ? '<span class="reward-track-badge warn">⚠️ 接近上限</span>' : ''}
+      </div>
+      <div class="reward-track-bar-wrap">
+        <div class="reward-track-bar${over ? ' over' : warn ? ' warn' : ''}" style="width:${pct}%"></div>
+      </div>
+      <div class="reward-track-nums">
+        <span class="reward-track-spent">已刷 ${formatMoney(Math.round(spent))}</span>
+        <span class="reward-track-remain${over ? ' over' : ''}">
+          ${over ? `超出 ${formatMoney(Math.round(spent - limit))}` : `剩餘 ${formatMoney(Math.round(remaining))}`} / ${formatMoney(limit)}
+        </span>
+      </div>
+    `;
+    projectRewardList.appendChild(card);
+  });
+}
+
 projectEditBtn.addEventListener('click', () => {
   const proj = allProjects.find(p => p.docId === currentProjectId);
   if (proj) openProjectModal(proj);
@@ -973,7 +1078,30 @@ function updateRecordProjectSelect() {
   updateSplitGroupVisibility();
 }
 
-recordProjectSelect.addEventListener('change', updateSplitGroupVisibility);
+recordProjectSelect.addEventListener('change', () => {
+  updateSplitGroupVisibility();
+  updateRewardActivitySelect();
+});
+
+function updateRewardActivitySelect(savedId = null) {
+  const projId = recordProjectSelect.value;
+  const proj   = allProjects.find(p => p.docId === projId);
+  const acts   = proj?.rewardActivities?.filter(a => a.name) || [];
+  if (!projId || acts.length === 0) {
+    rewardActivityGroup.style.display = 'none';
+    rewardActivitySelect.value = '';
+    return;
+  }
+  rewardActivityGroup.style.display = '';
+  rewardActivitySelect.innerHTML = '<option value="">不套用回饋活動</option>';
+  acts.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id;
+    opt.textContent = `${a.name}（上限 ${a.currency || 'TWD'} ${formatMoney(a.limit)}）`;
+    rewardActivitySelect.appendChild(opt);
+  });
+  if (savedId) rewardActivitySelect.value = savedId;
+}
 
 function updateSplitGroupVisibility(record = null) {
   const projId = recordProjectSelect.value;
@@ -1200,7 +1328,7 @@ function renderMonthBudget() {
       if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
       return true;
     })
-    .reduce((s, r) => s + r.amount, 0);
+    .reduce((s, r) => s + getReportAmount(r), 0);
 
   const limit = budget.amount;
   const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
@@ -1236,11 +1364,11 @@ function renderCatBudgetList() {
     .forEach(r => {
       // 主分類 key
       const catKey = r.categoryId || '__none__';
-      spentMap[catKey] = (spentMap[catKey] || 0) + r.amount;
+      spentMap[catKey] = (spentMap[catKey] || 0) + getReportAmount(r);
       // 子分類 key（格式同排除：catId::subId）
       if (r.subCategoryId) {
         const subKey = `${r.categoryId}::${r.subCategoryId}`;
-        spentMap[subKey] = (spentMap[subKey] || 0) + r.amount;
+        spentMap[subKey] = (spentMap[subKey] || 0) + getReportAmount(r);
       }
     });
 
@@ -2735,6 +2863,7 @@ function openModal(record = null) {
     noteInput.value   = record.note || '';
     // 還原專案與分攤
     recordProjectSelect.value = record.projectId || '';
+    updateRewardActivitySelect(record.rewardActivityId || null);
     updateSplitGroupVisibility(record);
   } else {
     recordEditId.value = '';
@@ -3058,9 +3187,10 @@ recordForm.addEventListener('submit', async (e) => {
       accountName:      selAcc ? selAcc.name : null,
       date:             dateInput.value,
       note:             noteInput.value.trim(),
-      projectId:        recordProjectSelect.value || null,
-      splitPayer:       sp || null,
-      splitData:        sd || null,
+      projectId:          recordProjectSelect.value || null,
+      rewardActivityId:   rewardActivitySelect.value || null,
+      splitPayer:         sp || null,
+      splitData:          sd || null,
     };
     if (editId) {
       await updateDoc(doc(db, 'records', editId), data);
@@ -3086,6 +3216,8 @@ function resetForm() {
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   recordProjectSelect.value = '';
+  rewardActivityGroup.style.display = 'none';
+  rewardActivitySelect.value = '';
   splitGroup.style.display = 'none';
   splitMode = 'equal';
   splitModeEqual.classList.add('active');
@@ -3735,7 +3867,7 @@ function renderHomeBudget() {
         if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
         return true;
       })
-      .reduce((s, r) => s + r.amount, 0);
+      .reduce((s, r) => s + getReportAmount(r), 0);
     const limit = monthBudget.amount;
     const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
     const over  = spent > limit;
@@ -3751,10 +3883,10 @@ function renderHomeBudget() {
       .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
       .forEach(r => {
         const catKey = r.categoryId || '__none__';
-        spentMap[catKey] = (spentMap[catKey] || 0) + r.amount;
+        spentMap[catKey] = (spentMap[catKey] || 0) + getReportAmount(r);
         if (r.subCategoryId) {
           const subKey = `${r.categoryId}::${r.subCategoryId}`;
-          spentMap[subKey] = (spentMap[subKey] || 0) + r.amount;
+          spentMap[subKey] = (spentMap[subKey] || 0) + getReportAmount(r);
         }
       });
 
@@ -3833,9 +3965,12 @@ function renderList() {
   while (recordList.firstChild) recordList.removeChild(recordList.firstChild);
 
   // 轉帳只保留「轉出」那筆，避免重複顯示
-  let displayRecs = recs.filter(r =>
-    r.type !== 'transfer' || r.accountId === r.transferFromId
-  );
+  // 分攤記錄：若付款人不是「我」則不顯示在主頁（屬於別人代墊，在專案頁查看）
+  let displayRecs = recs.filter(r => {
+    if (r.type === 'transfer') return r.accountId === r.transferFromId;
+    if (r.splitPayer && r.splitPayer !== '我') return false;
+    return true;
+  });
 
   // 套用關鍵字篩選
   if (kw) displayRecs = displayRecs.filter(r => matchesSearch(r, kw));
@@ -4398,6 +4533,20 @@ function getMonthRecordsByYM(year, month) {
   return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer');
 }
 
+/**
+ * 取得報表用的「有效金額」。
+ * 若記錄有 splitData（分攤），取「我」的份額；
+ * 否則回傳原始金額。
+ * 帳戶餘額計算仍使用原始金額，只有報表分析使用此函數。
+ */
+function getReportAmount(r) {
+  if (r.splitData && r.splitData.length > 0) {
+    const mine = r.splitData.find(s => s.name === '我');
+    if (mine != null) return mine.amount;
+  }
+  return r.amount;
+}
+
 function renderReport() {
   if (reportTab === 'wealth') { renderReportWealth(); return; }
   const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
@@ -4430,7 +4579,7 @@ function getCatViewRecords() {
 
 function renderReportCategory() {
   const recs = getCatViewRecords().filter(r => r.type === reportType);
-  const total = recs.reduce((s, r) => s + r.amount, 0);
+  const total = recs.reduce((s, r) => s + getReportAmount(r), 0);
 
   // 更新麵包屑
   if (reportDrillCatId) {
@@ -4461,7 +4610,7 @@ function renderMainCategories(recs, total) {
         amount: 0,
       };
     }
-    catMap[key].amount += r.amount;
+    catMap[key].amount += getReportAmount(r);
   });
 
   const cats = Object.values(catMap).sort((a, b) => b.amount - a.amount);
@@ -4507,7 +4656,7 @@ function renderMainCategories(recs, total) {
 
 function renderDrillDown(recs, totalAll) {
   const catRecs = recs.filter(r => r.categoryId === reportDrillCatId);
-  const catTotal = catRecs.reduce((s, r) => s + r.amount, 0);
+  const catTotal = catRecs.reduce((s, r) => s + getReportAmount(r), 0);
 
   // 依子分類彙總
   const subMap = {};
@@ -4521,7 +4670,7 @@ function renderDrillDown(recs, totalAll) {
         records: [],
       };
     }
-    subMap[key].amount += r.amount;
+    subMap[key].amount += getReportAmount(r);
     subMap[key].records.push(r);
   });
 
@@ -4587,12 +4736,14 @@ function renderSubRecordDetail(parentItem, records, subName) {
   const wrap = document.createElement('div');
   wrap.className = 'report-sub-detail';
   records.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+    const effAmt = getReportAmount(r);
+    const splitHint = effAmt !== r.amount ? `<span class="report-split-hint">（全額 $${formatMoney(r.amount)}）</span>` : '';
     const el = document.createElement('div');
     el.className = 'report-record-item';
     el.innerHTML = `
       <div class="report-record-date">${r.date.slice(5)}</div>
-      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}</div>
-      <div class="report-record-amount ${r.type}">$${formatMoney(r.amount)}</div>
+      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
+      <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
     `;
     wrap.appendChild(el);
   });
@@ -4601,12 +4752,14 @@ function renderSubRecordDetail(parentItem, records, subName) {
 
 function renderRecordItems(records) {
   records.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+    const effAmt = getReportAmount(r);
+    const splitHint = effAmt !== r.amount ? `<span class="report-split-hint">（全額 $${formatMoney(r.amount)}）</span>` : '';
     const el = document.createElement('div');
     el.className = 'report-record-item';
     el.innerHTML = `
       <div class="report-record-date">${r.date.slice(5)}</div>
-      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}</div>
-      <div class="report-record-amount ${r.type}">$${formatMoney(r.amount)}</div>
+      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
+      <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
     `;
     reportCategoryList.appendChild(el);
   });
@@ -4690,8 +4843,8 @@ function renderReportTrend() {
   // 12 個月資料
   const monthData = Array.from({ length: 12 }, (_, m) => {
     const recs    = getMonthRecordsByYM(reportYear, m).filter(r => r.type !== 'transfer');
-    const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-    const expense = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+    const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + getReportAmount(r), 0);
+    const expense = recs.filter(r => r.type === 'expense').reduce((s, r) => s + getReportAmount(r), 0);
     return { month: m, income, expense, balance: income - expense, recs };
   });
 
@@ -4837,13 +4990,15 @@ function renderTrendMonthList(monthData) {
         detail.innerHTML = '<div class="trend-detail-empty">無資料</div>';
       } else {
         filtered.sort((a, b) => b.date.localeCompare(a.date)).forEach(r => {
+          const effAmt = getReportAmount(r);
+          const splitHint = effAmt !== r.amount ? ` <span class="report-split-hint">（全額 $${formatMoney(r.amount)}）</span>` : '';
           const el = document.createElement('div');
           el.className = 'report-record-item';
           const dispName = r.displayName || r.categoryName || '—';
           el.innerHTML = `
             <div class="report-record-date">${r.date.slice(5)}</div>
-            <div class="report-record-note">${dispName}${r.note ? ' · ' + r.note : ''}</div>
-            <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</div>
+            <div class="report-record-note">${dispName}${r.note ? ' · ' + r.note : ''}${splitHint}</div>
+            <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(effAmt)}</div>
           `;
           detail.appendChild(el);
         });
@@ -4922,14 +5077,14 @@ function calcWealthSnapshots() {
   const snapshots = months.map(({ year, month }) => {
     const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-31`;
     const recs = nonTransfer.filter(r => r.date <= monthEnd);
-    const totalInc = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-    const totalExp = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+    const totalInc = recs.filter(r => r.type === 'income').reduce((s, r) => s + getReportAmount(r), 0);
+    const totalExp = recs.filter(r => r.type === 'expense').reduce((s, r) => s + getReportAmount(r), 0);
 
     // 當月收支
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
     const monthRecs = nonTransfer.filter(r => r.date?.startsWith(prefix));
-    const monthInc = monthRecs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-    const monthExp = monthRecs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+    const monthInc = monthRecs.filter(r => r.type === 'income').reduce((s, r) => s + getReportAmount(r), 0);
+    const monthExp = monthRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getReportAmount(r), 0);
 
     return {
       year, month,

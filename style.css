@@ -1752,6 +1752,20 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   font-size: 12px;
   color: var(--text-mid);
 }
+.date-range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-range-row .form-input {
+  flex: 1;
+  min-width: 0;
+}
+.date-range-sep {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--text-mid);
+}
 
 /* 月預算排除類別選擇格 */
 .exclude-cat-grid {
@@ -3185,6 +3199,11 @@ input.form-input {
 }
 .report-record-amount.expense { color: var(--red-main); }
 .report-record-amount.income  { color: var(--green-main); }
+.report-split-hint {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-left: 4px;
+}
 
 /* 年統計卡片 */
 .trend-year-stats {
@@ -3597,6 +3616,11 @@ input.form-input {
   box-shadow: var(--shadow);
   gap: 10px;
 }
+.project-record-item-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.project-record-item-clickable:active { background: var(--pink-light); }
 
 .project-rec-left {
   display: flex;
@@ -3624,13 +3648,22 @@ input.form-input {
   margin-top: 2px;
 }
 
+.project-rec-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .project-rec-amount {
   font-size: 15px;
   font-weight: 700;
   color: #e53935;
   white-space: nowrap;
-  align-self: flex-start;
-  padding-top: 2px;
+}
+.project-rec-edit-icon {
+  font-size: 13px;
+  opacity: 0.45;
 }
 
 .project-rec-split {
@@ -3665,6 +3698,129 @@ input.form-input {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ===== 回饋活動編輯（專案 modal）===== */
+.reward-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 7px 14px;
+  border: 1.5px dashed var(--pink-main);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--pink-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.reward-add-btn:hover { background: var(--pink-light); }
+
+.reward-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.reward-edit-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.reward-edit-name { font-size: 14px; }
+.reward-edit-limit {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.reward-edit-currency {
+  width: 76px;
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 8px 4px;
+}
+.reward-del-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: #f0f0f0;
+  border-radius: 50%;
+  font-size: 13px;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reward-del-btn:hover { background: #ffd6d6; color: var(--red-main); }
+
+/* ===== 回饋追蹤卡片（專案詳情）===== */
+.reward-track-card {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin: 0 12px 10px;
+}
+.reward-track-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.reward-track-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  flex: 1;
+}
+.reward-track-currency {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #aaa;
+  border-radius: 10px;
+  padding: 2px 7px;
+}
+.reward-track-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.reward-track-badge.over { background: #fde8e8; color: var(--red-main); }
+.reward-track-badge.warn { background: #fff4e0; color: #e8830a; }
+
+.reward-track-bar-wrap {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.reward-track-bar {
+  height: 100%;
+  background: var(--pink-main);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.reward-track-bar.warn { background: #e8830a; }
+.reward-track-bar.over { background: var(--red-main); }
+
+.reward-track-nums {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.reward-track-spent { color: var(--text-mid); }
+.reward-track-remain { color: var(--text-dark); font-weight: 600; }
+.reward-track-remain.over { color: var(--red-main); }
 
 /* 分帳 UI */
 .split-header {

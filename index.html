@@ -568,6 +568,12 @@
       <!-- 結算總覽 -->
       <div class="project-settle-summary" id="projectSettleSummary"></div>
 
+      <!-- 回饋追蹤 -->
+      <div id="projectRewardSection" style="display:none">
+        <div class="project-section-title">回饋追蹤</div>
+        <div id="projectRewardList"></div>
+      </div>
+
       <!-- 花費明細 -->
       <div class="project-section-title">花費明細</div>
       <div id="projectRecordList"></div>
@@ -679,6 +685,16 @@
           </select>
         </div>
 
+        <!-- 回饋活動（選擇專案後才顯示） -->
+        <div id="rewardActivityGroup" style="display:none">
+          <div class="form-group">
+            <label class="form-label">回饋活動（選填）</label>
+            <select id="rewardActivitySelect" class="form-select">
+              <option value="">不套用回饋活動</option>
+            </select>
+          </div>
+        </div>
+
         <!-- 分帳設定（選擇專案後才顯示） -->
         <div id="splitGroup" style="display:none">
           <div class="split-header">
@@ -733,12 +749,18 @@
           <p class="billing-day-hint">「我」會自動加入，這裡只需填其他同行人</p>
         </div>
         <div class="form-group">
-          <label class="form-label">開始日期</label>
-          <input type="date" id="projectStartInput" class="form-input" />
+          <label class="form-label">旅遊日期</label>
+          <div class="date-range-row">
+            <input type="date" id="projectStartInput" class="form-input" />
+            <span class="date-range-sep">～</span>
+            <input type="date" id="projectEndInput" class="form-input" />
+          </div>
         </div>
+        <!-- 回饋活動設定 -->
         <div class="form-group">
-          <label class="form-label">結束日期</label>
-          <input type="date" id="projectEndInput" class="form-input" />
+          <label class="form-label">回饋活動追蹤（選填）</label>
+          <div id="rewardActivityList"></div>
+          <button type="button" class="reward-add-btn" id="addRewardActivityBtn">＋ 新增回饋活動</button>
         </div>
         <input type="hidden" id="projectEditId" value="" />
         <div class="modal-actions">

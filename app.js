@@ -1060,16 +1060,20 @@ function renderProjectReward(proj, recs) {
 
   acts.forEach(act => {
     const currency  = act.currency || 'TWD';
-    // 回饋追蹤：有外幣且幣別相符時用外幣金額，否則用台幣全額
+    // 回饋追蹤：
+    //   活動幣別為 TWD → 用台幣金額
+    //   活動幣別為外幣 → 只計入幣別相符的外幣金額，無外幣記錄不計入
     const spent = recs
       .filter(r => r.rewardActivityId === act.id)
       .reduce((s, r) => {
+        if (currency === 'TWD') return s + (r.amount || 0);
         if (r.foreignAmount && r.foreignCurrency === currency) return s + r.foreignAmount;
-        return s + r.amount;
+        return s; // 幣別不符，跳過
       }, 0);
+    const limit     = act.limit || 0;
     const remaining = limit - spent;
     const pct       = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
-    const over      = spent > limit;
+    const over      = limit > 0 && spent > limit;
     const warn      = pct >= 80 && !over;
 
     const card = document.createElement('div');

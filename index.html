@@ -439,6 +439,7 @@
       <div class="report-tabs">
         <button class="report-tab active" data-tab="category">類別分析</button>
         <button class="report-tab" data-tab="trend">收支趨勢</button>
+        <button class="report-tab" data-tab="wealth">資產曲線</button>
       </div>
 
       <!-- ===== 類別分析 Tab ===== -->
@@ -498,6 +499,27 @@
         <div class="trend-year-stats" id="trendYearStats"></div>
         <!-- 月份明細列表 -->
         <div class="trend-month-list" id="trendMonthList"></div>
+      </div>
+
+      <!-- ===== 資產曲線 Tab ===== -->
+      <div id="reportTabWealth" class="report-tab-content" style="display:none">
+        <!-- 範圍切換 -->
+        <div class="report-ctrl-bar">
+          <div class="report-pill-group report-pill-group--main">
+            <button class="report-pill active" id="wealthRange6">近6月</button>
+            <button class="report-pill" id="wealthRange12">近12月</button>
+            <button class="report-pill" id="wealthRangeAll">全部</button>
+          </div>
+        </div>
+        <!-- 折線圖 -->
+        <div class="report-chart-wrap" style="max-height:300px">
+          <canvas id="wealthLineChart"></canvas>
+          <div class="report-chart-empty" id="wealthChartEmpty" style="display:none">無資料</div>
+        </div>
+        <!-- 統計摘要 -->
+        <div class="wealth-summary" id="wealthSummary"></div>
+        <!-- 月份明細 -->
+        <div class="wealth-month-list" id="wealthMonthList"></div>
       </div>
     </div>
 

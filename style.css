@@ -3279,6 +3279,92 @@ input.form-input {
   padding: 10px 0;
 }
 
+/* ===== 資產曲線 ===== */
+.wealth-summary {
+  margin: 12px 0 8px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+}
+.wealth-summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+.wealth-summary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 8px;
+}
+.wealth-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wealth-summary-label {
+  font-size: 11px;
+  color: var(--text-light);
+}
+.wealth-summary-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.wealth-summary-val.income  { color: var(--green-main); }
+.wealth-summary-val.expense { color: var(--red-main); }
+
+.wealth-month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.wealth-month-row {
+  background: #fff;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+.wealth-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wealth-month-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.wealth-month-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.wealth-month-net {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.wealth-month-delta {
+  font-size: 12px;
+  font-weight: 600;
+}
+.wealth-month-delta.positive { color: var(--green-main); }
+.wealth-month-delta.negative { color: var(--red-main); }
+.wealth-month-sub {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+.wealth-sub-inc { color: var(--green-main); opacity: 0.85; }
+.wealth-sub-exp { color: var(--red-main);   opacity: 0.85; }
+
 /* 類別預算分類選擇格 */
 .cat-budget-cat-grid {
   display: flex;

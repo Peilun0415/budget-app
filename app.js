@@ -975,7 +975,7 @@ function updateRecordProjectSelect() {
 
 recordProjectSelect.addEventListener('change', updateSplitGroupVisibility);
 
-function updateSplitGroupVisibility() {
+function updateSplitGroupVisibility(record = null) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
   if (!proj || !proj.members || proj.members.length < 2) {
@@ -983,11 +983,26 @@ function updateSplitGroupVisibility() {
     return;
   }
   splitGroup.style.display = '';
-  renderSplitUI(proj);
+  renderSplitUI(proj, record);
 }
 
-function renderSplitUI(proj) {
+function renderSplitUI(proj, record = null) {
   const members = proj.members || [];
+
+  // 還原資料（編輯模式）
+  const savedPayer  = record?.splitPayer  || null;
+  const savedSplits = record?.splitData   || null; // [{ name, amount }]
+
+  // 判斷是否為自訂模式：有 splitData 且各人金額不完全相等
+  let restoreCustom = false;
+  if (savedSplits && savedSplits.length > 1) {
+    const amounts = savedSplits.map(s => s.amount);
+    restoreCustom = amounts.some(a => a !== amounts[0]);
+  } else if (savedSplits && savedSplits.length > 0) {
+    // 只有一人時，若金額不等於總金額也視為自訂（但通常是自費，維持 equal 即可）
+    restoreCustom = false;
+  }
+
   // 付款人
   splitPayer.innerHTML = '';
   members.forEach(m => {
@@ -996,7 +1011,24 @@ function renderSplitUI(proj) {
     opt.textContent = m;
     splitPayer.appendChild(opt);
   });
-  // 參與成員勾選（預設只勾第一位「我」）
+  if (savedPayer && members.includes(savedPayer)) {
+    splitPayer.value = savedPayer;
+  }
+
+  // 還原分攤模式按鈕狀態
+  if (restoreCustom) {
+    splitMode = 'custom';
+    splitModeCustom.classList.add('active');
+    splitModeEqual.classList.remove('active');
+    splitCustomArea.style.display = '';
+  } else {
+    splitMode = 'equal';
+    splitModeEqual.classList.add('active');
+    splitModeCustom.classList.remove('active');
+    splitCustomArea.style.display = 'none';
+  }
+
+  // 參與成員勾選
   splitMemberChecks.innerHTML = '';
 
   // 全員快捷按鈕
@@ -1009,21 +1041,38 @@ function renderSplitUI(proj) {
       cb.checked = true;
       cb.closest('label').classList.add('checked');
     });
+    if (splitMode === 'custom') renderCustomSplitInputs();
     updateSplitPreview();
   });
   splitMemberChecks.appendChild(allBtn);
 
+  // 已儲存的參與成員名單
+  const savedMemberNames = savedSplits ? savedSplits.map(s => s.name) : null;
+
   members.forEach((m, i) => {
-    const defaultChecked = i === 0; // 只預設勾第一位
+    // 有儲存資料時依儲存名單決定勾選；否則預設只勾第一位
+    const shouldCheck = savedMemberNames ? savedMemberNames.includes(m) : i === 0;
     const label = document.createElement('label');
-    label.className = 'exclude-cat-item' + (defaultChecked ? ' checked' : '');
-    label.innerHTML = `<input type="checkbox" value="${m}" ${defaultChecked ? 'checked' : ''} /><span class="exclude-cat-name">${m}</span>`;
+    label.className = 'exclude-cat-item' + (shouldCheck ? ' checked' : '');
+    label.innerHTML = `<input type="checkbox" value="${m}" ${shouldCheck ? 'checked' : ''} /><span class="exclude-cat-name">${m}</span>`;
     label.querySelector('input').addEventListener('change', () => {
       label.classList.toggle('checked', label.querySelector('input').checked);
+      if (splitMode === 'custom') renderCustomSplitInputs();
       updateSplitPreview();
     });
     splitMemberChecks.appendChild(label);
   });
+
+  // 自訂模式：渲染輸入框並填入已儲存的金額
+  if (restoreCustom && savedSplits) {
+    renderCustomSplitInputs();
+    // 填入儲存的金額
+    savedSplits.forEach(s => {
+      const inp = splitCustomInputs.querySelector(`input[data-member="${s.name}"]`);
+      if (inp) inp.value = s.amount;
+    });
+  }
+
   updateSplitPreview();
 }
 
@@ -1095,7 +1144,7 @@ function updateSplitPreview() {
       const payerOwn = s.amount;
       const payerAdvanced = amount - payerOwn;
       label = payerAdvanced > 0
-        ? `付 $${formatMoney(amount)}，代墊 $${formatMoney(payerAdvanced)}，自負 $${formatMoney(payerOwn)}`
+        ? `付 $${formatMoney(amount)}，代墊 $${formatMoney(payerAdvanced)}，自付 $${formatMoney(payerOwn)}`
         : `自費 $${formatMoney(amount)}`;
     } else {
       label = `欠 ${payer} $${formatMoney(s.amount)}`;
@@ -2684,9 +2733,9 @@ function openModal(record = null) {
     amountInput.value = calcExpr;
     dateInput.value   = record.date;
     noteInput.value   = record.note || '';
-    // 還原專案
+    // 還原專案與分攤
     recordProjectSelect.value = record.projectId || '';
-    updateSplitGroupVisibility();
+    updateSplitGroupVisibility(record);
   } else {
     recordEditId.value = '';
     recordModalTitle.textContent = '新增記帳';
@@ -4243,6 +4292,7 @@ const trendYearStats = document.getElementById('trendYearStats');
 const trendMonthList = document.getElementById('trendMonthList');
 const reportTabCategory  = document.getElementById('reportTabCategory');
 const reportTabTrend     = document.getElementById('reportTabTrend');
+// reportTabWealth 宣告在 renderReportWealth 區塊
 
 // 月份切換
 reportPrevMonth.addEventListener('click', () => {
@@ -4292,6 +4342,7 @@ document.querySelectorAll('.report-tab').forEach(btn => {
     document.querySelectorAll('.report-tab').forEach(b => b.classList.toggle('active', b === btn));
     reportTabCategory.style.display = reportTab === 'category' ? '' : 'none';
     reportTabTrend.style.display    = reportTab === 'trend'    ? '' : 'none';
+    if (reportTabWealth) reportTabWealth.style.display = reportTab === 'wealth' ? '' : 'none';
     // 切回類別 tab 時，重設為月模式
     if (reportTab === 'category') {
       catView = 'month';
@@ -4299,7 +4350,8 @@ document.querySelectorAll('.report-tab').forEach(btn => {
       catViewBtnYear.classList.remove('active');
     }
     reportDrillCatId = null;
-    renderReport();
+    if (reportTab === 'wealth') renderReportWealth();
+    else renderReport();
   });
 });
 
@@ -4347,6 +4399,7 @@ function getMonthRecordsByYM(year, month) {
 }
 
 function renderReport() {
+  if (reportTab === 'wealth') { renderReportWealth(); return; }
   const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
   if (isYearView) {
     reportMonthLabel.textContent = `${reportYear} 年`;
@@ -4800,6 +4853,233 @@ function renderTrendMonthList(monthData) {
     });
 
     trendMonthList.appendChild(row);
+  });
+}
+
+// ===== 資產曲線 =====
+let wealthLineChartInstance = null;
+let wealthRange = 6; // 6 | 12 | 0(全部)
+
+const wealthLineChartEl = document.getElementById('wealthLineChart');
+const wealthChartEmpty  = document.getElementById('wealthChartEmpty');
+const wealthSummary     = document.getElementById('wealthSummary');
+const wealthMonthList   = document.getElementById('wealthMonthList');
+const wealthRange6Btn   = document.getElementById('wealthRange6');
+const wealthRange12Btn  = document.getElementById('wealthRange12');
+const wealthRangeAllBtn = document.getElementById('wealthRangeAll');
+const reportTabWealth   = document.getElementById('reportTabWealth');
+
+[
+  [wealthRange6Btn,   6],
+  [wealthRange12Btn, 12],
+  [wealthRangeAllBtn, 0],
+].forEach(([btn, val]) => {
+  btn.addEventListener('click', () => {
+    wealthRange = val;
+    [wealthRange6Btn, wealthRange12Btn, wealthRangeAllBtn].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderReportWealth();
+  });
+});
+
+/**
+ * 計算每個月底的淨資產快照。
+ * 淨資產 = Σ 帳戶初始餘額 + 截至該月底所有收入 - 所有支出
+ * 轉帳不影響總資產，信用卡/貸款負餘額算負債。
+ */
+function calcWealthSnapshots() {
+  if (!allRecords.length && !allAccounts.length) return [];
+
+  const LIABILITY_TYPES = ['credit', 'loan'];
+
+  // 所有帳戶初始餘額加總（視帳戶類型決定正負）
+  const initialTotal = allAccounts.reduce((sum, a) => {
+    const init = a.balance || 0;
+    if (LIABILITY_TYPES.includes(a.typeId)) {
+      return sum + (init < 0 ? init : init); // 信用卡初始餘額直接加（通常為0）
+    }
+    return sum + init;
+  }, 0);
+
+  // 找出最早和最晚的記錄日期
+  const nonTransfer = allRecords.filter(r => r.type !== 'transfer' && r.date);
+  if (nonTransfer.length === 0) return [];
+
+  const sortedDates = nonTransfer.map(r => r.date).sort();
+  const firstDate = new Date(sortedDates[0]);
+  const now = new Date();
+
+  // 產生月份序列（從第一筆記錄的月份到當前月份）
+  const months = [];
+  let cur = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  while (cur <= end) {
+    months.push({ year: cur.getFullYear(), month: cur.getMonth() });
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  // 計算每月底累積收支
+  const snapshots = months.map(({ year, month }) => {
+    const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-31`;
+    const recs = nonTransfer.filter(r => r.date <= monthEnd);
+    const totalInc = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+    const totalExp = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+
+    // 當月收支
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const monthRecs = nonTransfer.filter(r => r.date?.startsWith(prefix));
+    const monthInc = monthRecs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+    const monthExp = monthRecs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+
+    return {
+      year, month,
+      wealth: initialTotal + totalInc - totalExp,
+      monthInc, monthExp,
+      monthBalance: monthInc - monthExp,
+    };
+  });
+
+  return snapshots;
+}
+
+function renderReportWealth() {
+  const allSnapshots = calcWealthSnapshots();
+
+  if (allSnapshots.length === 0) {
+    wealthChartEmpty.style.display = '';
+    if (wealthLineChartInstance) { wealthLineChartInstance.destroy(); wealthLineChartInstance = null; }
+    wealthSummary.innerHTML = '';
+    wealthMonthList.innerHTML = '';
+    return;
+  }
+  wealthChartEmpty.style.display = 'none';
+
+  // 依範圍裁切
+  let snapshots = allSnapshots;
+  if (wealthRange > 0) {
+    snapshots = allSnapshots.slice(-wealthRange);
+  }
+
+  const labels  = snapshots.map(s => `${s.year}-${String(s.month + 1).padStart(2, '0')}`);
+  const values  = snapshots.map(s => s.wealth);
+
+  // 判斷整體趨勢顏色
+  const first = values[0];
+  const last  = values[values.length - 1];
+  const trendColor = last >= first ? '#27ae60' : '#e74c3c';
+  const trendColorAlpha = last >= first ? 'rgba(39,174,96,0.12)' : 'rgba(231,76,60,0.12)';
+
+  // 折線圖
+  if (wealthLineChartInstance) { wealthLineChartInstance.destroy(); wealthLineChartInstance = null; }
+  const ctx = wealthLineChartEl.getContext('2d');
+
+  // 漸層填充
+  const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+  gradient.addColorStop(0, last >= first ? 'rgba(39,174,96,0.3)' : 'rgba(231,76,60,0.3)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+  const yTickFmt = v => {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 100000000) return `${sign}${(abs / 100000000).toFixed(1)}億`;
+    if (abs >= 10000)  return `${sign}${(abs / 10000).toFixed(1)}萬`;
+    if (abs >= 1000)   return `${sign}${(abs / 1000).toFixed(0)}k`;
+    return `${sign}${abs}`;
+  };
+
+  wealthLineChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '淨資產',
+        data: values,
+        borderColor: trendColor,
+        backgroundColor: gradient,
+        borderWidth: 2.5,
+        pointRadius: snapshots.length <= 12 ? 4 : 2,
+        pointHoverRadius: 6,
+        pointBackgroundColor: trendColor,
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => ` 淨資產：$${formatMoney(Math.round(c.parsed.y))}`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: yTickFmt, font: { size: 11 } },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+        },
+        x: {
+          ticks: {
+            font: { size: 10 },
+            maxTicksLimit: 8,
+            maxRotation: 30,
+          },
+        },
+      },
+    },
+  });
+
+  // 統計摘要
+  const maxWealth = Math.max(...values);
+  const minWealth = Math.min(...values);
+  const change    = last - first;
+  const changeClass = change >= 0 ? 'income' : 'expense';
+  const changeSign  = change >= 0 ? '+' : '';
+
+  wealthSummary.innerHTML = `
+    <div class="wealth-summary-title">資產概覽</div>
+    <div class="wealth-summary-row">
+      <div class="wealth-summary-item">
+        <div class="wealth-summary-label">目前淨資產</div>
+        <div class="wealth-summary-val" style="color:${trendColor}">$${formatMoney(Math.round(last))}</div>
+      </div>
+      <div class="wealth-summary-item">
+        <div class="wealth-summary-label">期間變化</div>
+        <div class="wealth-summary-val ${changeClass}">${changeSign}$${formatMoney(Math.round(Math.abs(change)))}</div>
+      </div>
+      <div class="wealth-summary-item">
+        <div class="wealth-summary-label">最高</div>
+        <div class="wealth-summary-val">$${formatMoney(Math.round(maxWealth))}</div>
+      </div>
+      <div class="wealth-summary-item">
+        <div class="wealth-summary-label">最低</div>
+        <div class="wealth-summary-val">$${formatMoney(Math.round(minWealth))}</div>
+      </div>
+    </div>
+  `;
+
+  // 月份明細列表（倒序）
+  wealthMonthList.innerHTML = '';
+  [...snapshots].reverse().forEach((s, idx) => {
+    const balClass = s.monthBalance >= 0 ? 'positive' : 'negative';
+    const row = document.createElement('div');
+    row.className = 'wealth-month-row';
+    row.innerHTML = `
+      <div class="wealth-month-header">
+        <span class="wealth-month-label">${s.year} 年 ${s.month + 1} 月</span>
+        <div class="wealth-month-right">
+          <span class="wealth-month-net">$${formatMoney(Math.round(s.wealth))}</span>
+          <span class="wealth-month-delta ${balClass}">${s.monthBalance >= 0 ? '+' : ''}$${formatMoney(Math.round(Math.abs(s.monthBalance)))}</span>
+        </div>
+      </div>
+      <div class="wealth-month-sub">
+        <span class="wealth-sub-inc">收 +$${formatMoney(Math.round(s.monthInc))}</span>
+        <span class="wealth-sub-exp">支 -$${formatMoney(Math.round(s.monthExp))}</span>
+      </div>
+    `;
+    wealthMonthList.appendChild(row);
   });
 }
 

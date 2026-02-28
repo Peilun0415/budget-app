@@ -2532,6 +2532,22 @@ input.form-input {
   gap: 10px;
   margin-top: 8px;
 }
+.modal-actions--row {
+  flex-direction: row;
+  align-items: stretch;
+}
+.modal-actions--row .btn-save {
+  flex: 8;
+  min-width: 0;
+  padding: 14px 8px;
+}
+.modal-actions--row .btn-delete {
+  flex: 2;
+  min-width: 0;
+  width: auto;
+  padding: 14px 8px;
+  font-size: 14px;
+}
 
 .btn-save {
   width: 100%;
@@ -3688,7 +3704,7 @@ input.form-input {
 
 .project-edit-btn {
   display: block;
-  margin: 16px auto;
+  margin: 16px auto 40px;
   padding: 10px 28px;
   border: 1.5px solid var(--pink-main);
   border-radius: 20px;

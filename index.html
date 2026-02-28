@@ -828,6 +828,7 @@
         <div class="type-toggle">
           <button type="button" class="type-btn active" id="recBtnExpense" data-type="expense">支出</button>
           <button type="button" class="type-btn" id="recBtnIncome" data-type="income">收入</button>
+          <button type="button" class="type-btn" id="recBtnTransfer" data-type="transfer">轉帳</button>
         </div>
 
         <div class="form-group">
@@ -837,7 +838,7 @@
 
         <div class="form-group">
           <label>金額</label>
-          <div class="amount-row">
+          <div class="amount-row" id="recAmountRow">
             <button type="button" class="cat-pick-btn" id="recCatPickBtn">
               <span id="recCatPickEmoji">📦</span>
               <span id="recCatPickName">選擇分類</span>
@@ -878,9 +879,25 @@
           </div>
         </div>
 
-        <div class="form-group">
+        <!-- 支出/收入：帳戶 -->
+        <div class="form-group" id="recAccountGroup">
           <label for="recAccount">帳戶</label>
           <select id="recAccount" class="form-select"></select>
+        </div>
+
+        <!-- 轉帳：轉出/轉入帳戶 -->
+        <div id="recTransferGroup" style="display:none">
+          <div class="transfer-accounts-row">
+            <div class="form-group transfer-acc-group">
+              <label>從</label>
+              <select id="recTransferFrom" class="form-select"></select>
+            </div>
+            <div class="transfer-arrow">→</div>
+            <div class="form-group transfer-acc-group">
+              <label>到</label>
+              <select id="recTransferTo" class="form-select"></select>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

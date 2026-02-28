@@ -390,16 +390,22 @@ const recurringForm         = document.getElementById('recurringForm');
 const recurringModalTitle   = document.getElementById('recurringModalTitle');
 const recBtnExpense   = document.getElementById('recBtnExpense');
 const recBtnIncome    = document.getElementById('recBtnIncome');
+const recBtnTransfer  = document.getElementById('recBtnTransfer');
 const recNameInput    = document.getElementById('recName');
 const recAmountInput      = document.getElementById('recAmount');
 const recAmountInputWrap  = document.getElementById('recAmountInputWrap');
+const recAmountRow        = document.getElementById('recAmountRow');
 const recCalcToggleBtn    = document.getElementById('recCalcToggleBtn');
 const recCalcKeyboard     = document.getElementById('recCalcKeyboard');
 const recCalcExpressionEl = document.getElementById('recCalcExpression');
 const recCatPickBtn   = document.getElementById('recCatPickBtn');
 const recCatPickEmoji = document.getElementById('recCatPickEmoji');
 const recCatPickName  = document.getElementById('recCatPickName');
+const recAccountGroup = document.getElementById('recAccountGroup');
 const recAccountSel   = document.getElementById('recAccount');
+const recTransferGroup = document.getElementById('recTransferGroup');
+const recTransferFrom  = document.getElementById('recTransferFrom');
+const recTransferTo    = document.getElementById('recTransferTo');
 const recFreqN        = document.getElementById('recFreqN');
 const recFreqUnit     = document.getElementById('recFreqUnit');
 const recWeekdayGroup   = document.getElementById('recWeekdayGroup');
@@ -643,6 +649,9 @@ navSettingsBtn.addEventListener('click', () => switchPage('settings'));
 backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
 
 function switchPage(page) {
+  // 切換頁面時捲回頂部
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
   // 離開記帳頁時清除搜尋
   if (page !== 'home' && searchKeyword) {
     searchInput.value = '';
@@ -2343,28 +2352,61 @@ async function processRecurringItems() {
     if (!nextDate || nextDate > today) continue;
 
     // 找到對應帳戶
-    const acc = allAccounts.find(a => a.docId === item.accountId);
+    const acc     = allAccounts.find(a => a.docId === item.accountId);
+    const fromAcc = allAccounts.find(a => a.docId === item.transferFromId);
+    const toAcc   = allAccounts.find(a => a.docId === item.transferToId);
 
     // 連續補齊所有到期的執行次數
     while (nextDate <= today) {
-      await addDoc(collection(db, 'records'), {
-        uid:          currentUser.uid,
-        type:         item.type,
-        amount:       item.amount,
-        date:         nextDate,
-        note:         item.note || '',
-        accountId:    item.accountId   || null,
-        accountName:  acc?.name        || null,
-        categoryId:   item.categoryId  || null,
-        categoryName: item.categoryName || null,
-        categoryEmoji:item.categoryEmoji || null,
-        subCategoryId:   item.subCategoryId   || null,
-        subCategoryName: item.subCategoryName || null,
-        displayEmoji: item.categoryEmoji || '🔁',
-        displayName:  item.categoryName  || item.name,
-        recurringId:  item.docId,
-        createdAt:    serverTimestamp(),
-      });
+      if (item.type === 'transfer') {
+        // 轉帳：建立兩筆（轉出 + 轉入），並共用 transferId
+        const transferId = `rec_${item.docId}_${nextDate}`;
+        const base = {
+          uid: currentUser.uid,
+          type: 'transfer',
+          amount: item.amount,
+          date: nextDate,
+          note: item.note || '',
+          transferFromId: item.transferFromId || null,
+          transferToId:   item.transferToId   || null,
+          transferId,
+          displayEmoji: '🔄',
+          displayName:  item.name,
+          recurringId:  item.docId,
+          createdAt:    serverTimestamp(),
+        };
+        await addDoc(collection(db, 'records'), {
+          ...base,
+          accountId:   item.transferFromId || null,
+          accountName: fromAcc?.name || null,
+          displayName: `轉帳 → ${toAcc?.name || '?'}`,
+        });
+        await addDoc(collection(db, 'records'), {
+          ...base,
+          accountId:   item.transferToId || null,
+          accountName: toAcc?.name || null,
+          displayName: `轉帳 ← ${fromAcc?.name || '?'}`,
+        });
+      } else {
+        await addDoc(collection(db, 'records'), {
+          uid:          currentUser.uid,
+          type:         item.type,
+          amount:       item.amount,
+          date:         nextDate,
+          note:         item.note || '',
+          accountId:    item.accountId   || null,
+          accountName:  acc?.name        || null,
+          categoryId:   item.categoryId  || null,
+          categoryName: item.categoryName || null,
+          categoryEmoji:item.categoryEmoji || null,
+          subCategoryId:   item.subCategoryId   || null,
+          subCategoryName: item.subCategoryName || null,
+          displayEmoji: item.categoryEmoji || '🔁',
+          displayName:  item.categoryName  || item.name,
+          recurringId:  item.docId,
+          createdAt:    serverTimestamp(),
+        });
+      }
       nextDate = addInterval(nextDate, item.freqN, item.freqUnit, item);
     }
 
@@ -2386,14 +2428,25 @@ function renderRecurringList() {
     const div = document.createElement('div');
     div.className = 'recurring-item';
 
-    const emoji = item.categoryEmoji || '🔁';
+    const isTransfer = item.type === 'transfer';
+    const emoji = isTransfer ? '🔄' : (item.categoryEmoji || '🔁');
     const nextDate = item.nextDate || item.startDate || '—';
     const freqLabel = `每 ${item.freqN} ${{'day':'天','week':'週','month':'月','year':'年'}[item.freqUnit] || '月'}`;
-    const accName = allAccounts.find(a => a.docId === item.accountId)?.name || '';
-    const meta = [freqLabel, accName, item.note].filter(Boolean).join(' · ');
-    const catLabel = item.categoryName
+    let accLabel = '';
+    if (isTransfer) {
+      const fromName = allAccounts.find(a => a.docId === item.transferFromId)?.name || '?';
+      const toName   = allAccounts.find(a => a.docId === item.transferToId)?.name   || '?';
+      accLabel = `${fromName} → ${toName}`;
+    } else {
+      accLabel = allAccounts.find(a => a.docId === item.accountId)?.name || '';
+    }
+    const meta = [freqLabel, accLabel, item.note].filter(Boolean).join(' · ');
+    const catLabel = !isTransfer && item.categoryName
       ? (item.subCategoryName ? `${item.categoryName} - ${item.subCategoryName}` : item.categoryName)
       : '';
+    const amountLabel = isTransfer
+      ? `$${item.amount.toLocaleString()}`
+      : `${item.type === 'income' ? '+' : '-'}$${item.amount.toLocaleString()}`;
 
     div.style.cursor = 'pointer';
     div.innerHTML = `
@@ -2406,7 +2459,7 @@ function renderRecurringList() {
       </div>
       <div class="recurring-item-right">
         <span class="recurring-item-amount ${item.type}">
-          ${item.type === 'income' ? '+' : '-'}$${item.amount.toLocaleString()}
+          ${amountLabel}
         </span>
         <label class="recurring-toggle" title="開啟/關閉">
           <input type="checkbox" ${item.enabled ? 'checked' : ''} data-id="${item.docId}" />
@@ -2431,17 +2484,34 @@ function renderRecurringList() {
 // ===== 固定收支：彈窗 =====
 let recCurrentType = 'expense';
 
+function switchRecType(type) {
+  recCurrentType = type;
+  recBtnExpense.classList.toggle('active',  type === 'expense');
+  recBtnIncome.classList.toggle('active',   type === 'income');
+  recBtnTransfer.classList.toggle('active', type === 'transfer');
+  const isTransfer = type === 'transfer';
+  recCatPickBtn.style.display        = isTransfer ? 'none' : '';
+  recAccountGroup.style.display      = isTransfer ? 'none' : '';
+  recTransferGroup.style.display     = isTransfer ? '' : 'none';
+  if (!isTransfer) {
+    const defaultCat = allCategories.find(c => c.type === type);
+    if (defaultCat) {
+      recSelectedCategory    = defaultCat;
+      recSelectedSubCategory = defaultCat.subs?.[0] || null;
+      updateRecCatPickBtn();
+    }
+  }
+}
+
 function openRecurringModal(item = null) {
   recurringForm.reset();
   recEditIdInput.value = '';
   recDeleteBtn.style.display = 'none';
-  recCurrentType = 'expense';
-  recBtnExpense.classList.add('active');
-  recBtnIncome.classList.remove('active');
   recSelectedCategory    = null;
   recSelectedSubCategory = null;
-  updateRecCatPickBtn();
+  switchRecType('expense');
   renderRecAccountSelect();
+  renderRecTransferSelects();
 
   // 重置計算機
   recCalcRaw  = '';
@@ -2458,9 +2528,7 @@ function openRecurringModal(item = null) {
     recurringModalTitle.textContent = '編輯固定項目';
     recEditIdInput.value = item.docId;
     recDeleteBtn.style.display = '';
-    recCurrentType = item.type;
-    recBtnExpense.classList.toggle('active', item.type === 'expense');
-    recBtnIncome.classList.toggle('active',  item.type === 'income');
+    switchRecType(item.type || 'expense');
     recNameInput.value = item.name || '';
     const amt = item.amount || 0;
     recCalcRaw  = String(amt);
@@ -2470,25 +2538,24 @@ function openRecurringModal(item = null) {
     recFreqN.value       = item.freqN  || 1;
     recFreqUnit.value = item.freqUnit || 'month';
     syncRecFreqUI(item.freqUnit || 'month', item);
-    if (item.accountId) recAccountSel.value = item.accountId;
-    if (item.categoryId) {
-      const parent = allCategories.find(c => c.docId === item.categoryId);
-      if (parent) {
-        recSelectedCategory = parent;
-        recSelectedSubCategory = item.subCategoryId
-          ? (parent.subs?.find(s => s.docId === item.subCategoryId) || null)
-          : null;
-        updateRecCatPickBtn();
+    if (item.type === 'transfer') {
+      if (item.transferFromId) recTransferFrom.value = item.transferFromId;
+      if (item.transferToId)   recTransferTo.value   = item.transferToId;
+    } else {
+      if (item.accountId) recAccountSel.value = item.accountId;
+      if (item.categoryId) {
+        const parent = allCategories.find(c => c.docId === item.categoryId);
+        if (parent) {
+          recSelectedCategory = parent;
+          recSelectedSubCategory = item.subCategoryId
+            ? (parent.subs?.find(s => s.docId === item.subCategoryId) || null)
+            : null;
+          updateRecCatPickBtn();
+        }
       }
     }
   } else {
     recurringModalTitle.textContent = '新增固定項目';
-    const defaultCat = allCategories.find(c => c.type === 'expense');
-    if (defaultCat) {
-      recSelectedCategory    = defaultCat;
-      recSelectedSubCategory = defaultCat.subs?.[0] || null;
-      updateRecCatPickBtn();
-    }
   }
 
   recurringModalOverlay.classList.add('active');
@@ -2573,12 +2640,38 @@ recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(btn => {
 
 function renderRecAccountSelect() {
   recAccountSel.innerHTML = '';
-  allAccounts.forEach(acc => {
+  const sorted = [...allAccounts].sort((a, b) => {
+    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
+    return tDiff !== 0 ? tDiff : (a.order ?? 0) - (b.order ?? 0);
+  });
+  sorted.forEach(acc => {
     const opt = document.createElement('option');
     opt.value = acc.docId;
-    opt.textContent = acc.name;
+    opt.textContent = `${acc.emoji || ''} ${acc.name}`.trim();
     recAccountSel.appendChild(opt);
   });
+}
+
+function renderRecTransferSelects() {
+  const sorted = [...allAccounts].sort((a, b) => {
+    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
+    return tDiff !== 0 ? tDiff : (a.order ?? 0) - (b.order ?? 0);
+  });
+  const prevFrom = recTransferFrom.value;
+  const prevTo   = recTransferTo.value;
+  [recTransferFrom, recTransferTo].forEach(sel => {
+    sel.innerHTML = '';
+    sorted.forEach(acc => {
+      const opt = document.createElement('option');
+      opt.value = acc.docId;
+      opt.textContent = `${acc.emoji || ''} ${acc.name}`.trim();
+      sel.appendChild(opt);
+    });
+  });
+  // 還原選擇，或預設轉入選第二個帳戶
+  if (prevFrom) recTransferFrom.value = prevFrom;
+  if (prevTo)   recTransferTo.value   = prevTo;
+  else if (sorted.length >= 2) recTransferTo.value = sorted[1].docId;
 }
 
 function updateRecCatPickBtn() {
@@ -2678,30 +2771,9 @@ function recCalcEqual() {
   }
 }
 
-recBtnExpense.addEventListener('click', () => {
-  recCurrentType = 'expense';
-  recBtnExpense.classList.add('active');
-  recBtnIncome.classList.remove('active');
-  // 切換類型時重設分類預設值
-  const defaultCat = allCategories.find(c => c.type === 'expense');
-  if (defaultCat) {
-    recSelectedCategory    = defaultCat;
-    recSelectedSubCategory = defaultCat.subs?.[0] || null;
-    updateRecCatPickBtn();
-  }
-});
-
-recBtnIncome.addEventListener('click', () => {
-  recCurrentType = 'income';
-  recBtnIncome.classList.add('active');
-  recBtnExpense.classList.remove('active');
-  const defaultCat = allCategories.find(c => c.type === 'income');
-  if (defaultCat) {
-    recSelectedCategory    = defaultCat;
-    recSelectedSubCategory = defaultCat.subs?.[0] || null;
-    updateRecCatPickBtn();
-  }
-});
+recBtnExpense.addEventListener('click',  () => switchRecType('expense'));
+recBtnIncome.addEventListener('click',   () => switchRecType('income'));
+recBtnTransfer.addEventListener('click', () => switchRecType('transfer'));
 
 // 固定收支的分類選擇：重用現有的 catPickerOverlay
 recCatPickBtn.addEventListener('click', () => {
@@ -2713,7 +2785,9 @@ recCatPickBtn.addEventListener('click', () => {
 recurringForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name   = recNameInput.value.trim();
-  // 若有未完成算式，先自動計算
+  const isTransfer = recCurrentType === 'transfer';
+
+  // 金額：統一使用計算機輸入框
   if (/[\+\-\*\/]/.test(recCalcRaw) && recCalcRaw !== recCalcExpr) recCalcEqual();
   const amount = parseFloat(recCalcRaw);
   if (!name || !amount || amount <= 0) return;
@@ -2753,12 +2827,16 @@ recurringForm.addEventListener('submit', async (e) => {
     freqYearMonth,
     freqYearDay,
     note:     recNoteInput.value.trim(),
-    accountId:       recAccountSel.value || null,
-    categoryId:      recSelectedCategory?.docId      || null,
-    categoryName:    recSelectedCategory?.name       || null,
-    categoryEmoji:   recSelectedCategory?.emoji      || null,
-    subCategoryId:   recSelectedSubCategory?.docId   || null,
-    subCategoryName: recSelectedSubCategory?.name    || null,
+    // 支出/收入欄位
+    accountId:       isTransfer ? null : (recAccountSel.value || null),
+    categoryId:      isTransfer ? null : (recSelectedCategory?.docId      || null),
+    categoryName:    isTransfer ? null : (recSelectedCategory?.name       || null),
+    categoryEmoji:   isTransfer ? null : (recSelectedCategory?.emoji      || null),
+    subCategoryId:   isTransfer ? null : (recSelectedSubCategory?.docId   || null),
+    subCategoryName: isTransfer ? null : (recSelectedSubCategory?.name    || null),
+    // 轉帳欄位
+    transferFromId: isTransfer ? (recTransferFrom.value || null) : null,
+    transferToId:   isTransfer ? (recTransferTo.value   || null) : null,
     enabled: true,
   };
 
@@ -2924,8 +3002,8 @@ catPickerOverlay.addEventListener('click', (e) => {
   if (e.target === catPickerOverlay) closeCatPicker();
 });
 
-function openCatPicker() {
-  renderCatPickerParents();
+function openCatPicker(forceType = null) {
+  renderCatPickerParents(forceType);
   catPickerOverlay.classList.add('active');
 }
 
@@ -2935,10 +3013,11 @@ function closeCatPicker() {
 }
 
 // 渲染左欄主分類
-function renderCatPickerParents() {
+function renderCatPickerParents(forceType = null) {
   catPickerParents.innerHTML = '';
   catPickerSubs.innerHTML = '';
-  const parents = allCategories.filter(c => c.type === currentType);
+  const typeToShow = forceType || currentType;
+  const parents = allCategories.filter(c => c.type === typeToShow);
 
   // 若目前已選主分類，預先展開對應子分類
   const curSelCat = window._recCatPickMode ? recSelectedCategory?.docId : selectedCategory;

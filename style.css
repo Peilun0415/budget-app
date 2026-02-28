@@ -1696,15 +1696,24 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 .toggle-switch {
   position: relative;
+  display: inline-block;
   width: 44px;
   height: 24px;
   flex-shrink: 0;
 }
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+.toggle-switch input[type="checkbox"] {
   position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .toggle-slider {
   position: absolute;
@@ -1752,9 +1761,9 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .account-currency-tag {
   font-size: 11px;
   font-weight: 700;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  color: #7c5cbf;
+  background: #ede8f7;
+  border: 1px solid #c4aff0;
   border-radius: 4px;
   padding: 1px 5px;
   letter-spacing: 0.5px;

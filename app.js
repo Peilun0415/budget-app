@@ -927,7 +927,7 @@ function renderProjectDetail() {
   const proj = allProjects.find(p => p.docId === currentProjectId);
   if (!proj) return;
 
-  projectDetailName.textContent = proj.name;
+  if (projectDetailName) projectDetailName.textContent = proj.name;
   const dateStr = proj.startDate && proj.endDate
     ? `${proj.startDate} ～ ${proj.endDate}`
     : proj.startDate || '未設定日期';

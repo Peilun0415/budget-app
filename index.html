@@ -643,6 +643,29 @@
               <button type="button" class="calc-btn calc-eq" data-action="equal" colspan="2">=</button>
             </div>
           </div>
+          <!-- 外幣金額（選填，轉帳不顯示） -->
+          <div id="foreignAmountGroup">
+            <button type="button" class="foreign-toggle-btn" id="foreignToggleBtn">
+              <span id="foreignToggleLabel">＋ 外幣金額</span>
+            </button>
+            <div class="foreign-amount-row" id="foreignAmountRow" style="display:none">
+              <select id="foreignCurrency" class="form-select foreign-currency-select">
+                <option value="">幣別</option>
+                <option value="JPY">JPY</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="KRW">KRW</option>
+                <option value="HKD">HKD</option>
+                <option value="GBP">GBP</option>
+                <option value="AUD">AUD</option>
+                <option value="SGD">SGD</option>
+                <option value="THB">THB</option>
+                <option value="CNY">CNY</option>
+              </select>
+              <input type="number" id="foreignAmount" class="foreign-amount-input" placeholder="0" inputmode="decimal" min="0" />
+              <button type="button" class="foreign-clear-btn" id="foreignClearBtn">✕</button>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

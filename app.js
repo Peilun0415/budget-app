@@ -220,7 +220,31 @@ const calcToggleBtn    = document.getElementById('calcToggleBtn');
 const calcKeyboard     = document.getElementById('calcKeyboard');
 const calcExpressionEl = document.getElementById('calcExpression');
 const dateInput     = document.getElementById('date');
-const noteInput     = document.getElementById('note');
+const noteInput            = document.getElementById('note');
+const foreignAmountGroup   = document.getElementById('foreignAmountGroup');
+const foreignToggleBtn     = document.getElementById('foreignToggleBtn');
+const foreignToggleLabel   = document.getElementById('foreignToggleLabel');
+const foreignAmountRow     = document.getElementById('foreignAmountRow');
+const foreignCurrencyInput = document.getElementById('foreignCurrency');
+const foreignAmountInput   = document.getElementById('foreignAmount');
+const foreignClearBtn      = document.getElementById('foreignClearBtn');
+
+foreignToggleBtn.addEventListener('click', () => {
+  const open = foreignAmountRow.style.display !== 'none';
+  foreignAmountRow.style.display = open ? 'none' : '';
+  foreignToggleLabel.textContent = open ? '＋ 外幣金額' : '− 外幣金額';
+  if (open) {
+    foreignCurrencyInput.value = '';
+    foreignAmountInput.value   = '';
+  }
+});
+
+foreignClearBtn.addEventListener('click', () => {
+  foreignCurrencyInput.value = '';
+  foreignAmountInput.value   = '';
+  foreignAmountRow.style.display = 'none';
+  foreignToggleLabel.textContent = '＋ 外幣金額';
+});
 const submitBtn     = document.getElementById('submitBtn');
 const saveTplBtn    = document.getElementById('saveTplBtn');
 const openTplListBtn  = document.getElementById('openTplListBtn');
@@ -972,6 +996,7 @@ function renderProjectDetail() {
       </div>
       <div class="project-rec-right">
         <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>
+        ${r.foreignAmount && r.foreignCurrency ? `<div class="foreign-hint">${r.foreignCurrency} ${formatMoney(r.foreignAmount)}</div>` : ''}
         <span class="project-rec-edit-icon">✏️</span>
       </div>`;
     item.addEventListener('click', () => openModal(r));
@@ -1034,13 +1059,14 @@ function renderProjectReward(proj, recs) {
   projectRewardList.innerHTML = '';
 
   acts.forEach(act => {
-    // 回饋追蹤用實際刷卡金額（全額），因為信用卡帳單是全額計算
+    const currency  = act.currency || 'TWD';
+    // 回饋追蹤：有外幣且幣別相符時用外幣金額，否則用台幣全額
     const spent = recs
       .filter(r => r.rewardActivityId === act.id)
-      .reduce((s, r) => s + r.amount, 0);
-
-    const limit     = act.limit || 0;
-    const currency  = act.currency || 'TWD';
+      .reduce((s, r) => {
+        if (r.foreignAmount && r.foreignCurrency === currency) return s + r.foreignAmount;
+        return s + r.amount;
+      }, 0);
     const remaining = limit - spent;
     const pct       = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
     const over      = spent > limit;
@@ -2939,6 +2965,12 @@ function openModal(record = null) {
     amountInput.value = calcExpr;
     dateInput.value   = record.date;
     noteInput.value   = record.note || '';
+    foreignCurrencyInput.value = record.foreignCurrency || '';
+    foreignAmountInput.value   = record.foreignAmount   || '';
+    if (record.foreignCurrency || record.foreignAmount) {
+      foreignAmountRow.style.display = '';
+      foreignToggleLabel.textContent = '− 外幣金額';
+    }
     // 還原專案與分攤
     recordProjectSelect.value = record.projectId || '';
     updateRewardActivitySelect(record.rewardActivityId || null);
@@ -2975,6 +3007,8 @@ function switchType(type) {
   catPickBtn.style.display    = isTransfer ? 'none' : '';
   accountGroup.style.display  = isTransfer ? 'none' : '';
   transferGroup.style.display = isTransfer ? '' : 'none';
+  // 轉帳不需要外幣欄位
+  foreignAmountGroup.style.display = isTransfer ? 'none' : '';
 
   if (!isTransfer) setDefaultCategory();
 }
@@ -3266,6 +3300,8 @@ recordForm.addEventListener('submit', async (e) => {
       accountName:      selAcc ? selAcc.name : null,
       date:             dateInput.value,
       note:             noteInput.value.trim(),
+      foreignCurrency:  foreignCurrencyInput.value || null,
+      foreignAmount:    foreignAmountInput.value ? (parseFloat(foreignAmountInput.value) || null) : null,
       projectId:          recordProjectSelect.value || null,
       rewardActivityId:   rewardActivitySelect.value || null,
       splitPayer:         sp || null,
@@ -3292,6 +3328,10 @@ function resetForm() {
   recordEditId.value  = '';
   amountInput.value   = '';
   noteInput.value     = '';
+  foreignCurrencyInput.value = '';
+  foreignAmountInput.value   = '';
+  foreignAmountRow.style.display = 'none';
+  foreignToggleLabel.textContent = '＋ 外幣金額';
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   recordProjectSelect.value = '';
@@ -4083,6 +4123,12 @@ function formatMoney(n) {
   return n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 }
 
+/** 若記錄有外幣，回傳「（¥1,500）」格式的小字標註，否則回傳空字串 */
+function foreignHint(r) {
+  if (!r.foreignAmount || !r.foreignCurrency) return '';
+  return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoney(r.foreignAmount)}）</span>`;
+}
+
 // ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
 function buildRecordItem(r) {
   const item = document.createElement('div');
@@ -4120,7 +4166,10 @@ function buildRecordItem(r) {
         <div class="record-meta">${metaText}</div>
       </div>
       <div class="record-right">
-        <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
+        <div class="record-amount-wrap">
+          <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
+          ${foreignHint(r)}
+        </div>
         <span class="record-edit-hint">›</span>
       </div>
     `;
@@ -4822,7 +4871,10 @@ function renderSubRecordDetail(parentItem, records, subName) {
     el.innerHTML = `
       <div class="report-record-date">${r.date.slice(5)}</div>
       <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
-      <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+      <div class="report-record-amount-wrap">
+        <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+        ${foreignHint(r)}
+      </div>
     `;
     wrap.appendChild(el);
   });
@@ -4838,7 +4890,10 @@ function renderRecordItems(records) {
     el.innerHTML = `
       <div class="report-record-date">${r.date.slice(5)}</div>
       <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
-      <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+      <div class="report-record-amount-wrap">
+        <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+        ${foreignHint(r)}
+      </div>
     `;
     reportCategoryList.appendChild(el);
   });
@@ -5077,7 +5132,10 @@ function renderTrendMonthList(monthData) {
           el.innerHTML = `
             <div class="report-record-date">${r.date.slice(5)}</div>
             <div class="report-record-note">${dispName}${r.note ? ' · ' + r.note : ''}${splitHint}</div>
-            <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(effAmt)}</div>
+            <div class="report-record-amount-wrap">
+              <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(effAmt)}</div>
+              ${foreignHint(r)}
+            </div>
           `;
           detail.appendChild(el);
         });

@@ -1005,8 +1005,8 @@
   <!-- 新增帳戶彈窗 -->
   <div class="modal-overlay" id="accountModalOverlay">
     <div class="modal">
-      <div class="modal-header">
-        <h2 id="accountModalTitle">新增帳戶</h2>
+      <div class="modal-header account-modal-header">
+        <input type="text" id="accountName" class="account-name-header-input" placeholder="帳戶名稱" maxlength="20" required />
         <button class="close-btn" id="closeAccountFormBtn">✕</button>
       </div>
 
@@ -1015,12 +1015,6 @@
         <div class="form-group">
           <label>帳戶類型</label>
           <div class="account-type-grid" id="accountTypeGrid"></div>
-        </div>
-
-        <!-- 帳戶名稱 -->
-        <div class="form-group">
-          <label for="accountName">帳戶名稱</label>
-          <input type="text" id="accountName" placeholder="例：玉山銀行、國泰世華..." maxlength="20" required />
         </div>
 
         <!-- 初始餘額 -->

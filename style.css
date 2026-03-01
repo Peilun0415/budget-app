@@ -1016,6 +1016,32 @@ body {
   color: var(--text-dark);
 }
 
+.account-modal-header {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.account-name-header-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-dark);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  padding: 4px 2px;
+  outline: none;
+  transition: border-color .2s;
+}
+.account-name-header-input::placeholder {
+  color: var(--text-light);
+  font-weight: 400;
+}
+.account-name-header-input:focus {
+  border-bottom-color: var(--pink-main);
+}
+
 .close-btn {
   background: var(--pink-light);
   border: none;
@@ -1691,10 +1717,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--card-bg);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  padding: 10px 0;
   margin-bottom: 18px;
   cursor: pointer;
   user-select: none;

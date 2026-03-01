@@ -291,7 +291,6 @@ const accountCurrencyInput      = document.getElementById('accountCurrency');
 const accountIncludeInTotal     = document.getElementById('accountIncludeInTotal');
 const accountSubmitBtn     = document.getElementById('accountSubmitBtn');
 const accountEditId        = document.getElementById('accountEditId');
-const accountModalTitle    = document.getElementById('accountModalTitle');
 const accountList          = document.getElementById('accountList');
 const accountEmptyState    = document.getElementById('accountEmptyState');
 const accountsNetWorth      = document.getElementById('accountsNetWorth');
@@ -3470,7 +3469,6 @@ for (let d = 1; d <= 31; d++) {
 
 function openAccountModal(account = null) {
   accountEditId.value = account ? account.docId : '';
-  accountModalTitle.textContent = account ? '編輯帳戶' : '新增帳戶';
   accountNameInput.value     = account ? account.name     : '';
   accountBalanceInput.value  = account ? account.balance  : '';
   accountNoteInput.value     = account ? account.note     : '';

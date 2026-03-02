@@ -1228,6 +1228,8 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   border-color: transparent;
 }
 
+#searchInput {background: none;}
+
 /* ===== 類別格子 ===== */
 .category-grid {
   display: grid;

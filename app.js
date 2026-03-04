@@ -1034,47 +1034,142 @@ function renderProjectDetail() {
 
 function renderProjectSettle(proj, recs) {
   const members = proj.members || [];
-  if (members.length < 2) {
-    projectSettleSummary.innerHTML = `<div class="settle-total">總花費 $${formatMoney(recs.reduce((s,r)=>s+r.amount,0))}</div>`;
-    return;
-  }
+  const isSettled = !!(proj.settled?.all);
 
-  // 計算每人應付 / 實際付出
-  const paid   = {};  // 實際付出
-  const owed   = {};  // 應付
-  members.forEach(m => { paid[m] = 0; owed[m] = 0; });
+  // 共同花費 / 個人自費分開
+  const sharedRecs  = recs.filter(r => r.splitPayer && r.splitData?.length > 0);
+  const selfRecs    = recs.filter(r => !r.splitPayer || !r.splitData?.length);
+  const sharedTotal = sharedRecs.reduce((s, r) => s + r.amount, 0);
+  const selfTotal   = selfRecs.reduce((s, r) => s + r.amount, 0);
 
-  recs.forEach(r => {
-    const payer = r.splitPayer;
-    const splits = r.splitData;
-    if (payer && splits && splits.length > 0) {
+  // 計算每人淨額（正 = 別人欠他，負 = 他欠別人）
+  let myNet = 0;
+  let memberTableHtml = '';
+  if (members.length >= 2 && sharedRecs.length > 0) {
+    const paid = {}, owed = {};
+    members.forEach(m => { paid[m] = 0; owed[m] = 0; });
+    sharedRecs.forEach(r => {
+      const payer = r.splitPayer;
       if (paid[payer] !== undefined) paid[payer] += r.amount;
-      splits.forEach(s => {
+      r.splitData.forEach(s => {
         if (owed[s.name] !== undefined) owed[s.name] += s.amount;
       });
-    } else {
-      // 沒有分帳資料，算在第一個成員（自己）
-      const self = members[0];
-      if (paid[self] !== undefined) paid[self] += r.amount;
-      if (owed[self] !== undefined) owed[self] += r.amount;
-    }
-  });
+    });
+    myNet = Math.round((paid['我'] || 0) - (owed['我'] || 0));
 
-  // 計算每人淨額（負 = 欠別人，正 = 別人欠你）
-  const net = {};
-  members.forEach(m => { net[m] = paid[m] - owed[m]; });
+    // 每人明細表格
+    memberTableHtml = `<div class="settle-member-table">
+      <div class="settle-member-table-header">
+        <span>成員</span><span>付出</span><span>應付</span><span>淨額</span>
+      </div>
+      ${members.map(m => {
+        const n = Math.round((paid[m] || 0) - (owed[m] || 0));
+        const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : '';
+        const netStr = n > 0 ? `+$${formatMoney(n)}` : n < 0 ? `-$${formatMoney(Math.abs(n))}` : '$0';
+        return `<div class="settle-member-table-row">
+          <span class="settle-m-name">${m}</span>
+          <span class="settle-m-val">$${formatMoney(Math.round(paid[m] || 0))}</span>
+          <span class="settle-m-val">$${formatMoney(Math.round(owed[m] || 0))}</span>
+          <span class="settle-m-net ${cls}">${netStr}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
 
-  const total = recs.reduce((s, r) => s + r.amount, 0);
+  // 我的淨額說明
+  let myNetHtml = '';
+  if (myNet > 0) {
+    myNetHtml = `<div class="settle-my-net positive">其他人共欠我 <strong>$${formatMoney(myNet)}</strong></div>`;
+  } else if (myNet < 0) {
+    myNetHtml = `<div class="settle-my-net negative">我共欠其他人 <strong>$${formatMoney(Math.abs(myNet))}</strong></div>`;
+  } else if (members.length >= 2 && sharedRecs.length > 0) {
+    myNetHtml = `<div class="settle-my-net zero">已平衡，無需結清</div>`;
+  }
 
-  let html = `<div class="settle-total">總花費 $${formatMoney(total)}</div><div class="settle-list">`;
-  members.forEach(m => {
-    const n = net[m];
-    const cls = n > 0 ? 'settle-positive' : n < 0 ? 'settle-negative' : '';
-    const label = n > 0 ? `待收 $${formatMoney(n)}` : n < 0 ? `待付 $${formatMoney(Math.abs(n))}` : '已結清';
-    html += `<div class="settle-item ${cls}"><span class="settle-name">${m}</span><span class="settle-label">${label}</span></div>`;
-  });
-  html += '</div>';
-  projectSettleSummary.innerHTML = html;
+  // 結清按鈕（只有有淨額才顯示）
+  const needSettle = myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
+  const settleBtnHtml = needSettle
+    ? `<button class="settle-all-btn${isSettled ? ' done' : ''}" id="settleAllBtn">
+        ${isSettled ? '✓ 已結清' : '結清'}
+       </button>`
+    : '';
+
+  projectSettleSummary.innerHTML = `
+    <div class="settle-overview">
+      <div class="settle-overview-row">
+        <span>共同花費</span><span>$${formatMoney(sharedTotal)}</span>
+      </div>
+      <div class="settle-overview-row self">
+        <span>個人自費</span><span>$${formatMoney(selfTotal)}</span>
+      </div>
+    </div>
+    ${memberTableHtml}
+    ${myNetHtml}
+    ${settleBtnHtml}`;
+
+  if (needSettle && !isSettled) {
+    document.getElementById('settleAllBtn')?.addEventListener('click', async () => {
+      await doSettle(proj, recs, myNet);
+    });
+  }
+}
+
+
+// 結清：一次處理所有跟「我」相關的結清
+async function doSettle(proj, recs, myNet) {
+  const today = new Date().toISOString().slice(0, 10);
+  const writes = [];
+
+  if (myNet < 0) {
+    // 我欠別人 → 找出別人付、我有份額的記錄，各自產生一筆支出（帶原分類）
+    const mySharedRecs = recs.filter(r =>
+      r.splitPayer && r.splitPayer !== '我' &&
+      r.splitData?.some(s => s.name === '我')
+    );
+    mySharedRecs.forEach(r => {
+      const myShare = r.splitData.find(s => s.name === '我')?.amount || 0;
+      if (myShare <= 0) return;
+      writes.push(addDoc(collection(db, 'records'), {
+        uid: currentUser.uid,
+        type: 'expense',
+        amount: myShare,
+        date: today,
+        note: `${proj.name} 結清`,
+        accountId: r.accountId || null,
+        accountName: r.accountName || null,
+        categoryId: r.categoryId || null,
+        categoryName: r.categoryName || null,
+        subCategoryId: r.subCategoryId || null,
+        subCategoryName: r.subCategoryName || null,
+        displayEmoji: r.displayEmoji || r.categoryEmoji || '💸',
+        displayName: r.displayName || r.categoryName || '結清',
+        isSettlement: true,
+        settlementProjectId: proj.docId,
+        createdAt: serverTimestamp(),
+      }));
+    });
+  } else if (myNet > 0) {
+    // 別人欠我 → 產生一筆結算收入（帳戶餘額對上，報表排除）
+    writes.push(addDoc(collection(db, 'records'), {
+      uid: currentUser.uid,
+      type: 'income',
+      amount: myNet,
+      date: today,
+      note: `${proj.name} 結清`,
+      accountId: null,
+      accountName: null,
+      categoryId: null,
+      categoryName: '結算收入',
+      displayEmoji: '💰',
+      displayName: '旅遊結清收入',
+      isSettlement: true,
+      settlementProjectId: proj.docId,
+      createdAt: serverTimestamp(),
+    }));
+  }
+
+  await Promise.all(writes);
+  await updateDoc(doc(db, 'projects', proj.docId), { 'settled.all': true });
 }
 
 function renderProjectReward(proj, recs) {
@@ -4051,7 +4146,7 @@ function renderMonthLabel() {
 
 function getMonthRecords() {
   const ym = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
-  return allRecords.filter(r => r.date && r.date.startsWith(ym));
+  return allRecords.filter(r => r.date && r.date.startsWith(ym) && !r.isSettlement);
 }
 
 function renderSummary() {
@@ -4217,6 +4312,7 @@ function renderList() {
   // 轉帳只保留「轉出」那筆，避免重複顯示
   // 分攤記錄：若付款人不是「我」則不顯示在主頁（屬於別人代墊，在專案頁查看）
   let displayRecs = recs.filter(r => {
+    if (r.isSettlement) return true; // 結算記錄正常顯示在主頁
     if (r.type === 'transfer') return r.accountId === r.transferFromId;
     if (r.splitPayer && r.splitPayer !== '我') return false;
     return true;
@@ -4789,7 +4885,7 @@ reportBreadcrumbBack.addEventListener('click', () => {
 
 function getMonthRecordsByYM(year, month) {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-  return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer');
+  return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer' && !r.isSettlement);
 }
 
 /**

@@ -3863,36 +3863,100 @@ input.form-input {
   box-shadow: var(--shadow);
 }
 
-.settle-total {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin-bottom: 10px;
-}
-
-.settle-list {
+/* 結算總覽 */
+.settle-overview {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--card-bg);
+  border-radius: var(--radius-sm);
 }
-
-.settle-item {
+.settle-overview-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   font-size: 14px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: #f8f8f8;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+.settle-overview-row.self {
+  color: var(--text-mid);
+  font-weight: 400;
+  font-size: 13px;
 }
 
-.settle-item.settle-positive { background: #e8f5e9; }
-.settle-item.settle-negative { background: #fff3e0; }
+/* 成員明細表格 */
+.settle-member-table {
+  margin: 10px 0 6px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.settle-member-table-header {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr 2fr;
+  padding: 6px 10px;
+  background: var(--bg);
+  color: var(--text-light);
+  font-size: 12px;
+  font-weight: 600;
+}
+.settle-member-table-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr 2fr;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--card-bg);
+  align-items: center;
+}
+.settle-m-name {
+  font-weight: 600;
+  color: var(--text-dark);
+}
+.settle-m-val {
+  color: var(--text-mid);
+}
+.settle-m-net {
+  font-weight: 700;
+  color: var(--text-mid);
+}
+.settle-m-net.positive { color: #2e7d32; }
+.settle-m-net.negative { color: #e65100; }
 
-.settle-name { font-weight: 600; color: var(--text-dark); }
-.settle-label { font-size: 13px; color: var(--text-mid); }
-.settle-positive .settle-label { color: #2e7d32; }
-.settle-negative .settle-label { color: #e65100; }
+/* 我的淨額說明 */
+.settle-my-net {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  margin: 8px 0 10px;
+}
+.settle-my-net.positive { background: #f1f8f1; color: #2e7d32; }
+.settle-my-net.negative { background: #fff8f0; color: #e65100; }
+.settle-my-net.zero     { background: var(--bg); color: var(--text-light); }
+.settle-my-net strong   { font-weight: 700; }
+
+/* 一鍵結清按鈕 */
+.settle-all-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--pink-main);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.settle-all-btn:active { opacity: 0.8; }
+.settle-all-btn.done {
+  background: #a5d6a7;
+  color: #1b5e20;
+  cursor: default;
+}
 
 .project-section-title {
   font-size: 13px;

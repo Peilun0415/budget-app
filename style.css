@@ -2049,6 +2049,24 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   color: var(--text-mid);
 }
 
+#projectDateRangeInput {
+  cursor: pointer;
+  background-color: var(--bg);
+}
+#projectDateRangeInput.flatpickr-input.readonly {
+  cursor: pointer;
+}
+
+/* 旅遊日期：只有輸入框 100% 寬，日曆用預設寬度 */
+.project-date-range-wrap #projectDateRangeInput {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.flatpickr-calendar.open {
+  z-index: 350;
+}
+
 /* 月預算排除類別選擇格 */
 .exclude-cat-grid {
   display: flex;

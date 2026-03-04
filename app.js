@@ -336,6 +336,7 @@ const closeProjectModalBtn  = document.getElementById('closeProjectModalBtn');
 const projectForm           = document.getElementById('projectForm');
 const projectNameInput      = document.getElementById('projectNameInput');
 const projectMembersInput   = document.getElementById('projectMembersInput');
+const projectDateRangeInput = document.getElementById('projectDateRangeInput');
 const projectStartInput     = document.getElementById('projectStartInput');
 const projectEndInput       = document.getElementById('projectEndInput');
 const projectEditId         = document.getElementById('projectEditId');
@@ -848,6 +849,8 @@ function calcProjectTotal(proj) {
 
 addProjectBtn.addEventListener('click', () => openProjectModal());
 
+let projectDateRangePicker = null;
+
 function openProjectModal(proj = null) {
   projectEditId.value          = proj ? proj.docId : '';
   projectModalTitle.textContent = proj ? '編輯專案' : '新增專案';
@@ -856,7 +859,13 @@ function openProjectModal(proj = null) {
   projectStartInput.value      = proj?.startDate || '';
   projectEndInput.value        = proj?.endDate   || '';
   deleteProjectBtn.style.display = proj ? '' : 'none';
-  // 載入回饋活動
+  if (projectDateRangePicker) {
+    if (proj?.startDate && proj?.endDate) {
+      projectDateRangePicker.setDate([proj.startDate, proj.endDate]);
+    } else {
+      projectDateRangePicker.clear();
+    }
+  }
   tempRewardActivities = (proj?.rewardActivities || []).map(a => ({ ...a }));
   renderRewardActivityEditor();
   projectModalOverlay.classList.add('active');
@@ -912,6 +921,42 @@ closeProjectModalBtn.addEventListener('click', closeProjectModal);
 projectModalOverlay.addEventListener('click', e => {
   if (e.target === projectModalOverlay) closeProjectModal();
 });
+
+// 旅遊日期範圍選擇器（Flatpickr）
+if (projectDateRangeInput) {
+  projectDateRangePicker = flatpickr(projectDateRangeInput, {
+    mode: 'range',
+    dateFormat: 'Y-m-d',
+    locale: typeof flatpickr !== 'undefined' && flatpickr.l10ns?.zh_tw ? 'zh_tw' : 'default',
+    allowInput: false,
+    appendTo: document.body,
+    onOpen(selectedDates, dateStr, instance) {
+      requestAnimationFrame(() => {
+        const el = instance.calendarContainer;
+        const input = instance.input;
+        if (!el || !input) return;
+        const rect = input.getBoundingClientRect();
+        el.style.position = 'fixed';
+        el.style.left = rect.left + 'px';
+        el.style.top = (rect.bottom + 4) + 'px';
+        el.style.right = 'auto';
+        el.style.width = ''; // 日曆用預設寬度，不設 100%
+      });
+    },
+    onChange(selectedDates) {
+      if (selectedDates.length >= 1) {
+        projectStartInput.value = selectedDates[0] ? selectedDates[0].toISOString().slice(0, 10) : '';
+      }
+      if (selectedDates.length >= 2) {
+        projectEndInput.value = selectedDates[1] ? selectedDates[1].toISOString().slice(0, 10) : '';
+      }
+      if (selectedDates.length === 0) {
+        projectStartInput.value = '';
+        projectEndInput.value = '';
+      }
+    },
+  });
+}
 
 projectForm.addEventListener('submit', async e => {
   e.preventDefault();
@@ -1076,15 +1121,6 @@ function renderProjectSettle(proj, recs) {
     </div>`;
   }
 
-  // 我的淨額說明
-  let myNetHtml = '';
-  if (myNet > 0) {
-    myNetHtml = `<div class="settle-my-net positive">其他人共欠我 <strong>$${formatMoney(myNet)}</strong></div>`;
-  } else if (myNet < 0) {
-    myNetHtml = `<div class="settle-my-net negative">我共欠其他人 <strong>$${formatMoney(Math.abs(myNet))}</strong></div>`;
-  } else if (members.length >= 2 && sharedRecs.length > 0) {
-    myNetHtml = `<div class="settle-my-net zero">已平衡，無需結清</div>`;
-  }
 
   // 結清按鈕（只有有淨額才顯示）
   const needSettle = myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
@@ -1104,7 +1140,6 @@ function renderProjectSettle(proj, recs) {
       </div>
     </div>
     ${memberTableHtml}
-    ${myNetHtml}
     ${settleBtnHtml}`;
 
   if (needSettle && !isSettled) {
@@ -1486,6 +1521,7 @@ function renderMonthBudget() {
   const spent = allRecords
     .filter(r => {
       if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
+      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
       if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
       if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
       return true;
@@ -1522,7 +1558,11 @@ function renderCatBudgetList() {
   const yearPrefix = `${thisYear}-`;
   const spentMap = {};
   allRecords
-    .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
+    .filter(r => {
+      if (r.type !== 'expense' || !r.date?.startsWith(yearPrefix)) return false;
+      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+      return true;
+    })
     .forEach(r => {
       // 主分類 key
       const catKey = r.categoryId || '__none__';
@@ -4146,7 +4186,12 @@ function renderMonthLabel() {
 
 function getMonthRecords() {
   const ym = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
-  return allRecords.filter(r => r.date && r.date.startsWith(ym) && !r.isSettlement);
+  return allRecords.filter(r => {
+    if (!r.date || !r.date.startsWith(ym)) return false;
+    // 主頁只顯示我付的或結清後產生的；別人付的未結清不計入
+    if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+    return true;
+  });
 }
 
 function renderSummary() {
@@ -4208,6 +4253,7 @@ function renderHomeBudget() {
     const spent = allRecords
       .filter(r => {
         if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
+        if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
         if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
         if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
         return true;
@@ -4225,7 +4271,11 @@ function renderHomeBudget() {
     const yearPrefix = `${thisYear}-`;
     const spentMap = {};
     allRecords
-      .filter(r => r.type === 'expense' && r.date?.startsWith(yearPrefix))
+      .filter(r => {
+        if (r.type !== 'expense' || !r.date?.startsWith(yearPrefix)) return false;
+        if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+        return true;
+      })
       .forEach(r => {
         const catKey = r.categoryId || '__none__';
         spentMap[catKey] = (spentMap[catKey] || 0) + getReportAmount(r);
@@ -4885,7 +4935,12 @@ reportBreadcrumbBack.addEventListener('click', () => {
 
 function getMonthRecordsByYM(year, month) {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-  return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer' && !r.isSettlement);
+  return allRecords.filter(r => {
+    if (!r.date?.startsWith(prefix) || r.type === 'transfer') return false;
+    // 報表＝主頁明細：別人付款、我有份額的記錄在結清前不會出現在主頁，也不計入報表
+    if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+    return true;
+  });
 }
 
 /**

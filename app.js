@@ -359,12 +359,10 @@ const projectRewardSection  = document.getElementById('projectRewardSection');
 const projectRewardList     = document.getElementById('projectRewardList');
 const splitGroup            = document.getElementById('splitGroup');
 const splitPayer            = document.getElementById('splitPayer');
-const splitMemberChecks     = document.getElementById('splitMemberChecks');
-const splitModeEqual        = document.getElementById('splitModeEqual');
-const splitModeCustom       = document.getElementById('splitModeCustom');
-const splitCustomArea       = document.getElementById('splitCustomArea');
-const splitCustomInputs     = document.getElementById('splitCustomInputs');
-const splitPreview          = document.getElementById('splitPreview');
+const splitEqualToggle      = document.getElementById('splitEqualToggle');
+const splitSelectAll        = document.getElementById('splitSelectAll');
+const splitMemberList       = document.getElementById('splitMemberList');
+const splitCard             = document.getElementById('splitCard');
 
 // ===== DOM — 分類管理 =====
 const pageCategories    = document.getElementById('pageCategories');
@@ -1314,22 +1312,15 @@ function updateSplitGroupVisibility(record = null) {
 
 function renderSplitUI(proj, record = null) {
   const members = proj.members || [];
-
-  // 還原資料（編輯模式）
   const savedPayer  = record?.splitPayer  || null;
-  const savedSplits = record?.splitData   || null; // [{ name, amount }]
+  const savedSplits = record?.splitData   || null;
 
-  // 判斷是否為自訂模式：有 splitData 且各人金額不完全相等
   let restoreCustom = false;
   if (savedSplits && savedSplits.length > 1) {
     const amounts = savedSplits.map(s => s.amount);
     restoreCustom = amounts.some(a => a !== amounts[0]);
-  } else if (savedSplits && savedSplits.length > 0) {
-    // 只有一人時，若金額不等於總金額也視為自訂（但通常是自費，維持 equal 即可）
-    restoreCustom = false;
   }
 
-  // 付款人
   splitPayer.innerHTML = '';
   members.forEach(m => {
     const opt = document.createElement('option');
@@ -1337,146 +1328,78 @@ function renderSplitUI(proj, record = null) {
     opt.textContent = m;
     splitPayer.appendChild(opt);
   });
-  if (savedPayer && members.includes(savedPayer)) {
-    splitPayer.value = savedPayer;
-  }
+  if (savedPayer && members.includes(savedPayer)) splitPayer.value = savedPayer;
 
-  // 還原分攤模式按鈕狀態
-  if (restoreCustom) {
-    splitMode = 'custom';
-    splitModeCustom.classList.add('active');
-    splitModeEqual.classList.remove('active');
-    splitCustomArea.style.display = '';
-  } else {
-    splitMode = 'equal';
-    splitModeEqual.classList.add('active');
-    splitModeCustom.classList.remove('active');
-    splitCustomArea.style.display = 'none';
-  }
+  splitMode = restoreCustom ? 'custom' : 'equal';
+  splitEqualToggle.checked = !restoreCustom;
 
-  // 參與成員勾選
-  splitMemberChecks.innerHTML = '';
-
-  // 全員快捷按鈕
-  const allBtn = document.createElement('button');
-  allBtn.type = 'button';
-  allBtn.className = 'split-all-btn';
-  allBtn.textContent = '全員';
-  allBtn.addEventListener('click', () => {
-    splitMemberChecks.querySelectorAll('input[type=checkbox]').forEach(cb => {
-      cb.checked = true;
-      cb.closest('label').classList.add('checked');
-    });
-    if (splitMode === 'custom') renderCustomSplitInputs();
-    updateSplitPreview();
-  });
-  splitMemberChecks.appendChild(allBtn);
-
-  // 已儲存的參與成員名單
   const savedMemberNames = savedSplits ? savedSplits.map(s => s.name) : null;
 
+  splitMemberList.innerHTML = '';
   members.forEach((m, i) => {
-    // 有儲存資料時依儲存名單決定勾選；否則預設只勾第一位
     const shouldCheck = savedMemberNames ? savedMemberNames.includes(m) : i === 0;
-    const label = document.createElement('label');
-    label.className = 'exclude-cat-item' + (shouldCheck ? ' checked' : '');
-    label.innerHTML = `<input type="checkbox" value="${m}" ${shouldCheck ? 'checked' : ''} /><span class="exclude-cat-name">${m}</span>`;
-    label.querySelector('input').addEventListener('change', () => {
-      label.classList.toggle('checked', label.querySelector('input').checked);
-      if (splitMode === 'custom') renderCustomSplitInputs();
-      updateSplitPreview();
-    });
-    splitMemberChecks.appendChild(label);
+    const savedAmt = savedSplits?.find(s => s.name === m)?.amount ?? '';
+    const row = document.createElement('label');
+    row.className = 'split-card-row';
+    row.innerHTML = `
+      <input type="checkbox" class="split-member-cb" data-member="${m}" ${shouldCheck ? 'checked' : ''} />
+      <span class="split-card-name">${m}</span>
+      <div class="amount-input-wrap split-card-input-wrap">
+        <span class="currency-sign">$</span>
+        <input type="number" class="split-card-amount" data-member="${m}" placeholder="0" inputmode="decimal" value="${savedAmt}" />
+      </div>`;
+    row.querySelector('.split-member-cb').addEventListener('change', syncSelectAllAndAmounts);
+    row.querySelector('.split-card-amount').addEventListener('input', syncEqualAmounts);
+    splitMemberList.appendChild(row);
   });
 
-  // 自訂模式：渲染輸入框並填入已儲存的金額
-  if (restoreCustom && savedSplits) {
-    renderCustomSplitInputs();
-    // 填入儲存的金額
-    savedSplits.forEach(s => {
-      const inp = splitCustomInputs.querySelector(`input[data-member="${s.name}"]`);
-      if (inp) inp.value = s.amount;
+  splitSelectAll.checked = members.every((m, i) => savedMemberNames ? savedMemberNames.includes(m) : i === 0);
+  splitSelectAll.addEventListener('change', () => {
+    splitMemberList.querySelectorAll('.split-member-cb').forEach(cb => {
+      cb.checked = splitSelectAll.checked;
+    });
+    syncEqualAmounts();
+  });
+
+  syncEqualAmounts();
+}
+
+function syncSelectAllAndAmounts() {
+  const cbs = splitMemberList.querySelectorAll('.split-member-cb');
+  splitSelectAll.checked = cbs.length > 0 && [...cbs].every(cb => cb.checked);
+  syncEqualAmounts();
+}
+
+function syncEqualAmounts() {
+  const amount = parseFloat(document.getElementById('amount').value) || 0;
+  const checked = getCheckedMembers();
+  if (checked.length === 0) return;
+  const each = Math.round(amount / checked.length);
+  if (splitEqualToggle.checked) {
+    splitMemberList.querySelectorAll('.split-card-amount').forEach(inp => {
+      if (inp.closest('label').querySelector('.split-member-cb').checked) {
+        inp.value = each;
+        inp.readOnly = true;
+      } else {
+        inp.readOnly = false;
+      }
+    });
+  } else {
+    splitMemberList.querySelectorAll('.split-card-amount').forEach(inp => {
+      inp.readOnly = false;
     });
   }
-
-  updateSplitPreview();
 }
 
-splitPayer.addEventListener('change', updateSplitPreview);
+splitPayer.addEventListener('change', () => syncEqualAmounts());
 
-splitModeEqual.addEventListener('click', () => {
-  splitMode = 'equal';
-  splitModeEqual.classList.add('active');
-  splitModeCustom.classList.remove('active');
-  splitCustomArea.style.display = 'none';
-  updateSplitPreview();
+splitEqualToggle.addEventListener('change', () => {
+  splitMode = splitEqualToggle.checked ? 'equal' : 'custom';
+  syncEqualAmounts();
 });
-
-splitModeCustom.addEventListener('click', () => {
-  splitMode = 'custom';
-  splitModeCustom.classList.add('active');
-  splitModeEqual.classList.remove('active');
-  splitCustomArea.style.display = '';
-  renderCustomSplitInputs();
-});
-
-function renderCustomSplitInputs() {
-  const members = getCheckedMembers();
-  const amount  = parseFloat(document.getElementById('amount').value) || 0;
-  splitCustomInputs.innerHTML = '';
-  members.forEach(m => {
-    const row = document.createElement('div');
-    row.className = 'split-custom-row';
-    row.innerHTML = `
-      <span class="split-custom-name">${m}</span>
-      <div class="amount-input-wrap split-custom-input-wrap">
-        <span class="currency-sign">$</span>
-        <input type="number" class="split-custom-input" data-member="${m}" placeholder="0" inputmode="decimal" />
-      </div>`;
-    row.querySelector('input').addEventListener('input', updateSplitPreview);
-    splitCustomInputs.appendChild(row);
-  });
-}
 
 function getCheckedMembers() {
-  return [...splitMemberChecks.querySelectorAll('input:checked')].map(el => el.value);
-}
-
-function updateSplitPreview() {
-  const amount  = parseFloat(document.getElementById('amount').value) || 0;
-  const members = getCheckedMembers();
-  if (members.length === 0) { splitPreview.innerHTML = ''; return; }
-
-  let splits = [];
-  if (splitMode === 'equal') {
-    const each = Math.round(amount / members.length);
-    splits = members.map(m => ({ name: m, amount: each }));
-  } else {
-    splits = members.map(m => {
-      const inp = splitCustomInputs.querySelector(`input[data-member="${m}"]`);
-      return { name: m, amount: parseFloat(inp?.value) || 0 };
-    });
-  }
-
-  const payer = splitPayer.value;
-  const onlyPayer = splits.length === 1 && splits[0].name === payer;
-
-  splitPreview.innerHTML = splits.map(s => {
-    let label;
-    if (onlyPayer) {
-      // 只有付款人自己 → 純自費
-      label = `自費 $${formatMoney(amount)}`;
-    } else if (s.name === payer) {
-      const payerOwn = s.amount;
-      const payerAdvanced = amount - payerOwn;
-      label = payerAdvanced > 0
-        ? `付 $${formatMoney(amount)}，代墊 $${formatMoney(payerAdvanced)}，自付 $${formatMoney(payerOwn)}`
-        : `自費 $${formatMoney(amount)}`;
-    } else {
-      label = `欠 ${payer} $${formatMoney(s.amount)}`;
-    }
-    return `<div class="split-preview-row"><span>${s.name}</span><span>${label}</span></div>`;
-  }).join('');
+  return [...splitMemberList.querySelectorAll('.split-member-cb:checked')].map(el => el.dataset.member);
 }
 
 function getSplitData() {
@@ -1492,7 +1415,7 @@ function getSplitData() {
     splits = members.map(m => ({ name: m, amount: each }));
   } else {
     splits = members.map(m => {
-      const inp = splitCustomInputs.querySelector(`input[data-member="${m}"]`);
+      const inp = splitMemberList.querySelector(`input.split-card-amount[data-member="${m}"]`);
       return { name: m, amount: parseFloat(inp?.value) || 0 };
     });
   }
@@ -3226,7 +3149,10 @@ function updateExchangeHint() {
   exchangeHint.textContent = `匯率約 1 : ${rate}`;
 }
 exchangeAmountInput.addEventListener('input', updateExchangeHint);
-amountInput.addEventListener('input', updateExchangeHint);
+amountInput.addEventListener('input', () => {
+  updateExchangeHint();
+  if (splitGroup.style.display !== 'none') syncEqualAmounts();
+});
 
 // 自動選該 type 第一個主分類的第一個子分類（無子分類則選主分類）
 function setDefaultCategory() {
@@ -3360,6 +3286,12 @@ function renderAccountSelect() {
   transferFrom.innerHTML  = '';
   transferTo.innerHTML    = '';
 
+  // 記帳用：多一個「無」選項（專案中別人支出等）
+  const optNone = document.createElement('option');
+  optNone.value = '';
+  optNone.textContent = '無';
+  accountSelect.appendChild(optNone);
+
   const sortedAccounts = [...allAccounts].sort((a, b) => {
     const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
     if (tDiff !== 0) return tDiff;
@@ -3378,8 +3310,9 @@ function renderAccountSelect() {
     transferTo.appendChild(makeOpt());
   });
 
-  // 還原選擇；無先前選擇時用預設扣款帳戶，否則第一個
-  if (prev) accountSelect.value = prev;
+  // 還原選擇；選過「無」時保留，否則預設扣款帳戶或第一個
+  if (prev === '') accountSelect.value = '';
+  else if (prev) accountSelect.value = prev;
   else if (allAccounts.length > 0) {
     const defaultAcc = allAccounts.find(a => a.isDefault);
     accountSelect.value = defaultAcc ? defaultAcc.docId : allAccounts[0].docId;
@@ -3569,8 +3502,7 @@ function resetForm() {
   rewardActivitySelect.value = '';
   splitGroup.style.display = 'none';
   splitMode = 'equal';
-  splitModeEqual.classList.add('active');
-  splitModeCustom.classList.remove('active');
+  if (splitEqualToggle) splitEqualToggle.checked = true;
   // 回到支出模式（會自動切換 UI 顯示）
   switchType('expense');
   setDefaultDate();
@@ -4445,7 +4377,8 @@ function buildRecordItem(r) {
       </div>
     `;
   } else {
-    const metaText  = [r.accountName, r.note].filter(Boolean).join(' · ') || '無備註';
+    const accLabel  = r.accountId ? (r.accountName || '') : '無';
+    const metaText  = [accLabel, r.note].filter(Boolean).join(' · ') || '無備註';
     const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
     const dispName  = r.displayName  || r.categoryName  || '其他';
     item.innerHTML = `
@@ -4684,9 +4617,21 @@ function calcSymbolToOp(sym) {
   return sym;
 }
 
+function handleAmountChanged() {
+  // 外幣換匯提示
+  if (typeof updateExchangeHint === 'function') {
+    updateExchangeHint();
+  }
+  // 專案分帳：均分時同步更新各成員金額
+  if (splitGroup && splitGroup.style.display !== 'none' && typeof syncEqualAmounts === 'function') {
+    syncEqualAmounts();
+  }
+}
+
 function updateCalcDisplay() {
   amountInput.value   = calcExpr || '';
   calcExpressionEl.textContent = '';
+  handleAmountChanged();
 }
 
 function calcAppend(val) {
@@ -4721,6 +4666,7 @@ function calcEqual() {
     calcExpr = String(rounded);
     calcRaw  = String(rounded);
     amountInput.value = calcExpr;
+    handleAmountChanged();
   } catch {
     calcExpressionEl.textContent = '格式錯誤';
     calcExpr = '';
@@ -4746,6 +4692,7 @@ function calcClear() {
   calcRaw  = '';
   calcExpressionEl.textContent = '';
   amountInput.value = '';
+  handleAmountChanged();
 }
 
 // 電腦鍵盤輸入攔截

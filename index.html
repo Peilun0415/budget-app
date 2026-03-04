@@ -743,21 +743,24 @@
             <label class="form-label">付款人</label>
             <select id="splitPayer" class="form-select"></select>
           </div>
-          <div class="form-group">
-            <label class="form-label">參與成員</label>
-            <div id="splitMemberChecks" class="split-member-checks"></div>
+          <div class="form-group split-method-row">
+            <label class="form-label">分帳方式 <span class="required-star">*</span></label>
+            <label class="split-equal-toggle-wrap">
+              <span class="split-equal-label">均分</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="splitEqualToggle" checked />
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
           </div>
-          <div class="form-group">
-            <label class="form-label">分攤方式</label>
-            <div class="split-mode-toggle">
-              <button type="button" class="split-mode-btn active" id="splitModeEqual">平均分攤</button>
-              <button type="button" class="split-mode-btn" id="splitModeCustom">自訂金額</button>
-            </div>
+          <div class="split-card" id="splitCard">
+            <label class="split-card-row split-card-all">
+              <input type="checkbox" id="splitSelectAll" />
+              <span class="split-card-name">全選</span>
+            </label>
+            <hr class="split-card-hr" />
+            <div id="splitMemberList"></div>
           </div>
-          <div id="splitCustomArea" style="display:none">
-            <div id="splitCustomInputs"></div>
-          </div>
-          <div class="split-preview" id="splitPreview"></div>
         </div>
 
         <input type="hidden" id="recordEditId" value="" />

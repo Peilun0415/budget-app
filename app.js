@@ -289,6 +289,7 @@ const accountBalanceInput  = document.getElementById('accountBalance');
 const accountNoteInput     = document.getElementById('accountNote');
 const accountCurrencyInput      = document.getElementById('accountCurrency');
 const accountIncludeInTotal     = document.getElementById('accountIncludeInTotal');
+const accountIsDefault          = document.getElementById('accountIsDefault');
 const accountSubmitBtn     = document.getElementById('accountSubmitBtn');
 const accountEditId        = document.getElementById('accountEditId');
 const accountList          = document.getElementById('accountList');
@@ -3160,6 +3161,8 @@ function openModal(record = null) {
     recordModalTitle.textContent = '新增記帳';
     submitBtn.textContent = '記下來！';
     deleteRecordBtn.style.display = 'none';
+    const defaultAcc = allAccounts.find(a => a.isDefault);
+    accountSelect.value = defaultAcc ? defaultAcc.docId : (allAccounts[0]?.docId || '');
   }
   modalOverlay.classList.add('active');
 }
@@ -3375,9 +3378,12 @@ function renderAccountSelect() {
     transferTo.appendChild(makeOpt());
   });
 
-  // 還原選擇
-  if (prev)     accountSelect.value = prev;
-  else if (allAccounts.length > 0) accountSelect.value = allAccounts[0].docId;
+  // 還原選擇；無先前選擇時用預設扣款帳戶，否則第一個
+  if (prev) accountSelect.value = prev;
+  else if (allAccounts.length > 0) {
+    const defaultAcc = allAccounts.find(a => a.isDefault);
+    accountSelect.value = defaultAcc ? defaultAcc.docId : allAccounts[0].docId;
+  }
 
   if (prevFrom) transferFrom.value = prevFrom;
   else if (allAccounts.length > 0) transferFrom.value = allAccounts[0].docId;
@@ -3609,6 +3615,7 @@ function openAccountModal(account = null) {
   accountNoteInput.value     = account ? account.note     : '';
   accountCurrencyInput.value      = account?.currency ?? '';
   accountIncludeInTotal.checked   = account ? (account.includeInTotal !== false) : true;
+  accountIsDefault.checked        = account?.isDefault ?? false;
   accountBillingDay.value         = account?.billingDay ?? '';
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
@@ -3658,6 +3665,7 @@ accountForm.addEventListener('submit', async (e) => {
   const note            = accountNoteInput.value.trim();
   const currency        = accountCurrencyInput.value || null;
   const includeInTotal  = accountIncludeInTotal.checked;
+  const isDefault       = accountIsDefault.checked;
   const billingDay = selectedAccountType === 'credit' && accountBillingDay.value
     ? parseInt(accountBillingDay.value) : null;
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
@@ -3667,12 +3675,16 @@ accountForm.addEventListener('submit', async (e) => {
   accountSubmitBtn.textContent = '儲存中...';
 
   try {
+    if (isDefault) {
+      const others = allAccounts.filter(a => a.docId !== editId && a.isDefault);
+      await Promise.all(others.map(a => updateDoc(doc(db, 'accounts', a.docId), { isDefault: false })));
+    }
     if (editId) {
       await updateDoc(doc(db, 'accounts', editId), {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, currency, includeInTotal,
+        name, balance, note, billingDay, currency, includeInTotal, isDefault: isDefault || null,
       });
     } else {
       const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
@@ -3681,7 +3693,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, currency, includeInTotal,
+        name, balance, note, billingDay, currency, includeInTotal, isDefault: isDefault || null,
         order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });

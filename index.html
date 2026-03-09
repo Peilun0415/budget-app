@@ -665,7 +665,7 @@
                 <option value="THB">THB</option>
                 <option value="CNY">CNY</option>
               </select>
-              <input type="number" id="foreignAmount" class="foreign-amount-input" placeholder="0" inputmode="decimal" min="0" />
+              <input type="number" id="foreignAmount" class="foreign-amount-input" placeholder="0" inputmode="decimal" min="0" step="any" />
               <button type="button" class="foreign-clear-btn" id="foreignClearBtn">✕</button>
             </div>
           </div>
@@ -704,7 +704,7 @@
             <div class="form-group" style="margin-bottom:0">
               <label for="exchangeAmount">到帳金額</label>
               <div class="amount-input-wrap" id="exchangeAmountWrap">
-                <input type="number" id="exchangeAmount" placeholder="0" inputmode="decimal" min="0" />
+                <input type="number" id="exchangeAmount" placeholder="0" inputmode="decimal" min="0" step="any" />
               </div>
             </div>
             <p class="exchange-hint" id="exchangeHint"></p>
@@ -1026,7 +1026,7 @@
           <label for="accountBalance" id="accountBalanceLabel">初始餘額</label>
           <div class="amount-input-wrap">
             <span class="currency-sign">$</span>
-            <input type="number" id="accountBalance" placeholder="0" inputmode="decimal" />
+            <input type="number" id="accountBalance" placeholder="0" inputmode="decimal" step="any" />
           </div>
         </div>
 

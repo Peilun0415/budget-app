@@ -171,6 +171,28 @@ let detailViewYear   = new Date().getFullYear();
 let detailViewMonth  = new Date().getMonth();
 let detailRangeStart = '';
 let detailRangeEnd   = '';
+let suppressForeignAutoConvert = false;
+let lastAutoFilledAmount = null;
+let fxRatesToTwd = {};
+let fxRatesDate = '';
+let fxRatesUpdatedAt = '';
+let fxRatesPromise = null;
+
+const FX_CACHE_KEY = 'budgetweb.fx.latest.v1';
+const FX_SUPPORTED_CURRENCIES = ['USD', 'JPY', 'EUR', 'KRW', 'HKD', 'GBP', 'AUD', 'SGD', 'THB', 'CNY'];
+const FX_ZERO_DECIMAL_CURRENCIES = new Set(['TWD', 'JPY', 'KRW']);
+
+try {
+  const raw = localStorage.getItem(FX_CACHE_KEY);
+  if (raw) {
+    const cached = JSON.parse(raw);
+    fxRatesToTwd = cached?.rates || {};
+    fxRatesDate = cached?.date || '';
+    fxRatesUpdatedAt = cached?.updatedAt || '';
+  }
+} catch (err) {
+  console.warn('讀取匯率快取失敗', err);
+}
 
 // ===== DOM — 通用 =====
 const loginScreen    = document.getElementById('loginScreen');
@@ -222,6 +244,9 @@ const closeCatPickerBtn = document.getElementById('closeCatPickerBtn');
 const catPickerParents = document.getElementById('catPickerParents');
 const catPickerSubs    = document.getElementById('catPickerSubs');
 const amountInput      = document.getElementById('amount');
+const amountLabelEl    = document.querySelector('label[for="amount"]');
+const amountInputWrap  = document.getElementById('amountInputWrap');
+const amountCurrencySign = amountInputWrap?.querySelector('.currency-sign');
 const calcToggleBtn    = document.getElementById('calcToggleBtn');
 const calcKeyboard     = document.getElementById('calcKeyboard');
 const calcExpressionEl = document.getElementById('calcExpression');
@@ -234,22 +259,55 @@ const foreignAmountRow     = document.getElementById('foreignAmountRow');
 const foreignCurrencyInput = document.getElementById('foreignCurrency');
 const foreignAmountInput   = document.getElementById('foreignAmount');
 const foreignClearBtn      = document.getElementById('foreignClearBtn');
+const foreignRateHint      = document.createElement('div');
+foreignRateHint.id = 'foreignRateHint';
+Object.assign(foreignRateHint.style, {
+  display: 'none',
+  marginTop: '6px',
+  fontSize: '12px',
+  color: 'var(--text-mid)',
+  lineHeight: '1.5',
+});
+foreignAmountRow.insertAdjacentElement('afterend', foreignRateHint);
+
+function resetForeignAmountUI({ clearValues = false } = {}) {
+  foreignAmountRow.style.display = 'none';
+  foreignToggleLabel.textContent = '＋ 外幣金額';
+  foreignRateHint.style.display = 'none';
+  foreignRateHint.textContent = '';
+  if (clearValues) {
+    foreignCurrencyInput.value = '';
+    foreignAmountInput.value = '';
+  }
+}
 
 foreignToggleBtn.addEventListener('click', () => {
+  if (isForeignPrimaryMode()) {
+    syncForeignAccountUI();
+    return;
+  }
   const open = foreignAmountRow.style.display !== 'none';
-  foreignAmountRow.style.display = open ? 'none' : '';
-  foreignToggleLabel.textContent = open ? '＋ 外幣金額' : '− 外幣金額';
+  if (open) {
+    resetForeignAmountUI({ clearValues: isSelectedForeignAccount() });
+  } else {
+    foreignAmountRow.style.display = '';
+    foreignToggleLabel.textContent = '− 外幣金額';
+  }
   if (open) {
     foreignCurrencyInput.value = '';
     foreignAmountInput.value   = '';
   }
+  syncForeignAccountUI();
 });
 
 foreignClearBtn.addEventListener('click', () => {
-  foreignCurrencyInput.value = '';
+  if (!isSelectedForeignAccount()) {
+    foreignCurrencyInput.value = '';
+    resetForeignAmountUI();
+  }
   foreignAmountInput.value   = '';
-  foreignAmountRow.style.display = 'none';
-  foreignToggleLabel.textContent = '＋ 外幣金額';
+  maybeAutoConvertForeignIncome();
+  syncForeignAccountUI();
 });
 const submitBtn     = document.getElementById('submitBtn');
 const saveTplBtn    = document.getElementById('saveTplBtn');
@@ -720,6 +778,7 @@ function switchPage(page) {
     pageTitle.textContent = proj ? proj.name : '專案詳情';
   }
   if (page === 'home')          renderHomeBudget();
+  if (page === 'accounts' || page === 'accountDetail') scheduleAccountsRefresh();
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
   if (page === 'budget')        renderBudgetPage();
@@ -1923,17 +1982,19 @@ function getDetailFilteredRecords(accountDocId) {
 }
 
 function renderAccountDetail(account) {
+  const detailCurrency = account.currency || 'TWD';
+  const detailPrefix = account.currency ? `${account.currency} ` : '$';
   // 目前餘額永遠用全部記錄計算（含轉帳）
   const curBal = calcAccountBalance(account);
-  detailBalance.textContent = curBal < 0 ? `-$${formatMoney(Math.abs(curBal))}` : `$${formatMoney(curBal)}`;
+  detailBalance.textContent = formatSignedMoneyByCurrency(curBal, detailCurrency, detailPrefix);
   detailBalance.style.color = curBal >= 0 ? 'white' : '#ffb3b3';
 
   // 期間收入/支出用篩選後的記錄（轉帳不計入收支統計）
   const filtered = getDetailFilteredRecords(account.docId);
-  const incTotal = filtered.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
-  const expTotal = filtered.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  detailIncome.textContent  = `+$${formatMoney(incTotal)}`;
-  detailExpense.textContent = `-$${formatMoney(expTotal)}`;
+  const incTotal = filtered.filter(r => r.type === 'income').reduce((s, r)  => s + getAccountRecordAmount(account, r), 0);
+  const expTotal = filtered.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  detailIncome.textContent  = `+${detailPrefix}${formatMoneyByCurrency(incTotal, detailCurrency)}`;
+  detailExpense.textContent = `-${detailPrefix}${formatMoneyByCurrency(expTotal, detailCurrency)}`;
 
   // 更新列表標題
   if (detailMode === 'month') {
@@ -1962,7 +2023,7 @@ function renderAccountDetail(account) {
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    accountDetailList.appendChild(buildDateHeader(date, groups[date]));
+    accountDetailList.appendChild(buildDateHeader(date, groups[date], account));
 
     groups[date].forEach(r => {
       accountDetailList.appendChild(buildRecordItem(r));
@@ -2057,6 +2118,7 @@ function subscribeRecords() {
     allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
     renderAll();
     renderAccountList();
+    scheduleAccountsRefresh();
     // 若目前在帳戶明細頁，即時更新
     if (currentPage === 'accountDetail' && detailAccountId) {
       const acc = allAccounts.find(a => a.docId === detailAccountId);
@@ -2077,6 +2139,7 @@ function subscribeAccounts() {
     allAccounts = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     renderAccountList();
+    scheduleAccountsRefresh();
     renderAccountSelect();
     renderAll();
     // 若目前在帳戶明細頁，即時更新
@@ -3064,14 +3127,18 @@ function openModal(record = null) {
       updateCatPickBtn(parentCat, subCat);
       accountSelect.value = record.accountId || '';
     }
-    calcExpr = String(record.amount);
-    calcRaw  = String(record.amount);
+    const editAcc = allAccounts.find(a => a.docId === (record.accountId || ''));
+    const editPrimaryAmount = editAcc?.currency
+      ? (record.foreignAmount ?? record.amount)
+      : record.amount;
+    calcExpr = String(editPrimaryAmount);
+    calcRaw  = String(editPrimaryAmount);
     amountInput.value = calcExpr;
     dateInput.value   = record.date;
     noteInput.value   = record.note || '';
     foreignCurrencyInput.value = record.foreignCurrency || '';
     foreignAmountInput.value   = record.foreignAmount   || '';
-    if (record.foreignCurrency || record.foreignAmount) {
+    if (!editAcc?.currency && (record.foreignCurrency || record.foreignAmount)) {
       foreignAmountRow.style.display = '';
       foreignToggleLabel.textContent = '− 外幣金額';
     }
@@ -3087,6 +3154,8 @@ function openModal(record = null) {
     const defaultAcc = allAccounts.find(a => a.isDefault);
     accountSelect.value = defaultAcc ? defaultAcc.docId : (allAccounts[0]?.docId || '');
   }
+  syncForeignAccountUI();
+  void maybeAutoConvertForeignIncome();
   modalOverlay.classList.add('active');
 }
 
@@ -3101,6 +3170,7 @@ btnIncome.addEventListener('click',   () => switchType('income'));
 btnTransfer.addEventListener('click', () => switchType('transfer'));
 
 function switchType(type) {
+  const prevType = currentType;
   currentType         = type;
   selectedCategory    = null;
   selectedSubCategory = null;
@@ -3121,6 +3191,11 @@ function switchType(type) {
     // 切換到非轉帳時重置換匯
     setExchangeOn(false);
   }
+  if (prevType === 'income' && type === 'expense') {
+    resetForeignAmountUI({ clearValues: true });
+  }
+  syncForeignAccountUI();
+  void maybeAutoConvertForeignIncome();
 }
 
 // 換匯開關控制函式
@@ -3324,7 +3399,22 @@ function renderAccountSelect() {
   if (prevTo)   transferTo.value = prevTo;
   else if (allAccounts.length > 1) transferTo.value = allAccounts[1].docId;
   else if (allAccounts.length > 0) transferTo.value = allAccounts[0].docId;
+
+  syncForeignAccountUI();
 }
+
+accountSelect.addEventListener('change', () => {
+  syncForeignAccountUI();
+  void maybeAutoConvertForeignIncome();
+});
+
+foreignCurrencyInput.addEventListener('change', () => {
+  void maybeAutoConvertForeignIncome(true);
+});
+
+foreignAmountInput.addEventListener('input', () => {
+  void maybeAutoConvertForeignIncome();
+});
 
 // ===== 日期 =====
 function setDefaultDate() {
@@ -3351,8 +3441,8 @@ recordForm.addEventListener('submit', async (e) => {
     return;
   }
   calcExpressionEl.style.color = '';
-  const amount = parseFloat(calcRaw) || parseFloat(amountInput.value);
-  if (!amount || amount <= 0) { shakeEl(amountInput.parentElement); return; }
+  const inputAmount = parseFloat(calcRaw) || parseFloat(amountInput.value);
+  if (!inputAmount || inputAmount <= 0) { shakeEl(amountInput.parentElement); return; }
 
   const editId = recordEditId.value;
   submitBtn.disabled = true;
@@ -3376,8 +3466,8 @@ recordForm.addEventListener('submit', async (e) => {
 
       // 換匯：到帳金額可與轉出金額不同
       const isExchange   = exchangeOn && !!exchangeAmountInput.value;
-      const toAmount     = isExchange ? (parseFloat(exchangeAmountInput.value) || amount) : amount;
-      const exchangeRate = isExchange && amount > 0 ? +(toAmount / amount).toFixed(6) : null;
+      const toAmount     = isExchange ? (parseFloat(exchangeAmountInput.value) || inputAmount) : inputAmount;
+      const exchangeRate = isExchange && inputAmount > 0 ? +(toAmount / inputAmount).toFixed(6) : null;
 
       if (editId) {
         // 編輯：找到配對的另一筆，一起更新
@@ -3389,7 +3479,7 @@ recordForm.addEventListener('submit', async (e) => {
         const inRec  = paired.find(r => r.type === 'income')  || paired[1];
         const updates = [];
         if (outRec) updates.push(updateDoc(doc(db, 'records', outRec.docId), {
-          amount, date, note,
+          amount: inputAmount, date, note,
           accountId: fromId, accountName: fromAcc?.name || null,
           transferFromId: fromId, transferToId: toId,
           exchangeRate: exchangeRate || null,
@@ -3415,7 +3505,7 @@ recordForm.addEventListener('submit', async (e) => {
         await Promise.all([
           addDoc(collection(db, 'records'), {
             ...base,
-            amount,
+            amount: inputAmount,
             accountId: fromId, accountName: fromAcc?.name || null,
             displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
           }),
@@ -3445,6 +3535,21 @@ recordForm.addEventListener('submit', async (e) => {
 
     const selAccId = accountSelect.value;
     const selAcc   = allAccounts.find(a => a.docId === selAccId);
+    const accountCurrency = selAcc?.currency || null;
+    const manualForeignCurrency = foreignCurrencyInput.value || null;
+    const manualForeignAmount = foreignAmountInput.value ? (parseFloat(foreignAmountInput.value) || null) : null;
+    const isForeignPrimary = !!accountCurrency;
+    const primaryForeignAmount = isForeignPrimary ? inputAmount : manualForeignAmount;
+    let amount = inputAmount;
+
+    if (isForeignPrimary) {
+      const converted = await getConvertedTwdAmount(accountCurrency, inputAmount);
+      if (!converted) {
+        alert('目前無法取得匯率，請稍後再試');
+        return;
+      }
+      amount = converted.twdAmount;
+    }
 
     const { splitPayer: sp, splitData: sd } = getSplitData();
     const data = {
@@ -3462,8 +3567,8 @@ recordForm.addEventListener('submit', async (e) => {
       accountName:      selAcc ? selAcc.name : null,
       date:             dateInput.value,
       note:             noteInput.value.trim(),
-      foreignCurrency:  foreignCurrencyInput.value || null,
-      foreignAmount:    foreignAmountInput.value ? (parseFloat(foreignAmountInput.value) || null) : null,
+      foreignCurrency:  accountCurrency || manualForeignCurrency,
+      foreignAmount:    primaryForeignAmount,
       projectId:          recordProjectSelect.value || null,
       rewardActivityId:   rewardActivitySelect.value || null,
       splitPayer:         sp || null,
@@ -3494,6 +3599,10 @@ function resetForm() {
   foreignAmountInput.value   = '';
   foreignAmountRow.style.display = 'none';
   foreignToggleLabel.textContent = '＋ 外幣金額';
+  foreignCurrencyInput.disabled = false;
+  foreignRateHint.style.display = 'none';
+  foreignRateHint.textContent = '';
+  lastAutoFilledAmount = null;
   setExchangeOn(false);
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
@@ -3960,8 +4069,8 @@ async function finishCatDrag(target) {
 // 每次支出讓餘額更負，還款（收入）讓餘額回正，餘額為負代表目前欠款
 function calcAccountBalance(account) {
   const recs = allRecords.filter(r => r.accountId === account.docId);
-  const inc  = recs.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
-  const exp  = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+  const inc  = recs.filter(r => r.type === 'income').reduce((s, r)  => s + getAccountRecordAmount(account, r), 0);
+  const exp  = recs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
   // 轉帳：轉入 +amount，轉出 -amount
   const transferIn  = recs.filter(r => r.type === 'transfer' && r.transferToId   === account.docId).reduce((s, r) => s + r.amount, 0);
   const transferOut = recs.filter(r => r.type === 'transfer' && r.transferFromId === account.docId).reduce((s, r) => s + r.amount, 0);
@@ -3971,6 +4080,8 @@ function calcAccountBalance(account) {
 // ===== 渲染帳戶列表 =====
 function renderAccountList() {
   while (accountList.firstChild) accountList.removeChild(accountList.firstChild);
+  const existingFxBar = document.getElementById('fxSummaryBar');
+  if (existingFxBar) existingFxBar.remove();
 
   if (allAccounts.length === 0) {
     accountList.appendChild(accountEmptyState);
@@ -3987,21 +4098,21 @@ function renderAccountList() {
   const LIABILITY_TYPES = ['credit', 'loan'];
   let totalAsset     = 0;
   let totalLiability = 0;
-  // 外幣帳戶不納入台幣總計，另外收集
-  const fxSummary = {}; // { JPY: { asset: 0, liability: 0 }, ... }
+  const fxSummary = {}; // { USD: { net, twdNet, rate }, ... }
   allAccounts.forEach(a => {
     const bal = calcAccountBalance(a);
     const included = a.includeInTotal !== false;
     if (!included) return; // 不計入總資產，直接跳過
 
     if (a.currency) {
-      // 外幣帳戶：另外收集，不納入台幣總計
-      if (!fxSummary[a.currency]) fxSummary[a.currency] = { asset: 0, liability: 0 };
-      if (LIABILITY_TYPES.includes(a.typeId)) {
-        if (bal < 0) fxSummary[a.currency].liability += Math.abs(bal);
-        else         fxSummary[a.currency].asset     += bal;
-      } else {
-        fxSummary[a.currency].asset += bal;
+      const signedNet = (LIABILITY_TYPES.includes(a.typeId) && bal < 0) ? -Math.abs(bal) : bal;
+      const rateToTwd = getLatestFxRate(a.currency);
+      if (!fxSummary[a.currency]) fxSummary[a.currency] = { net: 0, twdNet: 0, rate: rateToTwd };
+      fxSummary[a.currency].net += signedNet;
+      if (rateToTwd) {
+        fxSummary[a.currency].twdNet += signedNet * rateToTwd;
+        if (signedNet < 0) totalLiability += Math.abs(signedNet * rateToTwd);
+        else totalAsset += signedNet * rateToTwd;
       }
       return;
     }
@@ -4012,7 +4123,7 @@ function renderAccountList() {
       totalAsset += bal;
     }
   });
-  // 淨資產 = 資產 - 負債（僅台幣）
+  // 淨資產 = 資產 - 負債（台幣 + 依最新匯率換算之外幣）
   const netWorth = totalAsset - totalLiability;
 
   accountsNetWorth.textContent       = `$${formatMoney(netWorth)}`;
@@ -4021,19 +4132,37 @@ function renderAccountList() {
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
 
   // 外幣帳戶參考列（插入在總覽卡片下方）
-  const existingFxBar = document.getElementById('fxSummaryBar');
-  if (existingFxBar) existingFxBar.remove();
   const fxEntries = Object.entries(fxSummary);
   if (fxEntries.length > 0) {
+    const updatedText = getFxUpdatedText();
     const bar = document.createElement('div');
     bar.id = 'fxSummaryBar';
     bar.className = 'fx-summary-bar';
-    bar.innerHTML = '<span class="fx-summary-label">外幣帳戶（參考）</span>' +
-      fxEntries.map(([cur, { asset, liability }]) => {
-        const net = asset - liability;
-        const sign = net < 0 ? '-' : '';
-        return `<span class="fx-summary-item">${cur} ${sign}${formatMoney(Math.abs(net))}</span>`;
-      }).join('');
+    bar.innerHTML = `
+      <div class="fx-summary-head">
+        <div class="fx-summary-label">外幣帳戶換算</div>
+        <div class="fx-summary-meta">${updatedText ? `匯率更新 ${updatedText}` : '依最新匯率換算'}</div>
+      </div>
+      <div class="fx-summary-grid">
+        ${fxEntries.map(([cur, { net, twdNet, rate }]) => {
+        const nativeText = `${cur} ${net < 0 ? '-' : ''}${formatMoneyByCurrency(Math.abs(net), cur)}`;
+        if (rate) {
+          return `
+            <div class="fx-summary-item">
+              <div class="fx-summary-native">${nativeText}</div>
+              <div class="fx-summary-twd">≈ ${twdNet < 0 ? '-' : ''}$${formatMoney(Math.abs(twdNet))}</div>
+            </div>
+          `;
+        }
+        return `
+          <div class="fx-summary-item">
+            <div class="fx-summary-native">${nativeText}</div>
+            <div class="fx-summary-pending">待匯率</div>
+          </div>
+        `;
+      }).join('')}
+      </div>
+    `;
     // 插在 accountList 前
     accountList.parentNode.insertBefore(bar, accountList);
   }
@@ -4071,8 +4200,8 @@ function renderAccountList() {
       const balColor = curBal < 0 ? 'var(--red-main)' : 'var(--purple-main)';
       const balPrefix = a.currency ? a.currency + ' ' : '$';
       const balText  = curBal < 0
-        ? `-${balPrefix}${formatMoney(Math.abs(curBal))}`
-        : `${balPrefix}${formatMoney(curBal)}`;
+        ? `-${balPrefix}${a.currency ? formatMoneyByCurrency(Math.abs(curBal), a.currency) : formatMoney(Math.abs(curBal))}`
+        : `${balPrefix}${a.currency ? formatMoneyByCurrency(curBal, a.currency) : formatMoney(curBal)}`;
 
       const item = document.createElement('div');
       item.className = 'account-item';
@@ -4344,10 +4473,303 @@ function formatMoney(n) {
   return n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 }
 
-/** 若記錄有外幣，回傳「（¥1,500）」格式的小字標註，否則回傳空字串 */
+function getRecordAccountCurrency(r) {
+  const acc = r.accountId ? allAccounts.find(a => a.docId === r.accountId) : null;
+  return acc?.currency || r.foreignCurrency || null;
+}
+
+function isForeignAccountRecord(r) {
+  return !!getRecordAccountCurrency(r);
+}
+
+function getCurrencyFractionDigits(currency) {
+  return FX_ZERO_DECIMAL_CURRENCIES.has(currency || 'TWD') ? 0 : 2;
+}
+
+function formatMoneyByCurrency(n, currency = 'TWD') {
+  const digits = getCurrencyFractionDigits(currency);
+  return Number(n || 0).toLocaleString('zh-TW', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatSignedMoneyByCurrency(n, currency = 'TWD', prefix = '$') {
+  const abs = formatMoneyByCurrency(Math.abs(n), currency);
+  return n < 0 ? `-${prefix}${abs}` : `${prefix}${abs}`;
+}
+
+function getStoredFxRateInfo() {
+  return {
+    date: fxRatesDate,
+    rates: fxRatesToTwd,
+    updatedAt: fxRatesUpdatedAt,
+  };
+}
+
+function saveStoredFxRateInfo(date, rates, updatedAt) {
+  fxRatesDate = date;
+  fxRatesToTwd = rates;
+  fxRatesUpdatedAt = updatedAt;
+  try {
+    localStorage.setItem(FX_CACHE_KEY, JSON.stringify({ date, rates, updatedAt }));
+  } catch (err) {
+    console.warn('寫入匯率快取失敗', err);
+  }
+}
+
+function getTodayKey() {
+  return formatDate(new Date());
+}
+
+function getLatestFxRate(currency) {
+  if (!currency || currency === 'TWD') return 1;
+  return fxRatesToTwd[currency] || null;
+}
+
+function getFxUpdatedText() {
+  if (!fxRatesUpdatedAt) return '';
+  const dt = new Date(fxRatesUpdatedAt);
+  if (Number.isNaN(dt.getTime())) return '';
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+}
+
+async function ensureTodayFxRates(force = false) {
+  const today = getTodayKey();
+  if (!force && fxRatesDate === today && Object.keys(fxRatesToTwd).length) {
+    return fxRatesToTwd;
+  }
+  if (fxRatesPromise) return fxRatesPromise;
+
+  fxRatesPromise = fetch('https://open.er-api.com/v6/latest/TWD')
+    .then(async res => {
+      if (!res.ok) throw new Error(`FX ${res.status}`);
+      const data = await res.json();
+      const sourceRates = data?.rates || {};
+      const normalized = { TWD: 1 };
+      FX_SUPPORTED_CURRENCIES.forEach(currency => {
+        const rate = sourceRates[currency];
+        if (typeof rate === 'number' && rate > 0) {
+          normalized[currency] = 1 / rate;
+        }
+      });
+      saveStoredFxRateInfo(today, normalized, new Date().toISOString());
+      return normalized;
+    })
+    .catch(err => {
+      console.warn('取得匯率失敗，改用快取', err);
+      if (Object.keys(fxRatesToTwd).length) return fxRatesToTwd;
+      throw err;
+    })
+    .finally(() => {
+      fxRatesPromise = null;
+    });
+
+  return fxRatesPromise;
+}
+
+function getSelectedAccount() {
+  return allAccounts.find(a => a.docId === accountSelect.value) || null;
+}
+
+function isSelectedForeignAccount() {
+  return !!getSelectedAccount()?.currency;
+}
+
+function isForeignPrimaryMode(account = getSelectedAccount()) {
+  return !!account?.currency && currentType !== 'transfer';
+}
+
+function getPrimaryAmountValue() {
+  return parseFloat(calcRaw) || parseFloat(amountInput.value) || 0;
+}
+
+function updatePrimaryAmountUI() {
+  const acc = getSelectedAccount();
+  const isForeignPrimary = isForeignPrimaryMode(acc);
+  const currency = acc?.currency || 'TWD';
+  if (amountLabelEl) {
+    amountLabelEl.textContent = isForeignPrimary ? `${currency} 金額` : '金額';
+  }
+  if (amountCurrencySign) {
+    amountCurrencySign.textContent = isForeignPrimary ? currency : '$';
+  }
+  amountInput.placeholder = isForeignPrimary && !FX_ZERO_DECIMAL_CURRENCIES.has(currency) ? '0.00' : '0';
+}
+
+async function getConvertedTwdAmount(currency, foreignAmount) {
+  const rates = await ensureTodayFxRates();
+  const rateToTwd = rates[currency];
+  if (!(rateToTwd > 0)) return null;
+  return {
+    rateToTwd,
+    twdAmount: Math.round(foreignAmount * rateToTwd),
+  };
+}
+
+function getAccountRecordAmount(account, record) {
+  if (record.type === 'transfer') return record.amount || 0;
+  if (account?.currency) {
+    if (typeof record.foreignAmount === 'number') return record.foreignAmount;
+    return record.amount || 0;
+  }
+  return record.amount || 0;
+}
+
+function setCalcAmountValue(value, { autoFilled = false, suppressAutoConvert = false } = {}) {
+  const normalized = value == null || value === '' ? '' : String(value);
+  calcRaw = normalized;
+  calcExpr = normalized;
+  amountInput.value = normalized;
+  calcExpressionEl.textContent = '';
+  lastAutoFilledAmount = autoFilled ? normalized : null;
+  suppressForeignAutoConvert = suppressAutoConvert;
+  handleAmountChanged();
+  suppressForeignAutoConvert = false;
+}
+
+function markAmountAsManualEdit() {
+  lastAutoFilledAmount = null;
+}
+
+function scheduleAccountsRefresh() {
+  if (!allAccounts.some(a => a.currency)) return;
+  ensureTodayFxRates().then(() => {
+    renderAccountList();
+    if (currentPage === 'accountDetail' && detailAccountId) {
+      const acc = allAccounts.find(a => a.docId === detailAccountId);
+      if (acc) renderAccountDetail(acc);
+    }
+  }).catch(() => {});
+}
+
+async function maybeAutoConvertForeignIncome(force = false) {
+  const acc = getSelectedAccount();
+  if (currentType === 'transfer') {
+    updateForeignRateHint();
+    return;
+  }
+
+  const foreignPrimary = isForeignPrimaryMode(acc);
+  const currency = foreignPrimary ? acc?.currency : (foreignCurrencyInput.value || '');
+  const foreignAmount = foreignPrimary ? getPrimaryAmountValue() : (parseFloat(foreignAmountInput.value) || 0);
+
+  if (!currency || !(foreignAmount > 0)) {
+    updateForeignRateHint();
+    return;
+  }
+
+  try {
+    const converted = await getConvertedTwdAmount(currency, foreignAmount);
+    if (!converted) {
+      updateForeignRateHint({ currency, mode: foreignPrimary ? 'foreign-account' : 'base-account' });
+      return;
+    }
+
+    if (!foreignPrimary) {
+      const currentAmount = amountInput.value.trim();
+      const shouldAutofill = force || !currentAmount || (lastAutoFilledAmount != null && currentAmount === lastAutoFilledAmount);
+      if (shouldAutofill) {
+        setCalcAmountValue(converted.twdAmount, { autoFilled: true, suppressAutoConvert: true });
+      }
+    }
+
+    updateForeignRateHint({
+      currency,
+      rateToTwd: converted.rateToTwd,
+      twdAmount: converted.twdAmount,
+      mode: foreignPrimary ? 'foreign-account' : 'base-account',
+    });
+  } catch {
+    updateForeignRateHint({ currency, mode: foreignPrimary ? 'foreign-account' : 'base-account' });
+  }
+}
+
+function updateForeignRateHint({ currency = '', rateToTwd = null, twdAmount = null, mode = null } = {}) {
+  if (!currency || currency === 'TWD' || !mode) {
+    foreignRateHint.style.display = 'none';
+    foreignRateHint.textContent = '';
+    return;
+  }
+
+  const effectiveRate = rateToTwd || getLatestFxRate(currency);
+  if (!(effectiveRate > 0)) {
+    foreignRateHint.style.display = '';
+    foreignRateHint.textContent = `${currency} 匯率暫時取不到，請先手動填寫${mode === 'foreign-account' ? '原幣金額' : '台幣金額'}。`;
+    return;
+  }
+
+  const updated = getFxUpdatedText();
+  const rateText = `1 ${currency} ≈ NT$${effectiveRate.toFixed(4)}`;
+  const amountText = twdAmount != null ? `，約 NT$${formatMoney(twdAmount)}` : '';
+  const actionText = mode === 'foreign-account'
+    ? '外幣帳戶會用原幣記帳，系統自動換算台幣報表金額。'
+    : '台幣帳戶可附帶外幣資訊，系統會自動換算台幣，可手動修改。';
+  foreignRateHint.style.display = '';
+  foreignRateHint.textContent = `${rateText}${amountText}。${actionText}${updated ? ` 匯率更新：${updated}` : ''}`;
+}
+
+function syncForeignAccountUI() {
+  updatePrimaryAmountUI();
+
+  if (currentType === 'transfer') {
+    foreignAmountGroup.style.display = 'none';
+    resetForeignAmountUI();
+    return;
+  }
+
+  const acc = getSelectedAccount();
+  const isForeign = !!acc?.currency;
+  const foreignPrimary = isForeignPrimaryMode(acc);
+
+  if (foreignPrimary) {
+    foreignAmountGroup.style.display = 'none';
+    foreignCurrencyInput.value = acc.currency;
+    foreignCurrencyInput.disabled = true;
+    foreignAmountInput.value = '';
+    foreignAmountRow.style.display = 'none';
+    foreignToggleLabel.textContent = '＋ 外幣金額';
+    if (!getLatestFxRate(acc.currency)) {
+      ensureTodayFxRates().then(() => maybeAutoConvertForeignIncome(true)).catch(() => updateForeignRateHint({ currency: acc.currency, mode: 'foreign-account' }));
+    } else {
+      updateForeignRateHint({ currency: acc.currency, mode: 'foreign-account' });
+    }
+    return;
+  }
+
+  if (currentType === 'income' && !isForeign) {
+    foreignAmountGroup.style.display = 'none';
+    resetForeignAmountUI({ clearValues: true });
+    foreignCurrencyInput.disabled = false;
+    return;
+  }
+
+  foreignAmountGroup.style.display = '';
+  foreignCurrencyInput.disabled = false;
+  const shouldKeepOpen = foreignAmountRow.style.display !== 'none' || !!foreignAmountInput.value || !!foreignCurrencyInput.value;
+  if (!shouldKeepOpen) {
+    resetForeignAmountUI({ clearValues: true });
+    return;
+  }
+
+  foreignAmountRow.style.display = '';
+  foreignToggleLabel.textContent = '− 外幣金額';
+  if (foreignCurrencyInput.value) {
+    updateForeignRateHint({ currency: foreignCurrencyInput.value, mode: 'base-account' });
+  } else {
+    updateForeignRateHint();
+  }
+}
+
+/** 若記錄有外幣，回傳「（USD 100.25）」格式的小字標註，否則回傳空字串 */
 function foreignHint(r) {
+  const accountCurrency = getRecordAccountCurrency(r);
+  if (accountCurrency) {
+    const foreignAmt = typeof r.foreignAmount === 'number' ? r.foreignAmount : r.amount;
+    return `<span class="foreign-hint">（${accountCurrency} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}）</span>`;
+  }
   if (!r.foreignAmount || !r.foreignCurrency) return '';
-  return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoney(r.foreignAmount)}）</span>`;
+  return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}）</span>`;
 }
 
 // ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
@@ -4401,9 +4823,11 @@ function buildRecordItem(r) {
 }
 
 // ===== 建立日期分組標題（含當日小計）=====
-function buildDateHeader(date, dayRecs) {
-  const inc = dayRecs.filter(r => r.type === 'income').reduce((s, r)  => s + r.amount, 0);
-  const exp = dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+function buildDateHeader(date, dayRecs, account = null) {
+  const summaryCurrency = account?.currency || 'TWD';
+  const summaryPrefix = account?.currency ? `${account.currency} ` : '$';
+  const inc = dayRecs.filter(r => r.type === 'income').reduce((s, r)  => s + getAccountRecordAmount(account, r), 0);
+  const exp = dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
 
   const header = document.createElement('div');
   header.className = 'date-group-header';
@@ -4416,10 +4840,10 @@ function buildDateHeader(date, dayRecs) {
 
   const net = inc - exp;
   const netText = net === 0
-    ? `$0`
+    ? `${summaryPrefix}${formatMoneyByCurrency(0, summaryCurrency)}`
     : net > 0
-      ? `+$${formatMoney(net)}`
-      : `-$${formatMoney(Math.abs(net))}`;
+      ? `+${summaryPrefix}${formatMoneyByCurrency(net, summaryCurrency)}`
+      : `-${summaryPrefix}${formatMoneyByCurrency(Math.abs(net), summaryCurrency)}`;
   summarySpan.innerHTML = `<span class="${net >= 0 ? 'dgs-income' : 'dgs-expense'}">${netText}</span>`;
 
   header.appendChild(dateSpan);
@@ -4622,6 +5046,9 @@ function handleAmountChanged() {
   if (typeof updateExchangeHint === 'function') {
     updateExchangeHint();
   }
+  if (!suppressForeignAutoConvert) {
+    void maybeAutoConvertForeignIncome();
+  }
   // 專案分帳：均分時同步更新各成員金額
   if (splitGroup && splitGroup.style.display !== 'none' && typeof syncEqualAmounts === 'function') {
     syncEqualAmounts();
@@ -4635,6 +5062,7 @@ function updateCalcDisplay() {
 }
 
 function calcAppend(val) {
+  markAmountAsManualEdit();
   // 只允許數字、小數點、運算符
   if (!/^[0-9+\-−×÷%.]+$/.test(val)) return;
   // 防止連續輸入兩個運算符
@@ -4676,6 +5104,7 @@ function calcEqual() {
 }
 
 function calcBackspace() {
+  markAmountAsManualEdit();
   if (!calcExpr) return;
   const lastSym = calcExpr.slice(-1);
   calcExpr = calcExpr.slice(0, -1);
@@ -4688,6 +5117,7 @@ function calcBackspace() {
 }
 
 function calcClear() {
+  markAmountAsManualEdit();
   calcExpr = '';
   calcRaw  = '';
   calcExpressionEl.textContent = '';
@@ -5427,6 +5857,7 @@ function calcWealthSnapshots() {
 
   // 所有帳戶初始餘額加總（視帳戶類型決定正負）
   const initialTotal = allAccounts.reduce((sum, a) => {
+    if (a.currency) return sum;
     const init = a.balance || 0;
     if (LIABILITY_TYPES.includes(a.typeId)) {
       return sum + (init < 0 ? init : init); // 信用卡初始餘額直接加（通常為0）
@@ -5435,7 +5866,7 @@ function calcWealthSnapshots() {
   }, 0);
 
   // 找出最早和最晚的記錄日期
-  const nonTransfer = allRecords.filter(r => r.type !== 'transfer' && r.date);
+  const nonTransfer = allRecords.filter(r => r.type !== 'transfer' && r.date && !isForeignAccountRecord(r));
   if (nonTransfer.length === 0) return [];
 
   const sortedDates = nonTransfer.map(r => r.date).sort();

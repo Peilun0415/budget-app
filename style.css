@@ -1221,6 +1221,27 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   border-color: var(--pink-main);
 }
 
+.form-textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--pink-light);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  color: var(--text-dark);
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 2.5em;
+  line-height: 1.4;
+}
+.form-textarea:focus {
+  border-color: var(--pink-main);
+}
+
 #amount:focus,
 #searchInput:focus,
 #recAmount:focus {

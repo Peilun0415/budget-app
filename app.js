@@ -1111,7 +1111,7 @@ function renderProjectDetail() {
     item.className = 'project-record-item project-record-item-clickable';
     const noteMeta = [r.date, r.note].filter(Boolean).join(' · ');
     const splitTags = r.splitData
-      ? r.splitData.map(s => `<span class="rec-split-tag">${s.name} $${formatMoney(s.amount)}</span>`).join('')
+      ? r.splitData.map(s => `<span class="rec-split-tag">${s.name} $${formatMoney(getMemberShareTwd(r, s.name))}</span>`).join('')
       : '';
     const payerRow = r.splitPayer
       ? `<div class="project-rec-split">${r.splitPayer} 付 · ${splitTags}</div>`
@@ -1155,7 +1155,7 @@ function renderProjectSettle(proj, recs) {
       const payer = r.splitPayer;
       if (paid[payer] !== undefined) paid[payer] += r.amount;
       r.splitData.forEach(s => {
-        if (owed[s.name] !== undefined) owed[s.name] += s.amount;
+        if (owed[s.name] !== undefined) owed[s.name] += getMemberShareTwd(r, s.name);
       });
     });
     myNet = Math.round((paid['我'] || 0) - (owed['我'] || 0));
@@ -1220,7 +1220,7 @@ async function doSettle(proj, recs, myNet) {
       r.splitData?.some(s => s.name === '我')
     );
     mySharedRecs.forEach(r => {
-      const myShare = r.splitData.find(s => s.name === '我')?.amount || 0;
+      const myShare = getMemberShareTwd(r, '我');
       if (myShare <= 0) return;
       writes.push(addDoc(collection(db, 'records'), {
         uid: currentUser.uid,
@@ -1461,13 +1461,29 @@ function getCheckedMembers() {
   return [...splitMemberList.querySelectorAll('.split-member-cb:checked')].map(el => el.dataset.member);
 }
 
-function getSplitData() {
+/**
+ * 取得某成員在該筆記錄中「應付／分攤」的台幣金額。
+ * 外幣記錄時 splitData 可能存的是原幣份額，依 record.amount 按比例換算成台幣。
+ */
+function getMemberShareTwd(r, memberName) {
+  if (!r.splitData?.length) return 0;
+  const total = r.splitData.reduce((a, s) => a + s.amount, 0);
+  if (total === 0) return 0;
+  const s = r.splitData.find(x => x.name === memberName);
+  if (!s) return 0;
+  if (r.foreignAmount != null && r.foreignCurrency) {
+    return Math.round(r.amount * (s.amount / total));
+  }
+  return s.amount;
+}
+
+function getSplitData(amountToSplit) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
   if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitData: null };
 
   const members = getCheckedMembers();
-  const amount  = parseFloat(document.getElementById('amount').value) || 0;
+  const amount  = amountToSplit ?? (parseFloat(document.getElementById('amount').value) || 0);
   let splits = [];
   if (splitMode === 'equal') {
     const each = Math.round(amount / members.length);
@@ -3551,7 +3567,7 @@ recordForm.addEventListener('submit', async (e) => {
       amount = converted.twdAmount;
     }
 
-    const { splitPayer: sp, splitData: sd } = getSplitData();
+    const { splitPayer: sp, splitData: sd } = getSplitData(isForeignPrimary ? amount : undefined);
     const data = {
       type:             currentType,
       amount,
@@ -5328,6 +5344,8 @@ function getMonthRecordsByYM(year, month) {
     if (!r.date?.startsWith(prefix) || r.type === 'transfer') return false;
     // 報表＝主頁明細：別人付款、我有份額的記錄在結清前不會出現在主頁，也不計入報表
     if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+    // 報表只排除結清「收入」，結清「支出」仍顯示（方便對帳、看錢花到哪）
+    if (r.isSettlement && r.type === 'income') return false;
     return true;
   });
 }
@@ -5339,10 +5357,7 @@ function getMonthRecordsByYM(year, month) {
  * 帳戶餘額計算仍使用原始金額，只有報表分析使用此函數。
  */
 function getReportAmount(r) {
-  if (r.splitData && r.splitData.length > 0) {
-    const mine = r.splitData.find(s => s.name === '我');
-    if (mine != null) return mine.amount;
-  }
+  if (r.splitData && r.splitData.length > 0) return getMemberShareTwd(r, '我');
   return r.amount;
 }
 
@@ -5371,7 +5386,12 @@ function renderReport() {
 function getCatViewRecords() {
   if (catView === 'year') {
     const prefix = `${reportYear}-`;
-    return allRecords.filter(r => r.date?.startsWith(prefix) && r.type !== 'transfer');
+    return allRecords.filter(r => {
+      if (!r.date?.startsWith(prefix) || r.type === 'transfer') return false;
+      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+      if (r.isSettlement && r.type === 'income') return false;
+      return true;
+    });
   }
   return getMonthRecordsByYM(reportYear, reportMonth);
 }

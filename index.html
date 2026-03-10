@@ -440,9 +440,12 @@
 
       <!-- Tab 切換 -->
       <div class="report-tabs">
-        <button class="report-tab active" data-tab="category">類別分析</button>
-        <button class="report-tab" data-tab="trend">收支趨勢</button>
-        <button class="report-tab" data-tab="wealth">資產曲線</button>
+        <div class="report-tabs-left">
+          <button class="report-tab active" data-tab="category">類別分析</button>
+          <button class="report-tab" data-tab="trend">收支趨勢</button>
+          <button class="report-tab" data-tab="wealth">資產曲線</button>
+        </div>
+        <button type="button" class="report-filter-info-btn" id="reportFilterInfoBtn" title="報表過濾說明">？</button>
       </div>
 
       <!-- ===== 類別分析 Tab ===== -->
@@ -523,6 +526,25 @@
         <div class="wealth-summary" id="wealthSummary"></div>
         <!-- 月份明細 -->
         <div class="wealth-month-list" id="wealthMonthList"></div>
+      </div>
+    </div>
+
+    <!-- 報表過濾說明小視窗 -->
+    <div class="modal-overlay report-filter-overlay" id="reportFilterOverlay">
+      <div class="modal report-filter-modal">
+        <div class="modal-header">
+          <h2>報表過濾說明</h2>
+          <button type="button" class="close-btn" id="reportFilterCloseBtn">✕</button>
+        </div>
+        <div class="report-filter-content" id="reportFilterContent">
+          <p class="report-filter-intro">以下規則適用於<strong>類別分析</strong>與<strong>收支趨勢</strong>，以下資料<strong>不計入</strong>報表：</p>
+          <ul class="report-filter-list">
+            <li><strong>轉帳</strong>：轉帳不計入收入或支出</li>
+            <li><strong>別人代付、您有份額的專案花費</strong>：在您尚未結清前不計入</li>
+            <li><strong>結清收入</strong>：專案結清時產生的「結清收入」不計入，讓趨勢反映一般收入</li>
+          </ul>
+          <p class="report-filter-note">會計入報表的包含：一般收支、您代付的專案分攤、結清支出。</p>
+        </div>
       </div>
     </div>
 

@@ -5237,6 +5237,9 @@ const trendYearStats = document.getElementById('trendYearStats');
 const trendMonthList = document.getElementById('trendMonthList');
 const reportTabCategory  = document.getElementById('reportTabCategory');
 const reportTabTrend     = document.getElementById('reportTabTrend');
+const reportFilterInfoBtn = document.getElementById('reportFilterInfoBtn');
+const reportFilterOverlay = document.getElementById('reportFilterOverlay');
+const reportFilterCloseBtn = document.getElementById('reportFilterCloseBtn');
 // reportTabWealth 宣告在 renderReportWealth 區塊
 
 // 月份切換
@@ -5279,6 +5282,17 @@ reportNextMonth.addEventListener('click', () => {
 // 趨勢年份切換
 trendPrevYearBtn.addEventListener('click', () => { reportYear--; renderReport(); });
 trendNextYearBtn.addEventListener('click', () => { reportYear++; renderReport(); });
+
+// 報表過濾說明小視窗
+if (reportFilterInfoBtn) {
+  reportFilterInfoBtn.addEventListener('click', () => { reportFilterOverlay?.classList.add('active'); });
+}
+if (reportFilterCloseBtn) {
+  reportFilterCloseBtn.addEventListener('click', () => { reportFilterOverlay?.classList.remove('active'); });
+}
+if (reportFilterOverlay) {
+  reportFilterOverlay.addEventListener('click', (e) => { if (e.target === reportFilterOverlay) reportFilterOverlay.classList.remove('active'); });
+}
 
 // Tab 切換
 document.querySelectorAll('.report-tab').forEach(btn => {

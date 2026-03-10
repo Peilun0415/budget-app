@@ -428,6 +428,7 @@ const pageSettings      = document.getElementById('pageSettings');
 const pageRecurring     = document.getElementById('pageRecurring');
 const pageBudget        = document.getElementById('pageBudget');
 const navSettingsBtn    = document.getElementById('navSettings');
+const backToTopBtn      = document.getElementById('backToTopBtn');
 const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
@@ -737,9 +738,24 @@ navReportBtn.addEventListener('click', () => switchPage('report'));
 navSettingsBtn.addEventListener('click', () => switchPage('settings'));
 backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
 
+// 回到頂部按鈕：捲動超過 300px 時顯示，點擊平滑捲回頂部
+const BACK_TO_TOP_THRESHOLD = 300;
+function updateBackToTopVisibility() {
+  if (!backToTopBtn) return;
+  const show = window.scrollY > BACK_TO_TOP_THRESHOLD;
+  backToTopBtn.classList.toggle('visible', show);
+}
+window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
+if (backToTopBtn) {
+  backToTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
 function switchPage(page) {
   // 切換頁面時捲回頂部
   window.scrollTo({ top: 0, behavior: 'instant' });
+  if (backToTopBtn) backToTopBtn.classList.remove('visible');
 
   // 離開記帳頁時清除搜尋
   if (page !== 'home' && searchKeyword) {

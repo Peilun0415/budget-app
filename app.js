@@ -3496,8 +3496,14 @@ function formatDate(d) {
 }
 
 function formatDateDisplay(dateStr) {
-  const [, m, d] = dateStr.split('-');
-  return `${parseInt(m)}月${parseInt(d)}日`;
+  if (!dateStr || !dateStr.includes('-')) return dateStr || '';
+  const parts = dateStr.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  const thisYear = new Date().getFullYear();
+  if (y < thisYear) return `${y}年${m}月${d}日`;
+  return `${m}月${d}日`;
 }
 
 // ===== 提交記帳（新增 / 編輯）=====

@@ -884,27 +884,30 @@
     </div>
   </div>
 
-  <!-- 固定收支彈窗 -->
+  <!-- 固定收支彈窗（結構對齊新增記帳表單） -->
   <div class="modal-overlay" id="recurringModalOverlay">
     <div class="modal">
       <div class="modal-header">
         <h2 id="recurringModalTitle">新增固定項目</h2>
-        <button class="close-btn" id="closeRecurringFormBtn">✕</button>
-      </div>
-      <form id="recurringForm">
-        <div class="type-toggle">
-          <button type="button" class="type-btn active" id="recBtnExpense" data-type="expense">支出</button>
-          <button type="button" class="type-btn" id="recBtnIncome" data-type="income">收入</button>
-          <button type="button" class="type-btn" id="recBtnTransfer" data-type="transfer">轉帳</button>
+        <div class="modal-header-actions">
+          <button type="button" class="close-btn" id="closeRecurringFormBtn">✕</button>
         </div>
+      </div>
 
+      <div class="type-toggle">
+        <button type="button" class="type-btn active" id="recBtnExpense" data-type="expense">支出</button>
+        <button type="button" class="type-btn" id="recBtnIncome" data-type="income">收入</button>
+        <button type="button" class="type-btn" id="recBtnTransfer" data-type="transfer">轉帳</button>
+      </div>
+
+      <form id="recurringForm">
         <div class="form-group">
-          <label>名稱</label>
+          <label for="recName">名稱</label>
           <input type="text" id="recName" placeholder="例：房租、薪資..." maxlength="20" />
         </div>
 
         <div class="form-group">
-          <label>金額</label>
+          <label for="recAmount">金額</label>
           <div class="amount-row" id="recAmountRow">
             <button type="button" class="cat-pick-btn" id="recCatPickBtn">
               <span id="recCatPickEmoji">📦</span>
@@ -916,7 +919,9 @@
               <button type="button" class="calc-toggle-btn" id="recCalcToggleBtn">🔢</button>
             </div>
           </div>
+          <!-- 計算機顯示列 -->
           <div class="calc-expression" id="recCalcExpression"></div>
+          <!-- 計算機鍵盤 -->
           <div class="calc-keyboard" id="recCalcKeyboard" style="display:none">
             <div class="calc-grid">
               <button type="button" class="calc-btn calc-fn" data-rec-action="clear">C</button>
@@ -956,19 +961,19 @@
         <div id="recTransferGroup" style="display:none">
           <div class="transfer-accounts-row">
             <div class="form-group transfer-acc-group">
-              <label>從</label>
+              <label for="recTransferFrom">從</label>
               <select id="recTransferFrom" class="form-select"></select>
             </div>
             <div class="transfer-arrow">→</div>
             <div class="form-group transfer-acc-group">
-              <label>到</label>
+              <label for="recTransferTo">到</label>
               <select id="recTransferTo" class="form-select"></select>
             </div>
           </div>
         </div>
 
         <div class="form-group">
-          <label>頻率</label>
+          <label for="recFreqN">頻率</label>
           <div class="freq-row">
             <span>每</span>
             <input type="number" id="recFreqN" value="1" min="1" max="99" class="freq-n-input" />
@@ -983,7 +988,7 @@
 
         <!-- 每週：選星期幾 -->
         <div class="form-group" id="recWeekdayGroup" style="display:none">
-          <label>執行星期</label>
+          <label for="recWeekdayPicker">執行星期</label>
           <div class="weekday-picker" id="recWeekdayPicker">
             <button type="button" class="weekday-btn" data-day="1">一</button>
             <button type="button" class="weekday-btn" data-day="2">二</button>
@@ -997,13 +1002,13 @@
 
         <!-- 每月：選幾號 -->
         <div class="form-group" id="recMonthdayGroup" style="display:none">
-          <label>每月幾號</label>
+          <label for="recMonthdayPicker">每月幾號</label>
           <div class="monthday-picker" id="recMonthdayPicker"></div>
         </div>
 
         <!-- 每年：選月份和日期 -->
         <div class="form-group" id="recYeardayGroup" style="display:none">
-          <label>每年幾月幾日</label>
+          <label for="recYearMonth">每年幾月幾日</label>
           <div class="freq-row">
             <select id="recYearMonth" class="form-select">
               <option value="1">1 月</option><option value="2">2 月</option>
@@ -1021,7 +1026,7 @@
 
         <div class="form-group">
           <label for="recNote">備註（選填）</label>
-          <textarea id="recNote" class="form-textarea" placeholder="備註..." maxlength="200" rows="2"></textarea>
+          <textarea id="recNote" class="form-textarea" placeholder="例：午餐、薪水..." maxlength="200" rows="2"></textarea>
         </div>
 
         <input type="hidden" id="recEditId" value="" />

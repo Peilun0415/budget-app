@@ -509,6 +509,7 @@ const recStartDate    = document.getElementById('recStartDate');
 const recNoteInput    = document.getElementById('recNote');
 const recEditIdInput  = document.getElementById('recEditId');
 const recDeleteBtn    = document.getElementById('recDeleteBtn');
+const recSubmitBtn    = document.getElementById('recSubmitBtn');
 let recCalcRaw  = '';
 let recCalcExpr = '';
 // navCategoriesBtn 已被移除，保留變數避免後面程式碼報錯
@@ -3001,13 +3002,35 @@ recurringForm.addEventListener('submit', async (e) => {
   const name   = recNameInput.value.trim();
   const isTransfer = recCurrentType === 'transfer';
 
+  // 與新增記帳一致：若算式尚未按 =，擋住儲存
+  if (/[\+\-\*\/]/.test(recCalcRaw) && recCalcRaw !== recCalcExpr) {
+    recCalcExpressionEl.textContent = '請先按 = 完成計算';
+    recCalcExpressionEl.style.color = 'var(--red-main)';
+    shakeEl(recAmountInputWrap);
+    return;
+  }
+  recCalcExpressionEl.style.color = '';
+
   // 金額：統一使用計算機輸入框，必要時用顯示欄位當 fallback（手機觸控可能未同步）
-  if (/[\+\-\*\/]/.test(recCalcRaw) && recCalcRaw !== recCalcExpr) recCalcEqual();
   let amount = parseFloat(recCalcRaw);
   if (!amount || amount <= 0) amount = parseFloat(recAmountInput.value) || 0;
-  if (!name || !amount || amount <= 0) {
-    alert('請填寫名稱與金額');
-    return;
+
+  if (!name) { shakeEl(recNameInput); return; }
+  if (!amount || amount <= 0) { shakeEl(recAmountInputWrap); return; }
+
+  // 轉帳：與新增記帳一致，檢查轉出/轉入帳戶
+  if (isTransfer) {
+    const fromId = recTransferFrom.value;
+    const toId   = recTransferTo.value;
+    if (!fromId || !toId) { shakeEl(recTransferGroup); return; }
+    if (fromId === toId) {
+      shakeEl(recTransferGroup);
+      alert('轉出與轉入帳戶不能相同');
+      return;
+    }
+  } else {
+    if (!recAccountSel.value) { shakeEl(recAccountGroup); return; }
+    if (!recSelectedCategory) { shakeEl(recCatPickBtn); return; }
   }
 
   const freqN    = parseInt(recFreqN.value) || 1;
@@ -3058,25 +3081,34 @@ recurringForm.addEventListener('submit', async (e) => {
     enabled: true,
   };
 
-  if (editId) {
-    // 編輯時：若頻率設定改變，重新計算下次執行日
-    const existing = allRecurring.find(r => r.docId === editId);
-    const freqChanged = existing && (
-      existing.freqUnit !== freqUnit ||
-      existing.freqWeekday !== freqWeekday ||
-      existing.freqMonthday !== freqMonthday ||
-      existing.freqYearMonth !== freqYearMonth ||
-      existing.freqYearDay !== freqYearDay
-    );
-    if (freqChanged) data.nextDate = computedNextDate;
-    await updateDoc(doc(db, 'recurring', editId), data);
-  } else {
-    data.nextDate  = computedNextDate;
-    data.createdAt = serverTimestamp();
-    await addDoc(collection(db, 'recurring'), data);
+  recSubmitBtn.disabled = true;
+  recSubmitBtn.textContent = '儲存中...';
+  try {
+    if (editId) {
+      // 編輯時：若頻率設定改變，重新計算下次執行日
+      const existing = allRecurring.find(r => r.docId === editId);
+      const freqChanged = existing && (
+        existing.freqUnit !== freqUnit ||
+        existing.freqWeekday !== freqWeekday ||
+        existing.freqMonthday !== freqMonthday ||
+        existing.freqYearMonth !== freqYearMonth ||
+        existing.freqYearDay !== freqYearDay
+      );
+      if (freqChanged) data.nextDate = computedNextDate;
+      await updateDoc(doc(db, 'recurring', editId), data);
+    } else {
+      data.nextDate  = computedNextDate;
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'recurring'), data);
+    }
+    recurringModalOverlay.classList.remove('active');
+  } catch (err) {
+    console.error(err);
+    alert('儲存失敗，請確認網路連線');
+  } finally {
+    recSubmitBtn.disabled = false;
+    recSubmitBtn.textContent = '儲存';
   }
-
-  recurringModalOverlay.classList.remove('active');
 });
 
 recDeleteBtn.addEventListener('click', async () => {

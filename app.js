@@ -416,6 +416,8 @@ const addRewardActivityBtn  = document.getElementById('addRewardActivityBtn');
 const projectRewardSection  = document.getElementById('projectRewardSection');
 const projectRewardList     = document.getElementById('projectRewardList');
 const splitGroup            = document.getElementById('splitGroup');
+const splitEnableToggle     = document.getElementById('splitEnableToggle');
+const splitDetail           = document.getElementById('splitDetail');
 const splitPayer            = document.getElementById('splitPayer');
 const splitEqualToggle      = document.getElementById('splitEqualToggle');
 const splitSelectAll        = document.getElementById('splitSelectAll');
@@ -1116,39 +1118,50 @@ function renderProjectDetail() {
   // 回饋追蹤
   renderProjectReward(proj, recs);
 
-  // 明細列表
+  // 明細列表：依日期分組（與主頁一致），卡片上不重複標日期
   projectRecordList.innerHTML = '';
   if (recs.length === 0) {
     projectRecordList.innerHTML = '<div class="project-empty">還沒有相關記帳記錄</div>';
     return;
   }
-  // 依日期排序
-  [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(r => {
-    const item = document.createElement('div');
-    item.className = 'project-record-item project-record-item-clickable';
-    const noteMeta = [r.date, r.note].filter(Boolean).join(' · ');
-    const splitTags = r.splitData
-      ? r.splitData.map(s => `<span class="rec-split-tag">${s.name} $${formatMoney(getMemberShareTwd(r, s.name))}</span>`).join('')
-      : '';
-    const payerRow = r.splitPayer
-      ? `<div class="project-rec-split">${r.splitPayer} 付 · ${splitTags}</div>`
-      : '';
-    item.innerHTML = `
-      <div class="project-rec-left">
-        <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
-        <div class="project-rec-info">
-          <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
-          <div class="project-rec-meta">${noteMeta}</div>
-          ${payerRow}
+  const sorted = [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const groups = {};
+  sorted.forEach(r => {
+    const d = r.date || '';
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(r);
+  });
+  Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
+    projectRecordList.appendChild(buildDateHeader(date, groups[date], null));
+    groups[date].forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'project-record-item project-record-item-clickable';
+      const n = r.splitData?.length || 0;
+      const firstAmt = n ? getMemberShareTwd(r, r.splitData[0].name) : 0;
+      const isEqual = n > 1 && r.splitData.every(s => getMemberShareTwd(r, s.name) === firstAmt);
+      const splitSummary = r.splitPayer && n > 0
+        ? (isEqual ? `${r.splitPayer} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${r.splitPayer} 付 · ${n}人分攤`)
+        : '';
+      const foreignLine = r.foreignAmount && r.foreignCurrency ? `${r.foreignCurrency} ${formatMoney(r.foreignAmount)}` : '';
+      item.innerHTML = `
+        <div class="project-rec-left">
+          <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
+          <div class="project-rec-info">
+            <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
+            ${r.note ? `<div class="project-rec-meta">${r.note}</div>` : ''}
+            ${splitSummary ? `<div class="project-rec-split-summary">${splitSummary}</div>` : ''}
+          </div>
         </div>
-      </div>
-      <div class="project-rec-right">
-        <div class="project-rec-amount">-$${formatMoney(r.amount)}</div>
-        ${r.foreignAmount && r.foreignCurrency ? `<div class="foreign-hint">${r.foreignCurrency} ${formatMoney(r.foreignAmount)}</div>` : ''}
-        <span class="project-rec-edit-icon">✏️</span>
-      </div>`;
-    item.addEventListener('click', () => openModal(r));
-    projectRecordList.appendChild(item);
+        <div class="project-rec-right">
+          <div class="project-rec-amount-wrap">
+            <span class="project-rec-amount">-$${formatMoney(r.amount)}</span>
+            ${foreignLine ? `<span class="project-rec-foreign">${foreignLine}</span>` : ''}
+          </div>
+          <span class="project-rec-edit-icon">✏️</span>
+        </div>`;
+      item.addEventListener('click', () => openModal(r));
+      projectRecordList.appendChild(item);
+    });
   });
 }
 
@@ -1391,6 +1404,10 @@ function renderSplitUI(proj, record = null) {
   const savedPayer  = record?.splitPayer  || null;
   const savedSplits = record?.splitData   || null;
 
+  const hasSplit = !!(savedPayer && savedSplits?.length);
+  if (splitEnableToggle) splitEnableToggle.checked = hasSplit;
+  if (splitDetail) splitDetail.style.display = hasSplit ? '' : 'none';
+
   let restoreCustom = false;
   if (savedSplits && savedSplits.length > 1) {
     const amounts = savedSplits.map(s => s.amount);
@@ -1469,6 +1486,13 @@ function syncEqualAmounts() {
 
 splitPayer.addEventListener('change', () => syncEqualAmounts());
 
+if (splitEnableToggle && splitDetail) {
+  splitEnableToggle.addEventListener('change', () => {
+    splitDetail.style.display = splitEnableToggle.checked ? '' : 'none';
+    if (splitEnableToggle.checked) syncEqualAmounts();
+  });
+}
+
 splitEqualToggle.addEventListener('change', () => {
   splitMode = splitEqualToggle.checked ? 'equal' : 'custom';
   syncEqualAmounts();
@@ -1498,6 +1522,7 @@ function getSplitData(amountToSplit) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
   if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitData: null };
+  if (splitEnableToggle && !splitEnableToggle.checked) return { splitPayer: null, splitData: null };
 
   const members = getCheckedMembers();
   const amount  = amountToSplit ?? (parseFloat(document.getElementById('amount').value) || 0);

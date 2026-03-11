@@ -1549,6 +1549,14 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   justify-content: space-between;
 }
 
+/* 專案花費明細：日期標題與卡片左右對齊 */
+#projectRecordList .date-group-header {
+  margin-left: 12px;
+  margin-right: 12px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
 .date-group-summary {
   display: flex;
   gap: 8px;
@@ -4193,7 +4201,7 @@ input.form-input {
   min-width: 0;
 }
 
-.project-rec-emoji { font-size: 22px; flex-shrink: 0; }
+.project-rec-emoji { font-size: 24px; flex-shrink: 0; }
 .project-rec-info { min-width: 0; }
 
 .project-rec-name {
@@ -4211,17 +4219,34 @@ input.form-input {
   margin-top: 2px;
 }
 
+.project-rec-split-summary {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-top: 3px;
+}
+
 .project-rec-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.project-rec-amount-wrap {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 0;
+  line-height: 1.25;
 }
 .project-rec-amount {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   color: #e53935;
+  white-space: nowrap;
+}
+.project-rec-foreign {
+  font-size: 14px;
+  color: var(--text-mid);
   white-space: nowrap;
 }
 .project-rec-edit-icon {
@@ -4395,6 +4420,35 @@ input.form-input {
   padding: 4px 0 8px;
   border-top: 1px solid #f0f0f0;
   margin-top: 4px;
+}
+
+.split-header-with-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.split-header-with-toggle .split-title {
+  margin: 0;
+}
+
+.split-enable-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-mid);
+}
+
+.split-enable-label {
+  user-select: none;
+}
+
+.split-detail {
+  margin-top: 8px;
 }
 
 .split-title {

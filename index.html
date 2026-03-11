@@ -763,30 +763,39 @@
 
         <!-- 分帳設定（選擇專案後才顯示） -->
         <div id="splitGroup" style="display:none">
-          <div class="split-header">
+          <div class="split-header split-header-with-toggle">
             <span class="split-title">分帳設定</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">付款人</label>
-            <select id="splitPayer" class="form-select"></select>
-          </div>
-          <div class="form-group split-method-row">
-            <label class="form-label">分帳方式 <span class="required-star">*</span></label>
-            <label class="split-equal-toggle-wrap">
-              <span class="split-equal-label">均分</span>
+            <label class="split-enable-toggle-wrap">
+              <span class="split-enable-label">分攤給其他人</span>
               <div class="toggle-switch">
-                <input type="checkbox" id="splitEqualToggle" checked />
+                <input type="checkbox" id="splitEnableToggle" />
                 <span class="toggle-slider"></span>
               </div>
             </label>
           </div>
-          <div class="split-card" id="splitCard">
-            <label class="split-card-row split-card-all">
-              <input type="checkbox" id="splitSelectAll" />
-              <span class="split-card-name">全選</span>
-            </label>
-            <hr class="split-card-hr" />
-            <div id="splitMemberList"></div>
+          <div id="splitDetail" class="split-detail" style="display:none">
+            <div class="form-group">
+              <label class="form-label">付款人</label>
+              <select id="splitPayer" class="form-select"></select>
+            </div>
+            <div class="form-group split-method-row">
+              <label class="form-label">分帳方式 <span class="required-star">*</span></label>
+              <label class="split-equal-toggle-wrap">
+                <span class="split-equal-label">均分</span>
+                <div class="toggle-switch">
+                  <input type="checkbox" id="splitEqualToggle" checked />
+                  <span class="toggle-slider"></span>
+                </div>
+              </label>
+            </div>
+            <div class="split-card" id="splitCard">
+              <label class="split-card-row split-card-all">
+                <input type="checkbox" id="splitSelectAll" />
+                <span class="split-card-name">全選</span>
+              </label>
+              <hr class="split-card-hr" />
+              <div id="splitMemberList"></div>
+            </div>
           </div>
         </div>
 

@@ -2996,13 +2996,19 @@ recCatPickBtn.addEventListener('click', () => {
 
 recurringForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  // 手機上 modal 的 input 可能被鎖成 readonly，送出前先解鎖以確保讀得到值
+  recurringModalOverlay.querySelectorAll('input, textarea').forEach(el => { el.readOnly = false; });
   const name   = recNameInput.value.trim();
   const isTransfer = recCurrentType === 'transfer';
 
-  // 金額：統一使用計算機輸入框
+  // 金額：統一使用計算機輸入框，必要時用顯示欄位當 fallback（手機觸控可能未同步）
   if (/[\+\-\*\/]/.test(recCalcRaw) && recCalcRaw !== recCalcExpr) recCalcEqual();
-  const amount = parseFloat(recCalcRaw);
-  if (!name || !amount || amount <= 0) return;
+  let amount = parseFloat(recCalcRaw);
+  if (!amount || amount <= 0) amount = parseFloat(recAmountInput.value) || 0;
+  if (!name || !amount || amount <= 0) {
+    alert('請填寫名稱與金額');
+    return;
+  }
 
   const freqN    = parseInt(recFreqN.value) || 1;
   const freqUnit = recFreqUnit.value;

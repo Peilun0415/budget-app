@@ -395,6 +395,8 @@ const closeProjectModalBtn  = document.getElementById('closeProjectModalBtn');
 const projectForm           = document.getElementById('projectForm');
 const projectNameInput      = document.getElementById('projectNameInput');
 const projectMembersInput   = document.getElementById('projectMembersInput');
+const projectCurrencySelect = document.getElementById('projectCurrencySelect');
+const projectRateToTwdInput = document.getElementById('projectRateToTwdInput');
 const projectDateRangeInput = document.getElementById('projectDateRangeInput');
 const projectStartInput     = document.getElementById('projectStartInput');
 const projectEndInput       = document.getElementById('projectEndInput');
@@ -918,10 +920,23 @@ function renderProjectList() {
   });
 }
 
+/**
+ * 專案情境下該筆記錄的台幣金額（顯示／加總用）。
+ * 若專案有設匯率且記錄幣別相符，用專案匯率換算；否則用儲存的 amount。
+ */
+function getProjectRecordTwdAmount(record, project) {
+  if (!record) return 0;
+  if (project?.currency && (project.rateToTwd ?? 0) > 0 &&
+      record.foreignCurrency === project.currency && (record.foreignAmount != null)) {
+    return Math.round(record.foreignAmount * project.rateToTwd);
+  }
+  return record.amount ?? 0;
+}
+
 function calcProjectTotal(proj) {
   return allRecords
     .filter(r => r.projectId === proj.docId && r.type === 'expense')
-    .reduce((s, r) => s + r.amount, 0);
+    .reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
 }
 
 addProjectBtn.addEventListener('click', () => openProjectModal());
@@ -935,6 +950,8 @@ function openProjectModal(proj = null) {
   projectMembersInput.value    = proj ? (proj.members || []).filter(m => m !== '我').join('、') : '';
   projectStartInput.value      = proj?.startDate || '';
   projectEndInput.value        = proj?.endDate   || '';
+  if (projectCurrencySelect) projectCurrencySelect.value = proj?.currency || '';
+  if (projectRateToTwdInput) projectRateToTwdInput.value = proj?.rateToTwd != null ? String(proj.rateToTwd) : '';
   deleteProjectBtn.style.display = proj ? '' : 'none';
   if (projectDateRangePicker) {
     if (proj?.startDate && proj?.endDate) {
@@ -1043,15 +1060,24 @@ projectForm.addEventListener('submit', async e => {
   const startDate = projectStartInput.value || null;
   const endDate   = projectEndInput.value   || null;
   const editId    = projectEditId.value;
-  // 過濾掉名稱為空的活動
+  const currency = projectCurrencySelect?.value?.trim() || null;
+  const rateToTwd = projectRateToTwdInput?.value ? parseFloat(projectRateToTwdInput.value) : null;
   const rewardActivities = tempRewardActivities.filter(a => a.name.trim());
   projectSubmitBtn.disabled = true;
   try {
+    const payload = { name, members, startDate, endDate, rewardActivities };
+    if (currency && rateToTwd != null && rateToTwd > 0) {
+      payload.currency = currency;
+      payload.rateToTwd = rateToTwd;
+    } else {
+      payload.currency = null;
+      payload.rateToTwd = null;
+    }
     if (editId) {
-      await updateDoc(doc(db, 'projects', editId), { name, members, startDate, endDate, rewardActivities });
+      await updateDoc(doc(db, 'projects', editId), payload);
     } else {
       await addDoc(collection(db, 'projects'), {
-        uid: currentUser.uid, name, members, startDate, endDate, rewardActivities,
+        uid: currentUser.uid, ...payload,
         createdAt: serverTimestamp(),
       });
     }
@@ -1132,13 +1158,14 @@ function renderProjectDetail() {
     groups[d].push(r);
   });
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    projectRecordList.appendChild(buildDateHeader(date, groups[date], null));
+    projectRecordList.appendChild(buildDateHeader(date, groups[date], null, proj));
     groups[date].forEach(r => {
       const item = document.createElement('div');
       item.className = 'project-record-item project-record-item-clickable';
+      const recTwd = getProjectRecordTwdAmount(r, proj);
       const n = r.splitData?.length || 0;
-      const firstAmt = n ? getMemberShareTwd(r, r.splitData[0].name) : 0;
-      const isEqual = n > 1 && r.splitData.every(s => getMemberShareTwd(r, s.name) === firstAmt);
+      const firstAmt = n ? getMemberShareTwd(r, r.splitData[0].name, proj) : 0;
+      const isEqual = n > 1 && r.splitData.every(s => getMemberShareTwd(r, s.name, proj) === firstAmt);
       const splitSummary = r.splitPayer && n > 0
         ? (isEqual ? `${r.splitPayer} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${r.splitPayer} 付 · ${n}人分攤`)
         : '';
@@ -1154,7 +1181,7 @@ function renderProjectDetail() {
         </div>
         <div class="project-rec-right">
           <div class="project-rec-amount-wrap">
-            <span class="project-rec-amount">-$${formatMoney(r.amount)}</span>
+            <span class="project-rec-amount">-$${formatMoney(recTwd)}</span>
             ${foreignLine ? `<span class="project-rec-foreign">${foreignLine}</span>` : ''}
           </div>
           <span class="project-rec-edit-icon">✏️</span>
@@ -1169,11 +1196,11 @@ function renderProjectSettle(proj, recs) {
   const members = proj.members || [];
   const isSettled = !!(proj.settled?.all);
 
-  // 共同花費 / 個人自費分開
+  // 共同花費 / 個人自費分開（專案情境下用專案匯率換算的台幣）
   const sharedRecs  = recs.filter(r => r.splitPayer && r.splitData?.length > 0);
   const selfRecs    = recs.filter(r => !r.splitPayer || !r.splitData?.length);
-  const sharedTotal = sharedRecs.reduce((s, r) => s + r.amount, 0);
-  const selfTotal   = selfRecs.reduce((s, r) => s + r.amount, 0);
+  const sharedTotal = sharedRecs.reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
+  const selfTotal   = selfRecs.reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
 
   // 計算每人淨額（正 = 別人欠他，負 = 他欠別人）
   let myNet = 0;
@@ -1183,9 +1210,9 @@ function renderProjectSettle(proj, recs) {
     members.forEach(m => { paid[m] = 0; owed[m] = 0; });
     sharedRecs.forEach(r => {
       const payer = r.splitPayer;
-      if (paid[payer] !== undefined) paid[payer] += r.amount;
+      if (paid[payer] !== undefined) paid[payer] += getProjectRecordTwdAmount(r, proj);
       r.splitData.forEach(s => {
-        if (owed[s.name] !== undefined) owed[s.name] += getMemberShareTwd(r, s.name);
+        if (owed[s.name] !== undefined) owed[s.name] += getMemberShareTwd(r, s.name, proj);
       });
     });
     myNet = Math.round((paid['我'] || 0) - (owed['我'] || 0));
@@ -1250,7 +1277,7 @@ async function doSettle(proj, recs, myNet) {
       r.splitData?.some(s => s.name === '我')
     );
     mySharedRecs.forEach(r => {
-      const myShare = getMemberShareTwd(r, '我');
+      const myShare = getMemberShareTwd(r, '我', proj);
       if (myShare <= 0) return;
       writes.push(addDoc(collection(db, 'records'), {
         uid: currentUser.uid,
@@ -1312,7 +1339,7 @@ function renderProjectReward(proj, recs) {
     const spent = recs
       .filter(r => r.rewardActivityId === act.id)
       .reduce((s, r) => {
-        if (currency === 'TWD') return s + (r.amount || 0);
+        if (currency === 'TWD') return s + getProjectRecordTwdAmount(r, proj);
         if (r.foreignAmount && r.foreignCurrency === currency) return s + r.foreignAmount;
         return s; // 幣別不符，跳過
       }, 0);
@@ -1504,16 +1531,18 @@ function getCheckedMembers() {
 
 /**
  * 取得某成員在該筆記錄中「應付／分攤」的台幣金額。
- * 外幣記錄時 splitData 可能存的是原幣份額，依 record.amount 按比例換算成台幣。
+ * 外幣記錄時 splitData 可能存的是原幣份額，依 record 台幣金額按比例換算。
+ * 可傳入 project：專案情境下用專案匯率換算的台幣作為基準。
  */
-function getMemberShareTwd(r, memberName) {
+function getMemberShareTwd(r, memberName, project = null) {
   if (!r.splitData?.length) return 0;
   const total = r.splitData.reduce((a, s) => a + s.amount, 0);
   if (total === 0) return 0;
   const s = r.splitData.find(x => x.name === memberName);
   if (!s) return 0;
+  const baseAmount = project ? getProjectRecordTwdAmount(r, project) : (r.amount ?? 0);
   if (r.foreignAmount != null && r.foreignCurrency) {
-    return Math.round(r.amount * (s.amount / total));
+    return Math.round(baseAmount * (s.amount / total));
   }
   return s.amount;
 }
@@ -3644,12 +3673,19 @@ recordForm.addEventListener('submit', async (e) => {
     let amount = inputAmount;
 
     if (isForeignPrimary) {
-      const converted = await getConvertedTwdAmount(accountCurrency, inputAmount);
-      if (!converted) {
-        alert('目前無法取得匯率，請稍後再試');
-        return;
+      const projId = recordProjectSelect.value;
+      const proj = projId ? (allProjects || []).find(p => p.docId === projId) : null;
+      const useProjectRate = proj?.currency === accountCurrency && proj?.rateToTwd != null && proj.rateToTwd > 0;
+      if (useProjectRate) {
+        amount = Math.round(inputAmount * proj.rateToTwd);
+      } else {
+        const converted = await getConvertedTwdAmount(accountCurrency, inputAmount);
+        if (!converted) {
+          alert('目前無法取得匯率，請稍後再試');
+          return;
+        }
+        amount = converted.twdAmount;
       }
-      amount = converted.twdAmount;
     }
 
     const { splitPayer: sp, splitData: sd } = getSplitData(isForeignPrimary ? amount : undefined);
@@ -4924,11 +4960,15 @@ function buildRecordItem(r) {
 }
 
 // ===== 建立日期分組標題（含當日小計）=====
-function buildDateHeader(date, dayRecs, account = null) {
+function buildDateHeader(date, dayRecs, account = null, project = null) {
   const summaryCurrency = account?.currency || 'TWD';
   const summaryPrefix = account?.currency ? `${account.currency} ` : '$';
-  const inc = dayRecs.filter(r => r.type === 'income').reduce((s, r)  => s + getAccountRecordAmount(account, r), 0);
-  const exp = dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  const inc = project
+    ? dayRecs.filter(r => r.type === 'income').reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
+    : dayRecs.filter(r => r.type === 'income').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  const exp = project
+    ? dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
+    : dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
 
   const header = document.createElement('div');
   header.className = 'date-group-header';

@@ -563,13 +563,13 @@
         <span class="nav-icon">🏦</span>
         <span class="nav-label">帳戶</span>
       </button>
-      <button class="nav-btn" id="navProjects" data-page="projects">
-        <span class="nav-icon">🗂️</span>
-        <span class="nav-label">專案</span>
-      </button>
       <button class="nav-btn" id="navReport" data-page="report">
         <span class="nav-icon">📊</span>
         <span class="nav-label">報表</span>
+      </button>
+      <button class="nav-btn" id="navProjects" data-page="projects">
+        <span class="nav-icon">🗂️</span>
+        <span class="nav-label">專案</span>
       </button>
       <button class="nav-btn" id="navSettings" data-page="settings">
         <span class="nav-icon">⚙️</span>
@@ -831,6 +831,29 @@
           <input type="text" id="projectDateRangeInput" class="form-input" placeholder="點擊選擇日期範圍" readonly />
           <input type="hidden" id="projectStartInput" />
           <input type="hidden" id="projectEndInput" />
+        </div>
+        <!-- 專案匯率（選填）：鎖定該幣別換算台幣的匯率 -->
+        <div class="form-group">
+          <label class="form-label">專案匯率（選填）</label>
+          <p class="billing-day-hint">若設定，此專案內該幣別的支出會以此匯率換算台幣，不依當日匯率</p>
+          <div class="project-rate-row">
+            <select id="projectCurrencySelect" class="form-select">
+              <option value="">不設定</option>
+              <option value="JPY">JPY</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="KRW">KRW</option>
+              <option value="HKD">HKD</option>
+              <option value="GBP">GBP</option>
+              <option value="AUD">AUD</option>
+              <option value="SGD">SGD</option>
+              <option value="THB">THB</option>
+              <option value="CNY">CNY</option>
+            </select>
+            <span class="project-rate-eq">1 外幣 =</span>
+            <input type="number" id="projectRateToTwdInput" class="form-input" placeholder="0.21" min="0" step="any" inputmode="decimal" />
+            <span class="project-rate-unit">元台幣</span>
+          </div>
         </div>
         <!-- 回饋活動設定 -->
         <div class="form-group">

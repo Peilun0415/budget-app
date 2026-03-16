@@ -2161,6 +2161,26 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   box-sizing: border-box;
 }
 
+.project-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.project-rate-row .form-select {
+  min-width: 80px;
+}
+.project-rate-row .form-input {
+  width: 100px;
+  box-sizing: border-box;
+}
+.project-rate-eq,
+.project-rate-unit {
+  font-size: 14px;
+  color: var(--text-mid);
+}
+.project-rate-eq { white-space: nowrap; }
+
 .flatpickr-calendar.open {
   z-index: 350;
 }

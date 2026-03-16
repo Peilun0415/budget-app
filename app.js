@@ -168,6 +168,14 @@ let tempRewardActivities = []; // 專案 modal 中暫存的回饋活動
 let tempEditorUids = [];           // 專案 modal 中暫存的邀請編輯 UID
 let tempEditorEmails = [];        // 對應的 email（儲存用）
 let tempEditorDisplayNames = [];  // 對應的顯示名稱（列表顯示用）
+
+function getMemberLabel(name, proj) {
+  const ownerName = proj?.ownerDisplayName || '';
+  if (name === '我' && ownerName) {
+    return ownerName;
+  }
+  return name;
+}
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
 let recSelectedSubCategory = null;
@@ -484,6 +492,12 @@ const catBudgetAmtInput    = document.getElementById('catBudgetAmtInput');
 const saveCatBudgetBtn     = document.getElementById('saveCatBudgetBtn');
 const deleteCatBudgetBtn   = document.getElementById('deleteCatBudgetBtn');
 const clearAllDataBtn      = document.getElementById('clearAllDataBtn');
+const exportDataBtn        = document.getElementById('exportDataBtn');
+const exportModalOverlay   = document.getElementById('exportModalOverlay');
+const closeExportModalBtn  = document.getElementById('closeExportModalBtn');
+const exportCsvBtn         = document.getElementById('exportCsvBtn');
+const exportJsonBtn        = document.getElementById('exportJsonBtn');
+const exportIncludeIds     = document.getElementById('exportIncludeIds');
 const clearDataOverlay     = document.getElementById('clearDataOverlay');
 const closeClearDataBtn    = document.getElementById('closeClearDataBtn');
 const clearDataConfirmInput = document.getElementById('clearDataConfirmInput');
@@ -838,6 +852,92 @@ goBudgetBtn.addEventListener('click', () => switchPage('budget'));
 goRecurringBtn.addEventListener('click', () => switchPage('recurring'));
 goCategoriesBtn.addEventListener('click', () => switchPage('categories'));
 
+if (exportDataBtn) {
+  const openExportModal = () => exportModalOverlay?.classList.add('active');
+  const closeExportModal = () => exportModalOverlay?.classList.remove('active');
+  exportDataBtn.addEventListener('click', openExportModal);
+  closeExportModalBtn?.addEventListener('click', closeExportModal);
+  exportModalOverlay?.addEventListener('click', (e) => { if (e.target === exportModalOverlay) closeExportModal(); });
+
+  const downloadFile = (filename, mime, content) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const normalizeForExport = (r) => {
+    const proj = r.projectId ? allProjects.find(p => p.docId === r.projectId) : null;
+    return {
+      id: r.docId || '',
+      date: r.date || '',
+      type: r.type || '',
+      amount: r.amount ?? null,
+      accountId: r.accountId || '',
+      accountName: r.accountName || '',
+      categoryId: r.categoryId || '',
+      categoryName: r.categoryName || '',
+      subCategoryId: r.subCategoryId || '',
+      subCategoryName: r.subCategoryName || '',
+      note: r.note || '',
+      projectId: r.projectId || '',
+      projectName: proj?.name || '',
+      foreignCurrency: r.foreignCurrency || '',
+      foreignAmount: r.foreignAmount ?? null,
+      splitPayer: r.splitPayer || '',
+      splitData: r.splitData || null,
+      isSettlement: !!r.isSettlement,
+      settlementProjectId: r.settlementProjectId || '',
+      createdAtSeconds: r.createdAt?.seconds ?? null,
+    };
+  };
+
+  exportJsonBtn?.addEventListener('click', () => {
+    const includeIds = !!exportIncludeIds?.checked;
+    const fullRows = allRecords.map(normalizeForExport);
+    const rows = includeIds
+      ? fullRows
+      : fullRows.map(({ id, accountId, categoryId, subCategoryId, projectId, settlementProjectId, createdAtSeconds, ...rest }) => rest);
+    const json = JSON.stringify(rows, null, 2);
+    const ts = new Date().toISOString().slice(0, 10);
+    downloadFile(`records-${ts}.json`, 'application/json;charset=utf-8', json);
+  });
+
+  exportCsvBtn?.addEventListener('click', () => {
+    const includeIds = !!exportIncludeIds?.checked;
+    const fullRows = allRecords.map(normalizeForExport);
+    const rows = includeIds
+      ? fullRows
+      : fullRows.map(({ id, accountId, categoryId, subCategoryId, projectId, settlementProjectId, createdAtSeconds, ...rest }) => rest);
+    const baseHeaders = [
+      'date','type','amount','accountName',
+      'categoryName','subCategoryName',
+      'note','projectName','foreignCurrency','foreignAmount',
+      'splitPayer','splitData','isSettlement'
+    ];
+    const idHeaders = ['id','accountId','categoryId','subCategoryId','projectId','settlementProjectId','createdAtSeconds'];
+    const headers = includeIds ? [...idHeaders, ...baseHeaders] : baseHeaders;
+    const escapeCell = (v) => {
+      if (v == null) return '';
+      const s = typeof v === 'string' ? v : JSON.stringify(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = [
+      headers.join(','),
+      ...rows.map(row => headers.map(h => escapeCell(row[h])).join(',')),
+    ];
+    const csv = lines.join('\r\n');
+    const ts = new Date().toISOString().slice(0, 10);
+    downloadFile(`records-${ts}.csv`, 'text/csv;charset=utf-8', csv);
+  });
+}
+
 // ===== 清除所有資料 =====
 clearAllDataBtn.addEventListener('click', () => {
   clearDataConfirmInput.value = '';
@@ -958,7 +1058,7 @@ function renderProjectList() {
   allProjects.forEach(proj => {
     const card = document.createElement('div');
     card.className = 'project-card';
-    const members = (proj.members || []).join('、');
+    const members = (proj.members || []).map(m => getMemberLabel(m, proj)).join('、');
     const dateStr = proj.startDate && proj.endDate
       ? `${proj.startDate} ～ ${proj.endDate}`
       : proj.startDate || '';
@@ -1261,7 +1361,8 @@ projectForm.addEventListener('submit', async e => {
   const rewardActivities = editId ? (allProjects.find(p => p.docId === editId)?.rewardActivities || []) : [];
   projectSubmitBtn.disabled = true;
   try {
-    const payload = { name, members, startDate, endDate, rewardActivities };
+    const ownerDisplayName = (currentUser?.displayName || currentUser?.email || '').trim() || '我';
+    const payload = { name, members, startDate, endDate, rewardActivities, ownerDisplayName };
     if (currency && rateToTwd != null && rateToTwd > 0) {
       payload.currency = currency;
       payload.rateToTwd = rateToTwd;
@@ -1328,7 +1429,7 @@ function renderProjectDetail() {
     : proj.startDate || '未設定日期';
   projectDetailDates.textContent = `📅 ${dateStr}`;
   projectDetailMembers.textContent = proj.members?.length
-    ? `👥 ${proj.members.join('、')}` : '';
+    ? `👥 ${proj.members.map(m => getMemberLabel(m, proj)).join('、')}` : '';
 
   // 此專案的所有支出記錄（含被邀請專案時他人記的）
   const recs = getProjectRecords(proj).filter(r => r.type === 'expense');
@@ -1361,8 +1462,9 @@ function renderProjectDetail() {
       const n = r.splitData?.length || 0;
       const firstAmt = n ? getMemberShareTwd(r, r.splitData[0].name, proj) : 0;
       const isEqual = n > 1 && r.splitData.every(s => getMemberShareTwd(r, s.name, proj) === firstAmt);
+      const payerLabel = r.splitPayer ? getMemberLabel(r.splitPayer, proj) : '';
       const splitSummary = r.splitPayer && n > 0
-        ? (isEqual ? `${r.splitPayer} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${r.splitPayer} 付 · ${n}人分攤`)
+        ? (isEqual ? `${payerLabel} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${payerLabel} 付 · ${n}人分攤`)
         : '';
       const foreignLine = r.foreignAmount && r.foreignCurrency ? `${r.foreignCurrency} ${formatMoney(r.foreignAmount)}` : '';
       item.innerHTML = `
@@ -1418,11 +1520,12 @@ function renderProjectSettle(proj, recs) {
         <span>成員</span><span>付出</span><span>應付</span><span>淨額</span>
       </div>
       ${members.map(m => {
+        const label = getMemberLabel(m, proj);
         const n = Math.round((paid[m] || 0) - (owed[m] || 0));
         const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : '';
         const netStr = n > 0 ? `+$${formatMoney(n)}` : n < 0 ? `-$${formatMoney(Math.abs(n))}` : '$0';
         return `<div class="settle-member-table-row">
-          <span class="settle-m-name">${m}</span>
+          <span class="settle-m-name">${label}</span>
           <span class="settle-m-val">$${formatMoney(Math.round(paid[m] || 0))}</span>
           <span class="settle-m-val">$${formatMoney(Math.round(owed[m] || 0))}</span>
           <span class="settle-m-net ${cls}">${netStr}</span>
@@ -1432,8 +1535,9 @@ function renderProjectSettle(proj, recs) {
   }
 
 
-  // 結清按鈕（只有有淨額才顯示）
-  const needSettle = myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
+  // 結清按鈕（只有有淨額且為專案建立者時才顯示）
+  const isOwner = proj.uid === currentUser?.uid;
+  const needSettle = isOwner && myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
   const settleBtnHtml = needSettle
     ? `<button class="settle-all-btn${isSettled ? ' done' : ''}" id="settleAllBtn">
         ${isSettled ? '✓ 已結清' : '結清'}
@@ -1648,9 +1752,10 @@ function renderSplitUI(proj, record = null) {
 
   splitPayer.innerHTML = '';
   members.forEach(m => {
+    const label = getMemberLabel(m, proj);
     const opt = document.createElement('option');
     opt.value = m;
-    opt.textContent = m;
+    opt.textContent = label;
     splitPayer.appendChild(opt);
   });
   if (savedPayer && members.includes(savedPayer)) splitPayer.value = savedPayer;
@@ -1662,13 +1767,14 @@ function renderSplitUI(proj, record = null) {
 
   splitMemberList.innerHTML = '';
   members.forEach((m, i) => {
+    const label = getMemberLabel(m, proj);
     const shouldCheck = savedMemberNames ? savedMemberNames.includes(m) : i === 0;
     const savedAmt = savedSplits?.find(s => s.name === m)?.amount ?? '';
     const row = document.createElement('label');
     row.className = 'split-card-row';
     row.innerHTML = `
       <input type="checkbox" class="split-member-cb" data-member="${m}" ${shouldCheck ? 'checked' : ''} />
-      <span class="split-card-name">${m}</span>
+      <span class="split-card-name">${label}</span>
       <div class="amount-input-wrap split-card-input-wrap">
         <span class="currency-sign">$</span>
         <input type="number" class="split-card-amount" data-member="${m}" placeholder="0" inputmode="decimal" value="${savedAmt}" />

@@ -4501,6 +4501,44 @@ input.form-input {
 .reward-track-remain.over { color: var(--red-main); }
 
 /* 分帳 UI */
+
+.export-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.export-btn-group .export-btn {
+  width: 100%;
+}
+
+.form-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-secondary {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #ddd);
+  background: #fff;
+  color: var(--text-mid);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  border-color: var(--primary, #00796b);
+  color: var(--primary, #00796b);
+}
 #rewardActivityGroup .form-group,
 #splitGroup .form-group {
   margin-bottom: 18px;

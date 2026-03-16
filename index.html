@@ -309,6 +309,14 @@
           </div>
           <span class="settings-item-arrow">›</span>
         </button>
+        <button class="settings-item" id="exportDataBtn">
+          <span class="settings-item-icon">📤</span>
+          <div class="settings-item-info">
+            <div class="settings-item-title">匯出資料</div>
+            <div class="settings-item-desc">下載所有記帳明細（CSV / JSON）</div>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
         <button class="settings-item settings-item-danger" id="clearAllDataBtn">
           <span class="settings-item-icon">🗑️</span>
           <div class="settings-item-info">
@@ -827,14 +835,13 @@
         <div class="form-group">
           <label class="form-label">同行人（用逗號分隔）</label>
           <input type="text" id="projectMembersInput" class="form-input" placeholder="例：小明、小美" maxlength="100" />
-          <p class="billing-day-hint">「我」會自動加入，這裡只需填其他同行人</p>
         </div>
         <!-- 邀請有帳號的人一起編輯（僅編輯時、僅建立者可見） -->
         <div class="form-group project-invite-editors-wrap" id="projectInviteEditorsWrap" style="display:none">
           <label class="form-label">邀請有帳號的同行人一起編輯</label>
-          <p class="billing-day-hint">輸入對方的登入 Email 或顯示名稱，對方即可在專案中一起記帳、看明細與結算</p>
+          <p class="billing-day-hint">輸入 Email 或顯示名稱，即可在專案中一起記帳</p>
           <div class="project-invite-row">
-            <input type="text" id="projectInviteEmailInput" class="form-input" placeholder="對方 Email 或顯示名稱" autocomplete="off" />
+            <input type="text" id="projectInviteEmailInput" class="form-input" placeholder="Email 或顯示名稱" autocomplete="off" />
             <button type="button" class="btn-save project-invite-btn" id="projectInviteBtn">邀請</button>
           </div>
           <div class="project-editors-list" id="projectEditorsList"></div>
@@ -894,6 +901,29 @@
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-save" id="saveRewardActivityBtn">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 匯出資料視窗 -->
+  <div class="modal-overlay" id="exportModalOverlay">
+    <div class="modal small-modal">
+      <div class="modal-header">
+        <h2>匯出記帳資料</h2>
+        <button type="button" class="close-btn" id="closeExportModalBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="billing-day-hint">會匯出目前帳號底下的所有記帳紀錄，不含已刪除資料。</p>
+        <div class="form-group" style="margin-top:8px">
+          <label class="form-checkbox">
+            <input type="checkbox" id="exportIncludeIds" checked />
+            <span>包含技術欄位（id、projectId、createdAtSeconds 等）</span>
+          </label>
+        </div>
+        <div class="export-btn-group">
+          <button type="button" class="btn-save export-btn" id="exportCsvBtn">下載 CSV 檔</button>
+          <button type="button" class="btn-secondary export-btn" id="exportJsonBtn">下載 JSON 檔</button>
+        </div>
       </div>
     </div>
   </div>

@@ -599,7 +599,10 @@
 
       <!-- 回饋追蹤 -->
       <div id="projectRewardSection" style="display:none">
-        <div class="project-section-title">回饋追蹤</div>
+        <div class="project-section-title-row">
+          <div class="project-section-title">回饋追蹤</div>
+          <button type="button" class="project-reward-manage-btn" id="projectRewardManageBtn">管理回饋活動</button>
+        </div>
         <div id="projectRewardList"></div>
       </div>
 
@@ -826,6 +829,16 @@
           <input type="text" id="projectMembersInput" class="form-input" placeholder="例：小明、小美" maxlength="100" />
           <p class="billing-day-hint">「我」會自動加入，這裡只需填其他同行人</p>
         </div>
+        <!-- 邀請有帳號的人一起編輯（僅編輯時、僅建立者可見） -->
+        <div class="form-group project-invite-editors-wrap" id="projectInviteEditorsWrap" style="display:none">
+          <label class="form-label">邀請有帳號的同行人一起編輯</label>
+          <p class="billing-day-hint">輸入對方的登入 Email 或顯示名稱，對方即可在專案中一起記帳、看明細與結算</p>
+          <div class="project-invite-row">
+            <input type="text" id="projectInviteEmailInput" class="form-input" placeholder="對方 Email 或顯示名稱" autocomplete="off" />
+            <button type="button" class="btn-save project-invite-btn" id="projectInviteBtn">邀請</button>
+          </div>
+          <div class="project-editors-list" id="projectEditorsList"></div>
+        </div>
         <div class="form-group project-date-range-wrap">
           <label class="form-label">旅遊日期</label>
           <input type="text" id="projectDateRangeInput" class="form-input" placeholder="點擊選擇日期範圍" readonly />
@@ -855,18 +868,33 @@
             <span class="project-rate-unit">元台幣</span>
           </div>
         </div>
-        <!-- 回饋活動設定 -->
-        <div class="form-group">
-          <label class="form-label">回饋活動追蹤（選填）</label>
-          <div id="rewardActivityList"></div>
-          <button type="button" class="reward-add-btn" id="addRewardActivityBtn">＋ 新增回饋活動</button>
-        </div>
         <input type="hidden" id="projectEditId" value="" />
         <div class="modal-actions modal-actions--row">
           <button type="submit" class="btn-save" id="projectSubmitBtn">儲存</button>
           <button type="button" class="btn-delete" id="deleteProjectBtn" style="display:none">刪除專案</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 回饋活動設定視窗（專案頁「管理回饋活動」開啟，建立者與被邀請者皆可編輯） -->
+  <div class="modal-overlay" id="rewardActivityModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>回饋活動設定</h2>
+        <button type="button" class="close-btn" id="closeRewardActivityModalBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">回饋活動追蹤</label>
+          <p class="billing-day-hint">新增活動名稱與刷卡上限，記帳時可選擇套用並追蹤進度</p>
+          <div id="rewardActivityModalList"></div>
+          <button type="button" class="reward-add-btn" id="addRewardInModalBtn">＋ 新增回饋活動</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-save" id="saveRewardActivityBtn">儲存</button>
+      </div>
     </div>
   </div>
 

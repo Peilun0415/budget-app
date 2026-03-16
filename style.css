@@ -2181,6 +2181,38 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 .project-rate-eq { white-space: nowrap; }
 
+.project-invite-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.project-invite-row .form-input { flex: 1; min-width: 0; }
+.project-invite-btn { flex-shrink: 0; }
+.project-editors-list { margin-top: 8px; }
+.project-editor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-mid, #f5f5f5);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.project-editor-email,
+.project-editor-name { color: var(--text-dark); }
+.project-editor-remove {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-mid);
+  background: transparent;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.project-editor-remove:hover { color: var(--danger, #c00); border-color: var(--danger, #c00); }
+
 .flatpickr-calendar.open {
   z-index: 350;
 }
@@ -4093,6 +4125,12 @@ input.form-input {
   box-shadow: var(--shadow);
 }
 
+#projectInviteBtn {
+  width: auto;
+  font-size: 15px;
+  margin: 2px;
+}
+
 /* 結算總覽 */
 .settle-overview {
   display: flex;
@@ -4195,6 +4233,31 @@ input.form-input {
   padding: 14px 16px 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.project-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 16px;
+}
+
+.project-reward-manage-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #ddd);
+  background: #f8fafc;
+  color: var(--text-mid);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.project-reward-manage-btn:hover {
+  background: #e0f2f1;
+  color: var(--primary, #00796b);
+  border-color: var(--primary, #00796b);
 }
 
 .project-record-item {
@@ -4369,6 +4432,13 @@ input.form-input {
 .reward-del-btn:hover { background: #ffd6d6; color: var(--red-main); }
 
 /* ===== 回饋追蹤卡片（專案詳情）===== */
+.project-reward-empty {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-mid);
+  text-align: center;
+}
+
 .reward-track-card {
   background: #fff;
   border-radius: var(--radius);

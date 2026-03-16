@@ -16,6 +16,7 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
   query,
   where,
   orderBy,
@@ -160,7 +161,13 @@ let allProjects    = [];
 let unsubProjects  = null;
 let currentProjectId = null; // 目前查看的專案 docId
 let splitMode      = 'equal'; // 'equal' | 'custom'
+/** 被邀請的專案其記帳（key = projectId），不與 allRecords 合併，僅在專案頁使用 */
+let sharedProjectRecords = {};
+let unsubSharedProjectRecords = null;
 let tempRewardActivities = []; // 專案 modal 中暫存的回饋活動
+let tempEditorUids = [];           // 專案 modal 中暫存的邀請編輯 UID
+let tempEditorEmails = [];        // 對應的 email（儲存用）
+let tempEditorDisplayNames = [];  // 對應的顯示名稱（列表顯示用）
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
 let recSelectedSubCategory = null;
@@ -397,6 +404,10 @@ const projectNameInput      = document.getElementById('projectNameInput');
 const projectMembersInput   = document.getElementById('projectMembersInput');
 const projectCurrencySelect = document.getElementById('projectCurrencySelect');
 const projectRateToTwdInput = document.getElementById('projectRateToTwdInput');
+const projectInviteEditorsWrap = document.getElementById('projectInviteEditorsWrap');
+const projectInviteEmailInput = document.getElementById('projectInviteEmailInput');
+const projectInviteBtn = document.getElementById('projectInviteBtn');
+const projectEditorsList = document.getElementById('projectEditorsList');
 const projectDateRangeInput = document.getElementById('projectDateRangeInput');
 const projectStartInput     = document.getElementById('projectStartInput');
 const projectEndInput       = document.getElementById('projectEndInput');
@@ -413,10 +424,14 @@ const recordProjectSelect   = document.getElementById('recordProjectSelect');
 const recordProjectGroup    = document.getElementById('recordProjectGroup');
 const rewardActivityGroup   = document.getElementById('rewardActivityGroup');
 const rewardActivitySelect  = document.getElementById('rewardActivitySelect');
-const rewardActivityList    = document.getElementById('rewardActivityList');
-const addRewardActivityBtn  = document.getElementById('addRewardActivityBtn');
+const rewardActivityModalOverlay   = document.getElementById('rewardActivityModalOverlay');
+const rewardActivityModalList     = document.getElementById('rewardActivityModalList');
+const addRewardInModalBtn         = document.getElementById('addRewardInModalBtn');
+const saveRewardActivityBtn       = document.getElementById('saveRewardActivityBtn');
+const closeRewardActivityModalBtn = document.getElementById('closeRewardActivityModalBtn');
 const projectRewardSection  = document.getElementById('projectRewardSection');
 const projectRewardList     = document.getElementById('projectRewardList');
+const projectRewardManageBtn = document.getElementById('projectRewardManageBtn');
 const splitGroup            = document.getElementById('splitGroup');
 const splitEnableToggle     = document.getElementById('splitEnableToggle');
 const splitDetail           = document.getElementById('splitDetail');
@@ -601,6 +616,12 @@ onAuthStateChanged(auth, (user) => {
   hideSplash();
   if (user) {
     currentUser = user;
+    // 寫入/更新 users 集合，供專案邀請時以 email 查詢
+    const email = (user.email || '').trim().toLowerCase();
+    const displayName = (user.displayName || user.email || '').trim() || '使用者';
+    if (email) {
+      setDoc(doc(db, 'users', user.uid), { uid: user.uid, email, displayName }, { merge: true }).catch(() => {});
+    }
     showApp(user);
     subscribeRecords();
     subscribeAccounts();
@@ -626,6 +647,7 @@ onAuthStateChanged(auth, (user) => {
     allCategories = [];
     allBudgets    = [];
     allProjects   = [];
+    sharedProjectRecords = {};
   }
 });
 
@@ -871,15 +893,52 @@ function subscribeBudgets() {
   });
 }
 
-// ===== 專案訂閱 =====
+// ===== 專案訂閱（自己建立的 + 被邀請的）=====
 function subscribeProjects() {
-  const q = query(collection(db, 'projects'), where('uid', '==', currentUser.uid));
-  unsubProjects = onSnapshot(q, snap => {
-    allProjects = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+  const qOwn = query(collection(db, 'projects'), where('uid', '==', currentUser.uid));
+  const qInvited = query(collection(db, 'projects'), where('editorUids', 'array-contains', currentUser.uid));
+
+  const mergeAndApply = (ownSnap, invitedSnap) => {
+    const byId = new Map();
+    (ownSnap?.docs || []).forEach(d => byId.set(d.id, { docId: d.id, ...d.data() }));
+    (invitedSnap?.docs || []).forEach(d => { if (!byId.has(d.id)) byId.set(d.id, { docId: d.id, ...d.data() }); });
+    allProjects = Array.from(byId.values())
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     if (currentPage === 'projects') renderProjectList();
     if (currentPage === 'projectDetail') renderProjectDetail();
     updateRecordProjectSelect();
+    subscribeSharedProjectRecords();
+  };
+
+  let ownSnap = null, invitedSnap = null;
+  const maybeApply = () => { if (ownSnap && invitedSnap) mergeAndApply(ownSnap, invitedSnap); };
+
+  const unsubOwn = onSnapshot(qOwn, snap => { ownSnap = snap; maybeApply(); });
+  const unsubInvited = onSnapshot(qInvited, snap => { invitedSnap = snap; maybeApply(); });
+  unsubProjects = () => { unsubOwn(); unsubInvited(); if (unsubSharedProjectRecords) unsubSharedProjectRecords(); };
+}
+
+function subscribeSharedProjectRecords() {
+  if (unsubSharedProjectRecords) { unsubSharedProjectRecords(); unsubSharedProjectRecords = null; }
+  const sharedIds = allProjects.filter(p => p.uid !== currentUser.uid).map(p => p.docId);
+  if (sharedIds.length === 0) {
+    sharedProjectRecords = {};
+    if (currentPage === 'projects') renderProjectList();
+    if (currentPage === 'projectDetail') renderProjectDetail();
+    return;
+  }
+  const ids = sharedIds.slice(0, 30); // Firestore 'in' 最多 30
+  const q = query(collection(db, 'records'), where('projectId', 'in', ids));
+  unsubSharedProjectRecords = onSnapshot(q, snap => {
+    const byProject = {};
+    ids.forEach(id => { byProject[id] = []; });
+    snap.docs.forEach(d => {
+      const r = { docId: d.id, ...d.data() };
+      if (r.projectId && byProject[r.projectId]) byProject[r.projectId].push(r);
+    });
+    sharedProjectRecords = byProject;
+    if (currentPage === 'projects') renderProjectList();
+    if (currentPage === 'projectDetail') renderProjectDetail();
   });
 }
 
@@ -921,6 +980,17 @@ function renderProjectList() {
 }
 
 /**
+ * 取得某專案底下的所有記帳（自己建立的用 allRecords，被邀請的用 sharedProjectRecords）。
+ */
+function getProjectRecords(proj) {
+  if (!proj?.docId) return [];
+  if (proj.uid === currentUser?.uid) {
+    return allRecords.filter(r => r.projectId === proj.docId);
+  }
+  return sharedProjectRecords[proj.docId] || [];
+}
+
+/**
  * 專案情境下該筆記錄的台幣金額（顯示／加總用）。
  * 若專案有設匯率且記錄幣別相符，用專案匯率換算；否則用儲存的 amount。
  */
@@ -934,8 +1004,8 @@ function getProjectRecordTwdAmount(record, project) {
 }
 
 function calcProjectTotal(proj) {
-  return allRecords
-    .filter(r => r.projectId === proj.docId && r.type === 'expense')
+  return getProjectRecords(proj)
+    .filter(r => r.type === 'expense')
     .reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
 }
 
@@ -952,6 +1022,14 @@ function openProjectModal(proj = null) {
   projectEndInput.value        = proj?.endDate   || '';
   if (projectCurrencySelect) projectCurrencySelect.value = proj?.currency || '';
   if (projectRateToTwdInput) projectRateToTwdInput.value = proj?.rateToTwd != null ? String(proj.rateToTwd) : '';
+  tempEditorUids = proj ? [...(proj.editorUids || [])] : [];
+  tempEditorEmails = proj ? [...(proj.editorEmails || [])] : [];
+  tempEditorDisplayNames = proj ? [...(proj.editorDisplayNames || [])] : [];
+  if (projectInviteEditorsWrap) {
+    projectInviteEditorsWrap.style.display = (!proj || proj.uid === currentUser?.uid) ? '' : 'none';
+    renderProjectEditorsList();
+  }
+  if (projectInviteEmailInput) projectInviteEmailInput.value = '';
   deleteProjectBtn.style.display = proj ? '' : 'none';
   if (projectDateRangePicker) {
     if (proj?.startDate && proj?.endDate) {
@@ -960,13 +1038,28 @@ function openProjectModal(proj = null) {
       projectDateRangePicker.clear();
     }
   }
-  tempRewardActivities = (proj?.rewardActivities || []).map(a => ({ ...a }));
-  renderRewardActivityEditor();
   projectModalOverlay.classList.add('active');
 }
 
-function renderRewardActivityEditor() {
-  rewardActivityList.innerHTML = '';
+let rewardActivityModalProjectId = null;
+
+function openRewardActivityModal(proj) {
+  if (!proj?.docId) return;
+  rewardActivityModalProjectId = proj.docId;
+  tempRewardActivities = (proj.rewardActivities || []).map(a => ({ ...a }));
+  renderRewardActivityEditor(rewardActivityModalList);
+  rewardActivityModalOverlay?.classList.add('active');
+}
+
+function closeRewardActivityModal() {
+  rewardActivityModalOverlay?.classList.remove('active');
+  rewardActivityModalProjectId = null;
+}
+
+function renderRewardActivityEditor(container) {
+  const listEl = container || rewardActivityModalList;
+  if (!listEl) return;
+  listEl.innerHTML = '';
   tempRewardActivities.forEach((act, idx) => {
     const row = document.createElement('div');
     row.className = 'reward-edit-row';
@@ -996,16 +1089,119 @@ function renderRewardActivityEditor() {
     });
     row.querySelector('.reward-del-btn').addEventListener('click', () => {
       tempRewardActivities.splice(idx, 1);
-      renderRewardActivityEditor();
+      renderRewardActivityEditor(listEl);
     });
-    rewardActivityList.appendChild(row);
+    listEl.appendChild(row);
   });
 }
 
-addRewardActivityBtn.addEventListener('click', () => {
-  tempRewardActivities.push({ id: `r_${Date.now()}`, name: '', limit: 0, currency: 'TWD' });
-  renderRewardActivityEditor();
-});
+if (addRewardInModalBtn) {
+  addRewardInModalBtn.addEventListener('click', () => {
+    tempRewardActivities.push({ id: `r_${Date.now()}`, name: '', limit: 0, currency: 'TWD' });
+    renderRewardActivityEditor(rewardActivityModalList);
+  });
+}
+
+if (saveRewardActivityBtn) {
+  saveRewardActivityBtn.addEventListener('click', async () => {
+    if (!rewardActivityModalProjectId) return;
+    const rewardActivities = tempRewardActivities.filter(a => (a.name || '').trim());
+    saveRewardActivityBtn.disabled = true;
+    try {
+      await updateDoc(doc(db, 'projects', rewardActivityModalProjectId), { rewardActivities });
+      closeRewardActivityModal();
+      renderProjectDetail();
+    } catch (err) {
+      console.error(err);
+      alert('儲存失敗，請稍後再試');
+    } finally {
+      saveRewardActivityBtn.disabled = false;
+    }
+  });
+}
+
+if (closeRewardActivityModalBtn) closeRewardActivityModalBtn.addEventListener('click', closeRewardActivityModal);
+if (rewardActivityModalOverlay) rewardActivityModalOverlay.addEventListener('click', e => { if (e.target === rewardActivityModalOverlay) closeRewardActivityModal(); });
+
+function renderProjectEditorsList() {
+  if (!projectEditorsList) return;
+  projectEditorsList.innerHTML = '';
+  tempEditorUids.forEach((uid, idx) => {
+    const row = document.createElement('div');
+    row.className = 'project-editor-row';
+    const displayName = tempEditorDisplayNames[idx] || tempEditorEmails[idx] || uid;
+    row.innerHTML = `<span class="project-editor-name"></span><button type="button" class="project-editor-remove" data-idx="${idx}">移除</button>`;
+    row.querySelector('.project-editor-name').textContent = displayName;
+    row.querySelector('.project-editor-remove').addEventListener('click', () => {
+      tempEditorUids.splice(idx, 1);
+      tempEditorEmails.splice(idx, 1);
+      tempEditorDisplayNames.splice(idx, 1);
+      renderProjectEditorsList();
+    });
+    projectEditorsList.appendChild(row);
+  });
+}
+
+function addInvitedNameToMembersList(displayName) {
+  if (!projectMembersInput || !displayName) return;
+  const raw = (projectMembersInput.value || '').trim();
+  const others = raw.split(/[,，、]/).map(s => s.trim()).filter(s => s && s !== '我');
+  if (others.includes(displayName)) return;
+  others.push(displayName);
+  projectMembersInput.value = others.join('、');
+}
+
+if (projectInviteBtn) {
+  projectInviteBtn.addEventListener('click', async () => {
+    const raw = (projectInviteEmailInput?.value || '').trim();
+    if (!raw) return;
+    try {
+      let snap;
+      if (raw.includes('@')) {
+        const email = raw.toLowerCase();
+        snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+        if (snap.empty) {
+          alert('找不到此 Email 的帳號，請對方先用此 Email 登入過本 App 一次');
+          return;
+        }
+      } else {
+        const name = raw;
+        snap = await getDocs(query(collection(db, 'users'), where('displayName', '==', name)));
+        if (snap.empty) {
+          alert('找不到此顯示名稱的帳號，請對方先登入過本 App 一次，或改用 Email 邀請');
+          return;
+        }
+        if (snap.size > 1) {
+          const emails = snap.docs.map(d => d.data().email || d.id).join('、');
+          alert(`有多人使用「${name}」，請改用 Email 邀請：\n${emails}`);
+          return;
+        }
+      }
+      const userDoc = snap.docs[0];
+      const uid = userDoc.id;
+      const data = userDoc.data();
+      const email = data.email || '';
+      const displayName = (data.displayName || email || uid).trim() || '使用者';
+      if (uid === currentUser?.uid) {
+        alert('不能邀請自己');
+        return;
+      }
+      if (tempEditorUids.includes(uid)) {
+        alert('已邀請過此人了');
+        return;
+      }
+      tempEditorUids.push(uid);
+      tempEditorEmails.push(email);
+      tempEditorDisplayNames.push(displayName);
+      addInvitedNameToMembersList(displayName);
+      renderProjectEditorsList();
+      if (projectInviteEmailInput) projectInviteEmailInput.value = '';
+    } catch (err) {
+      console.error(err);
+      alert('查詢失敗，請稍後再試');
+    }
+  });
+}
 
 function closeProjectModal() {
   projectModalOverlay.classList.remove('active');
@@ -1062,7 +1258,7 @@ projectForm.addEventListener('submit', async e => {
   const editId    = projectEditId.value;
   const currency = projectCurrencySelect?.value?.trim() || null;
   const rateToTwd = projectRateToTwdInput?.value ? parseFloat(projectRateToTwdInput.value) : null;
-  const rewardActivities = tempRewardActivities.filter(a => a.name.trim());
+  const rewardActivities = editId ? (allProjects.find(p => p.docId === editId)?.rewardActivities || []) : [];
   projectSubmitBtn.disabled = true;
   try {
     const payload = { name, members, startDate, endDate, rewardActivities };
@@ -1073,6 +1269,9 @@ projectForm.addEventListener('submit', async e => {
       payload.currency = null;
       payload.rateToTwd = null;
     }
+    payload.editorUids = tempEditorUids || [];
+    payload.editorEmails = tempEditorEmails || [];
+    payload.editorDisplayNames = tempEditorDisplayNames || [];
     if (editId) {
       await updateDoc(doc(db, 'projects', editId), payload);
     } else {
@@ -1090,12 +1289,8 @@ deleteProjectBtn.addEventListener('click', async () => {
   const editId = projectEditId.value;
   if (!editId) return;
 
-  // 查詢該專案底下的記錄數量
-  const q = query(
-    collection(db, 'records'),
-    where('uid', '==', currentUser.uid),
-    where('projectId', '==', editId)
-  );
+  // 查詢該專案底下所有記錄（含協作者的），刪除專案時一併移除
+  const q = query(collection(db, 'records'), where('projectId', '==', editId));
   const snap = await getDocs(q);
   const count = snap.size;
 
@@ -1105,7 +1300,6 @@ deleteProjectBtn.addEventListener('click', async () => {
 
   if (!confirm(msg)) return;
 
-  // 刪除所有相關記錄
   const batch = [];
   snap.forEach(d => batch.push(deleteDoc(doc(db, 'records', d.id))));
   await Promise.all(batch);
@@ -1127,6 +1321,7 @@ function renderProjectDetail() {
   const proj = allProjects.find(p => p.docId === currentProjectId);
   if (!proj) return;
 
+  if (projectEditBtn) projectEditBtn.style.display = proj.uid === currentUser?.uid ? '' : 'none';
   if (projectDetailName) projectDetailName.textContent = proj.name;
   const dateStr = proj.startDate && proj.endDate
     ? `${proj.startDate} ～ ${proj.endDate}`
@@ -1135,8 +1330,8 @@ function renderProjectDetail() {
   projectDetailMembers.textContent = proj.members?.length
     ? `👥 ${proj.members.join('、')}` : '';
 
-  // 此專案的所有支出記錄
-  const recs = allRecords.filter(r => r.projectId === proj.docId && r.type === 'expense');
+  // 此專案的所有支出記錄（含被邀請專案時他人記的）
+  const recs = getProjectRecords(proj).filter(r => r.type === 'expense');
 
   // 結算計算
   renderProjectSettle(proj, recs);
@@ -1323,14 +1518,17 @@ async function doSettle(proj, recs, myNet) {
 }
 
 function renderProjectReward(proj, recs) {
+  if (!projectRewardSection) return;
+  projectRewardSection.style.display = '';
   const acts = (proj.rewardActivities || []).filter(a => a.name);
+  projectRewardList.innerHTML = '';
   if (acts.length === 0) {
-    projectRewardSection.style.display = 'none';
+    const empty = document.createElement('div');
+    empty.className = 'project-reward-empty';
+    empty.textContent = '尚無回饋活動，點「管理回饋活動」新增';
+    projectRewardList.appendChild(empty);
     return;
   }
-  projectRewardSection.style.display = '';
-  projectRewardList.innerHTML = '';
-
   acts.forEach(act => {
     const currency  = act.currency || 'TWD';
     // 回饋追蹤：
@@ -1375,6 +1573,13 @@ projectEditBtn.addEventListener('click', () => {
   const proj = allProjects.find(p => p.docId === currentProjectId);
   if (proj) openProjectModal(proj);
 });
+
+if (projectRewardManageBtn) {
+  projectRewardManageBtn.addEventListener('click', () => {
+    const proj = allProjects.find(p => p.docId === currentProjectId);
+    if (proj) openRewardActivityModal(proj);
+  });
+}
 
 // ===== 記帳 modal 的專案選單 =====
 function updateRecordProjectSelect() {

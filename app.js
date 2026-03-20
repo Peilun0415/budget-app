@@ -3915,6 +3915,18 @@ function renderCatPickerParents(forceType = null) {
     catPickerParents.appendChild(item);
   });
 
+  // 允許在選擇分類時直接新增主分類（放在最下面）
+  const addParentBtn = document.createElement('button');
+  addParentBtn.type = 'button';
+  addParentBtn.className = 'cat-picker-action-btn';
+  addParentBtn.textContent = '＋ 新增主分類';
+  addParentBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    catSelectedType = typeToShow;
+    openCatModal(null, null);
+  });
+  catPickerParents.appendChild(addParentBtn);
+
   if (activeParent) renderCatPickerSubs(activeParent);
 }
 
@@ -3947,6 +3959,19 @@ function renderCatPickerSubs(parentCat) {
       catPickerSubs.appendChild(item);
     });
   }
+
+  // 允許在選擇分類時直接新增子分類（放在最下面）
+  const addSubBtn = document.createElement('button');
+  addSubBtn.type = 'button';
+  addSubBtn.className = 'cat-picker-action-btn';
+  addSubBtn.textContent = '＋ 新增子分類';
+  addSubBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!parentCat) return;
+    catSelectedType = parentCat.type || currentType;
+    openCatModal(null, parentCat);
+  });
+  catPickerSubs.appendChild(addSubBtn);
 }
 
 // 更新金額列上的分類按鈕顯示
@@ -4454,6 +4479,14 @@ deleteCatBtn.addEventListener('click', async () => {
 });
 
 function openCatModal(catDoc = null, parentDoc = null) {
+  // 若是從「選擇分類」彈窗新增，先關掉 picker（z-index 較高），避免新增表單被蓋住
+  if (catPickerOverlay?.classList.contains('active')) {
+    window._catPickerWasActive = true;
+    catPickerOverlay.classList.remove('active');
+  } else {
+    window._catPickerWasActive = false;
+  }
+
   // catDoc: 編輯對象（null = 新增）
   // parentDoc: 若新增/編輯子分類，傳入主分類
   const isParent = !parentDoc;
@@ -4488,6 +4521,11 @@ function openCatModal(catDoc = null, parentDoc = null) {
 
 function closeCatModal() {
   catModalOverlay.classList.remove('active');
+  // 新增/編輯完成後若原本是在「選擇分類」流程，回到 picker
+  if (window._catPickerWasActive) {
+    window._catPickerWasActive = false;
+    openCatPicker();
+  }
 }
 
 catForm.addEventListener('submit', async (e) => {

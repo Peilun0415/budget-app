@@ -4269,6 +4269,7 @@ input.form-input {
   padding: 12px 14px;
   box-shadow: var(--shadow);
   gap: 10px;
+  position: relative;
 }
 .project-record-item-clickable {
   cursor: pointer;
@@ -4310,9 +4311,24 @@ input.form-input {
 
 .project-rec-right {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.project-rec-badge{
+  position: relative;
+  height: 16px;
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.project-rec-right-top {
+  display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  justify-content: flex-end;
 }
 .project-rec-amount-wrap {
   display: flex;
@@ -4335,6 +4351,27 @@ input.form-input {
 .project-rec-edit-icon {
   font-size: 13px;
   opacity: 0.45;
+  position: absolute;
+  right: 0;
+  top: 0;
+  line-height: 1;
+  margin: 0;
+}
+
+.project-rec-edit-icon.is-hidden,
+.project-rec-creator.is-hidden {
+  visibility: hidden;
+}
+
+.project-rec-creator {
+  font-size: 11px;
+  color: var(--text-light);
+  line-height: 1.1;
+  opacity: 0.9;
+  position: absolute;
+  right: 0;
+  top: 0;
+  white-space: nowrap;
 }
 
 .project-rec-split {

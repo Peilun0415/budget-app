@@ -1679,12 +1679,13 @@ function renderProjectDetail() {
         : '';
       const foreignLine = r.foreignAmount && r.foreignCurrency ? `${r.foreignCurrency} ${formatMoney(r.foreignAmount)}` : '';
       const creatorText = `建立者：${getRecordCreatorLabel(r, proj)}`;
+      const isCreator = canModifyRecord(r);
       item.innerHTML = `
         <div class="project-rec-left">
           <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
           <div class="project-rec-info">
             <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
-            <div class="project-rec-meta">${[r.note, creatorText].filter(Boolean).join(' · ')}</div>
+            <div class="project-rec-meta">${r.note || ''}</div>
             ${splitSummary ? `<div class="project-rec-split-summary">${splitSummary}</div>` : ''}
           </div>
         </div>
@@ -1693,8 +1694,12 @@ function renderProjectDetail() {
             <span class="project-rec-amount">-$${formatMoney(recTwd)}</span>
             ${foreignLine ? `<span class="project-rec-foreign">${foreignLine}</span>` : ''}
           </div>
-          <span class="project-rec-edit-icon">✏️</span>
-        </div>`;
+          <div class="project-rec-badge">
+            <span class="project-rec-edit-icon ${isCreator ? '' : 'is-hidden'}">✏️</span>
+            <span class="project-rec-creator ${isCreator ? 'is-hidden' : ''}">${creatorText}</span>
+          </div>
+        </div>
+        `;
       item.addEventListener('click', () => openModal(r));
       projectRecordList.appendChild(item);
     });

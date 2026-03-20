@@ -821,7 +821,7 @@ function switchPage(page) {
   navProjectsBtn.classList.toggle('active', page === 'projects' || page === 'projectDetail');
   navReportBtn.classList.toggle('active',   page === 'report');
   navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring' || page === 'budget');
-  if (page === 'home')          pageTitle.textContent = '我的記帳本';
+  if (page === 'home')          pageTitle.textContent = '貓貓記帳';
   if (page === 'accounts')      pageTitle.textContent = '帳戶管理';
   if (page === 'accountDetail') pageTitle.textContent = '帳戶明細';
   if (page === 'categories')    pageTitle.textContent = '分類管理';

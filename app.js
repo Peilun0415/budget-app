@@ -161,7 +161,7 @@ let allProjects    = [];
 let unsubProjects  = null;
 let currentProjectId = null; // 目前查看的專案 docId
 let splitMode      = 'equal'; // 'equal' | 'custom'
-/** 被邀請的專案其記帳（key = projectId），不與 allRecords 合併，僅在專案頁使用 */
+/** 專案記帳快取（key = projectId），不與 allRecords 合併，僅在專案頁使用 */
 let sharedProjectRecords = {};
 let unsubSharedProjectRecords = null;
 let tempRewardActivities = []; // 專案 modal 中暫存的回饋活動
@@ -169,12 +169,192 @@ let tempEditorUids = [];           // 專案 modal 中暫存的邀請編輯 UID
 let tempEditorEmails = [];        // 對應的 email（儲存用）
 let tempEditorDisplayNames = [];  // 對應的顯示名稱（列表顯示用）
 
-function getMemberLabel(name, proj) {
-  const ownerName = proj?.ownerDisplayName || '';
-  if (name === '我' && ownerName) {
-    return ownerName;
+function getProjectMemberEntries(proj) {
+  if (!proj) return [];
+  const entries = [];
+  const ownerLabel = (proj.ownerDisplayName || '專案建立者').trim();
+
+  const pushEntry = (uid, label) => {
+    if (!uid) return;
+    const cleanLabel = (label ?? '').trim();
+    if (!cleanLabel) return;
+    if (entries.some(e => e.uid === uid)) return;
+    entries.push({ uid, label: cleanLabel });
+  };
+
+  // 1) 先用 uid 架構來源（新/完整資料）
+  if (proj.uid) pushEntry(proj.uid, ownerLabel);
+  (proj.editorUids || []).forEach((uid, idx) => {
+    if (!uid) return;
+    const label = (proj.editorDisplayNames?.[idx] || proj.editorEmails?.[idx] || uid).trim();
+    pushEntry(uid, label);
+  });
+
+  // 2) 補上舊資料：proj.members 可能只有名稱，沒有 uid
+  const selfAliases = [
+    currentUser?.displayName,
+    currentUser?.email,
+  ].map(v => (v ?? '').trim()).filter(Boolean);
+
+  (proj.members || []).forEach(m => {
+    const name = (m ?? '').trim();
+    if (!name) return;
+    if (name === '我') {
+      if (proj.uid) pushEntry(proj.uid, ownerLabel);
+      else pushEntry(`legacy:__owner__`, ownerLabel);
+      return;
+    }
+    // 若這個名稱已存在於 entries，直接跳過
+    if (entries.some(e => e.label === name)) return;
+
+    // 若剛好對得上目前登入者的名稱/Email，就用真實 currentUser.uid
+    if (currentUser?.uid && selfAliases.includes(name)) {
+      const label = (currentUser.displayName || currentUser.email || name).trim();
+      pushEntry(currentUser.uid, label);
+      return;
+    }
+
+    // 其他 uid 不存在的成員，使用 synthetic uid 確保同一名稱能被穩定解析
+    pushEntry(`legacy:${name}`, name);
+  });
+
+  return entries;
+}
+
+function getProjectMemberLabelByUid(proj, uid) {
+  if (!uid) return '未命名成員';
+  const hit = getProjectMemberEntries(proj).find(m => m.uid === uid);
+  return hit?.label || uid;
+}
+
+function resolveProjectMemberUid(proj, value, fallbackUid = null) {
+  if (!value) return fallbackUid;
+  // 舊資料相容：proj.members 可能存的是字面「我」
+  if (value === '我' && proj?.uid) return proj.uid;
+  const members = getProjectMemberEntries(proj);
+  const byUid = members.find(m => m.uid === value);
+  if (byUid) return byUid.uid;
+  const byLabel = members.find(m => m.label === value);
+  if (byLabel) return byLabel.uid;
+  return fallbackUid;
+}
+
+function getMemberLabel(member, proj) {
+  if (!proj) return member;
+  const uid = resolveProjectMemberUid(proj, member);
+  return uid ? getProjectMemberLabelByUid(proj, uid) : member;
+}
+
+function getRecordCreatorLabel(record, proj = null) {
+  if (!record) return '使用者';
+  const uid = record.uid || '';
+  if (uid && uid === currentUser?.uid) {
+    return (currentUser?.displayName || currentUser?.email || '使用者').trim() || '使用者';
   }
-  return name;
+  if (proj) {
+    if (uid && uid === proj.uid) {
+      return (proj.ownerDisplayName || '專案建立者').trim();
+    }
+    const idx = (proj.editorUids || []).indexOf(uid);
+    if (idx >= 0) {
+      return (proj.editorDisplayNames?.[idx] || proj.editorEmails?.[idx] || '專案成員').trim();
+    }
+  }
+  return '使用者';
+}
+
+function resolveRecordSplitPayerUid(record, proj = null) {
+  if (!record) return null;
+  if (record.splitPayerUid) return record.splitPayerUid;
+  if (record.uid && !record.splitPayer) return record.uid;
+  const targetProj = proj || (record.projectId ? allProjects.find(p => p.docId === record.projectId) : null);
+  return resolveProjectMemberUid(targetProj, record.splitPayer, record.uid || null);
+}
+
+function getCurrentUserSplitUid(record) {
+  if (!record?.splitData?.length) return currentUser?.uid || null;
+  const proj = record.projectId ? allProjects.find(p => p.docId === record.projectId) : null;
+  const uidHit = record.splitData.find(s => s.uid && s.uid === currentUser?.uid);
+  if (uidHit) return uidHit.uid;
+  const members = getProjectMemberEntries(proj);
+  const aliases = members.filter(m => m.uid === currentUser?.uid).map(m => m.label);
+  const nameHit = record.splitData.find(s => s.name && aliases.includes(s.name));
+  if (nameHit) return currentUser?.uid || null;
+  if (record.uid === currentUser?.uid) return currentUser?.uid || null;
+  return null;
+}
+
+function getCurrentUserMemberUid(proj) {
+  if (!proj) return currentUser?.uid || null;
+  return resolveProjectMemberUid(
+    proj,
+    currentUser?.uid,
+    currentUser?.uid || null
+  );
+}
+
+function getCurrentUserMemberLabel(proj) {
+  const uid = getCurrentUserMemberUid(proj);
+  if (!uid) return (currentUser?.displayName || currentUser?.email || '使用者');
+  return getProjectMemberLabelByUid(proj, uid);
+}
+
+function getCurrentUserSplitPayerLabel(record) {
+  const proj = record?.projectId ? allProjects.find(p => p.docId === record.projectId) : null;
+  const uid = resolveRecordSplitPayerUid(record, proj);
+  if (uid && proj) return getProjectMemberLabelByUid(proj, uid);
+  if (uid && uid === currentUser?.uid) return (currentUser?.displayName || currentUser?.email || '使用者');
+  return record?.splitPayer || '使用者';
+}
+
+function getCurrentUserSplitShare(record) {
+  const uid = getCurrentUserSplitUid(record);
+  if (!uid) return 0;
+  return getMemberShareTwd(record, uid, record?.projectId ? allProjects.find(p => p.docId === record.projectId) : null);
+}
+
+function isLegacySelfLabel(value) {
+  return value === '我';
+}
+
+function resolveLegacySelfToUid(value, proj, fallbackUid) {
+  if (isLegacySelfLabel(value)) return fallbackUid || currentUser?.uid || null;
+  return resolveProjectMemberUid(proj, value, fallbackUid);
+}
+
+function normalizeSplitMemberUid(splitItem, proj, fallbackUid = null) {
+  if (!splitItem) return null;
+  if (splitItem.uid) return splitItem.uid;
+  return resolveLegacySelfToUid(splitItem.name, proj, fallbackUid);
+}
+
+function normalizeSplitPayerUid(record, proj, fallbackUid = null) {
+  if (!record) return null;
+  if (record.splitPayerUid) return record.splitPayerUid;
+  return resolveLegacySelfToUid(record.splitPayer, proj, fallbackUid || record.uid || null);
+}
+
+function hasSplitForCurrentUser(record) {
+  const uid = getCurrentUserSplitUid(record);
+  if (!uid || !record?.splitData?.length) return false;
+  return record.splitData.some(s => normalizeSplitMemberUid(s, record.projectId ? allProjects.find(p => p.docId === record.projectId) : null) === uid);
+}
+
+function isCurrentUserSplitPayerByUid(record) {
+  const payerUid = resolveRecordSplitPayerUid(record);
+  return !!payerUid && payerUid === currentUser?.uid;
+}
+
+function isCurrentUserSplitPayer(record) {
+  return isCurrentUserSplitPayerByUid(record);
+}
+
+function getCurrentUserSplitName(record) {
+  const uid = getCurrentUserSplitUid(record);
+  if (!uid) return (currentUser?.displayName || currentUser?.email || '使用者');
+  const proj = record.projectId ? allProjects.find(p => p.docId === record.projectId) : null;
+  if (proj) return getProjectMemberLabelByUid(proj, uid);
+  return (currentUser?.displayName || currentUser?.email || uid);
 }
 // 固定收支彈窗暫存的分類選擇
 let recSelectedCategory    = null;
@@ -890,6 +1070,7 @@ if (exportDataBtn) {
       foreignCurrency: r.foreignCurrency || '',
       foreignAmount: r.foreignAmount ?? null,
       splitPayer: r.splitPayer || '',
+      splitPayerUid: r.splitPayerUid || '',
       splitData: r.splitData || null,
       isSettlement: !!r.isSettlement,
       settlementProjectId: r.settlementProjectId || '',
@@ -918,7 +1099,7 @@ if (exportDataBtn) {
       'date','type','amount','accountName',
       'categoryName','subCategoryName',
       'note','projectName','foreignCurrency','foreignAmount',
-      'splitPayer','splitData','isSettlement'
+      'splitPayer','splitPayerUid','splitData','isSettlement'
     ];
     const idHeaders = ['id','accountId','categoryId','subCategoryId','projectId','settlementProjectId','createdAtSeconds'];
     const headers = includeIds ? [...idHeaders, ...baseHeaders] : baseHeaders;
@@ -1020,14 +1201,14 @@ function subscribeProjects() {
 
 function subscribeSharedProjectRecords() {
   if (unsubSharedProjectRecords) { unsubSharedProjectRecords(); unsubSharedProjectRecords = null; }
-  const sharedIds = allProjects.filter(p => p.uid !== currentUser.uid).map(p => p.docId);
-  if (sharedIds.length === 0) {
+  const projectIds = allProjects.map(p => p.docId).filter(Boolean);
+  if (projectIds.length === 0) {
     sharedProjectRecords = {};
     if (currentPage === 'projects') renderProjectList();
     if (currentPage === 'projectDetail') renderProjectDetail();
     return;
   }
-  const ids = sharedIds.slice(0, 30); // Firestore 'in' 最多 30
+  const ids = projectIds.slice(0, 30); // Firestore 'in' 最多 30
   const q = query(collection(db, 'records'), where('projectId', 'in', ids));
   unsubSharedProjectRecords = onSnapshot(q, snap => {
     const byProject = {};
@@ -1084,10 +1265,25 @@ function renderProjectList() {
  */
 function getProjectRecords(proj) {
   if (!proj?.docId) return [];
-  if (proj.uid === currentUser?.uid) {
-    return allRecords.filter(r => r.projectId === proj.docId);
+  const fromQuery = sharedProjectRecords[proj.docId] || [];
+  if (fromQuery.length > 0) return fromQuery;
+  // fallback：避免查詢尚未完成時畫面短暫為空
+  return allRecords.filter(r => r.projectId === proj.docId);
+}
+
+function findRecordById(docId) {
+  if (!docId) return null;
+  const mine = allRecords.find(r => r.docId === docId);
+  if (mine) return mine;
+  for (const pid of Object.keys(sharedProjectRecords || {})) {
+    const rec = (sharedProjectRecords[pid] || []).find(r => r.docId === docId);
+    if (rec) return rec;
   }
-  return sharedProjectRecords[proj.docId] || [];
+  return null;
+}
+
+function canModifyRecord(record) {
+  return !!record && record.uid === currentUser?.uid;
 }
 
 /**
@@ -1117,7 +1313,17 @@ function openProjectModal(proj = null) {
   projectEditId.value          = proj ? proj.docId : '';
   projectModalTitle.textContent = proj ? '編輯專案' : '新增專案';
   projectNameInput.value       = proj ? proj.name : '';
-  projectMembersInput.value    = proj ? (proj.members || []).filter(m => m !== '我').join('、') : '';
+  projectMembersInput.value    = proj
+    ? (proj.members || [])
+        .filter(m => {
+          const mm = (m ?? '').trim();
+          if (!mm) return false;
+          if (mm === '我') return false;
+          if (mm === (proj.ownerDisplayName || '').trim()) return false;
+          return true;
+        })
+        .join('、')
+    : '';
   projectStartInput.value      = proj?.startDate || '';
   projectEndInput.value        = proj?.endDate   || '';
   if (projectCurrencySelect) projectCurrencySelect.value = proj?.currency || '';
@@ -1245,7 +1451,7 @@ function renderProjectEditorsList() {
 function addInvitedNameToMembersList(displayName) {
   if (!projectMembersInput || !displayName) return;
   const raw = (projectMembersInput.value || '').trim();
-  const others = raw.split(/[,，、]/).map(s => s.trim()).filter(s => s && s !== '我');
+  const others = raw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
   if (others.includes(displayName)) return;
   others.push(displayName);
   projectMembersInput.value = others.join('、');
@@ -1351,8 +1557,9 @@ if (projectDateRangeInput) {
 projectForm.addEventListener('submit', async e => {
   e.preventDefault();
   const name    = projectNameInput.value.trim();
-  const others  = projectMembersInput.value.split(/[,，、]/).map(s => s.trim()).filter(s => s && s !== '我');
-  const members = ['我', ...others];
+  const ownerDisplayName = (currentUser?.displayName || currentUser?.email || '專案建立者').trim() || '專案建立者';
+  const others  = projectMembersInput.value.split(/[,，、]/).map(s => s.trim()).filter(s => s && s !== ownerDisplayName);
+  const members = [ownerDisplayName, ...others];
   const startDate = projectStartInput.value || null;
   const endDate   = projectEndInput.value   || null;
   const editId    = projectEditId.value;
@@ -1361,7 +1568,6 @@ projectForm.addEventListener('submit', async e => {
   const rewardActivities = editId ? (allProjects.find(p => p.docId === editId)?.rewardActivities || []) : [];
   projectSubmitBtn.disabled = true;
   try {
-    const ownerDisplayName = (currentUser?.displayName || currentUser?.email || '').trim() || '我';
     const payload = { name, members, startDate, endDate, rewardActivities, ownerDisplayName };
     if (currency && rateToTwd != null && rateToTwd > 0) {
       payload.currency = currency;
@@ -1460,19 +1666,25 @@ function renderProjectDetail() {
       item.className = 'project-record-item project-record-item-clickable';
       const recTwd = getProjectRecordTwdAmount(r, proj);
       const n = r.splitData?.length || 0;
-      const firstAmt = n ? getMemberShareTwd(r, r.splitData[0].name, proj) : 0;
-      const isEqual = n > 1 && r.splitData.every(s => getMemberShareTwd(r, s.name, proj) === firstAmt);
-      const payerLabel = r.splitPayer ? getMemberLabel(r.splitPayer, proj) : '';
+      const firstUid = n ? normalizeSplitMemberUid(r.splitData[0], proj, r.uid || null) : null;
+      const firstAmt = firstUid ? getMemberShareTwd(r, firstUid, proj) : 0;
+      const isEqual = n > 1 && r.splitData.every(s => {
+        const uid = normalizeSplitMemberUid(s, proj, r.uid || null);
+        return uid ? getMemberShareTwd(r, uid, proj) === firstAmt : false;
+      });
+      const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
+      const payerLabel = payerUid ? getProjectMemberLabelByUid(proj, payerUid) : '';
       const splitSummary = r.splitPayer && n > 0
         ? (isEqual ? `${payerLabel} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${payerLabel} 付 · ${n}人分攤`)
         : '';
       const foreignLine = r.foreignAmount && r.foreignCurrency ? `${r.foreignCurrency} ${formatMoney(r.foreignAmount)}` : '';
+      const creatorText = `建立者：${getRecordCreatorLabel(r, proj)}`;
       item.innerHTML = `
         <div class="project-rec-left">
           <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
           <div class="project-rec-info">
             <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
-            ${r.note ? `<div class="project-rec-meta">${r.note}</div>` : ''}
+            <div class="project-rec-meta">${[r.note, creatorText].filter(Boolean).join(' · ')}</div>
             ${splitSummary ? `<div class="project-rec-split-summary">${splitSummary}</div>` : ''}
           </div>
         </div>
@@ -1490,29 +1702,36 @@ function renderProjectDetail() {
 }
 
 function renderProjectSettle(proj, recs) {
-  const members = proj.members || [];
+  const members = getProjectMemberEntries(proj);
   const isSettled = !!(proj.settled?.all);
 
   // 共同花費 / 個人自費分開（專案情境下用專案匯率換算的台幣）
   const sharedRecs  = recs.filter(r => r.splitPayer && r.splitData?.length > 0);
   const selfRecs    = recs.filter(r => !r.splitPayer || !r.splitData?.length);
   const sharedTotal = sharedRecs.reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
-  const selfTotal   = selfRecs.reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
+  // 個人自費應該是「目前登入者」自己的自費（沒有 split 的那種）
+  const viewerUid = currentUser?.uid || null;
+  const selfTotal = viewerUid
+    ? selfRecs
+      .filter(r => r.uid === viewerUid)
+      .reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0)
+    : 0;
 
   // 計算每人淨額（正 = 別人欠他，負 = 他欠別人）
   let myNet = 0;
   let memberTableHtml = '';
   if (members.length >= 2 && sharedRecs.length > 0) {
     const paid = {}, owed = {};
-    members.forEach(m => { paid[m] = 0; owed[m] = 0; });
+    members.forEach(m => { paid[m.uid] = 0; owed[m.uid] = 0; });
     sharedRecs.forEach(r => {
-      const payer = r.splitPayer;
+      const payer = normalizeSplitPayerUid(r, proj, r.uid || null);
       if (paid[payer] !== undefined) paid[payer] += getProjectRecordTwdAmount(r, proj);
       r.splitData.forEach(s => {
-        if (owed[s.name] !== undefined) owed[s.name] += getMemberShareTwd(r, s.name, proj);
+        const uid = normalizeSplitMemberUid(s, proj, r.uid || null);
+        if (uid && owed[uid] !== undefined) owed[uid] += getMemberShareTwd(r, uid, proj);
       });
     });
-    myNet = Math.round((paid['我'] || 0) - (owed['我'] || 0));
+    myNet = Math.round((paid[currentUser?.uid] || 0) - (owed[currentUser?.uid] || 0));
 
     // 每人明細表格
     memberTableHtml = `<div class="settle-member-table">
@@ -1520,14 +1739,14 @@ function renderProjectSettle(proj, recs) {
         <span>成員</span><span>付出</span><span>應付</span><span>淨額</span>
       </div>
       ${members.map(m => {
-        const label = getMemberLabel(m, proj);
-        const n = Math.round((paid[m] || 0) - (owed[m] || 0));
+        const label = m.label;
+        const n = Math.round((paid[m.uid] || 0) - (owed[m.uid] || 0));
         const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : '';
         const netStr = n > 0 ? `+$${formatMoney(n)}` : n < 0 ? `-$${formatMoney(Math.abs(n))}` : '$0';
         return `<div class="settle-member-table-row">
           <span class="settle-m-name">${label}</span>
-          <span class="settle-m-val">$${formatMoney(Math.round(paid[m] || 0))}</span>
-          <span class="settle-m-val">$${formatMoney(Math.round(owed[m] || 0))}</span>
+          <span class="settle-m-val">$${formatMoney(Math.round(paid[m.uid] || 0))}</span>
+          <span class="settle-m-val">$${formatMoney(Math.round(owed[m.uid] || 0))}</span>
           <span class="settle-m-net ${cls}">${netStr}</span>
         </div>`;
       }).join('')}
@@ -1564,7 +1783,7 @@ function renderProjectSettle(proj, recs) {
 }
 
 
-// 結清：一次處理所有跟「我」相關的結清
+// 結清：一次處理所有跟目前登入者相關的結清
 async function doSettle(proj, recs, myNet) {
   const today = new Date().toISOString().slice(0, 10);
   const writes = [];
@@ -1572,11 +1791,12 @@ async function doSettle(proj, recs, myNet) {
   if (myNet < 0) {
     // 我欠別人 → 找出別人付、我有份額的記錄，各自產生一筆支出（帶原分類）
     const mySharedRecs = recs.filter(r =>
-      r.splitPayer && r.splitPayer !== '我' &&
-      r.splitData?.some(s => s.name === '我')
+      !isCurrentUserSplitPayer(r) &&
+      hasSplitForCurrentUser(r)
     );
     mySharedRecs.forEach(r => {
-      const myShare = getMemberShareTwd(r, '我', proj);
+      const myUid = currentUser?.uid;
+      const myShare = myUid ? getMemberShareTwd(r, myUid, proj) : 0;
       if (myShare <= 0) return;
       writes.push(addDoc(collection(db, 'records'), {
         uid: currentUser.uid,
@@ -1727,7 +1947,7 @@ function updateRewardActivitySelect(savedId = null) {
 function updateSplitGroupVisibility(record = null) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
-  if (!proj || !proj.members || proj.members.length < 2) {
+  if (!proj || getProjectMemberEntries(proj).length < 2) {
     splitGroup.style.display = 'none';
     return;
   }
@@ -1736,11 +1956,11 @@ function updateSplitGroupVisibility(record = null) {
 }
 
 function renderSplitUI(proj, record = null) {
-  const members = proj.members || [];
-  const savedPayer  = record?.splitPayer  || null;
+  const members = getProjectMemberEntries(proj);
+  const savedPayerUid = normalizeSplitPayerUid(record, proj, record?.uid || null);
   const savedSplits = record?.splitData   || null;
 
-  const hasSplit = !!(savedPayer && savedSplits?.length);
+  const hasSplit = !!(savedPayerUid && savedSplits?.length);
   if (splitEnableToggle) splitEnableToggle.checked = hasSplit;
   if (splitDetail) splitDetail.style.display = hasSplit ? '' : 'none';
 
@@ -1752,39 +1972,37 @@ function renderSplitUI(proj, record = null) {
 
   splitPayer.innerHTML = '';
   members.forEach(m => {
-    const label = getMemberLabel(m, proj);
     const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = label;
+    opt.value = m.uid;
+    opt.textContent = m.label;
     splitPayer.appendChild(opt);
   });
-  if (savedPayer && members.includes(savedPayer)) splitPayer.value = savedPayer;
+  if (savedPayerUid && members.some(m => m.uid === savedPayerUid)) splitPayer.value = savedPayerUid;
 
   splitMode = restoreCustom ? 'custom' : 'equal';
   splitEqualToggle.checked = !restoreCustom;
 
-  const savedMemberNames = savedSplits ? savedSplits.map(s => s.name) : null;
+  const savedMemberUids = savedSplits ? savedSplits.map(s => normalizeSplitMemberUid(s, proj)).filter(Boolean) : null;
 
   splitMemberList.innerHTML = '';
   members.forEach((m, i) => {
-    const label = getMemberLabel(m, proj);
-    const shouldCheck = savedMemberNames ? savedMemberNames.includes(m) : i === 0;
-    const savedAmt = savedSplits?.find(s => s.name === m)?.amount ?? '';
+    const shouldCheck = savedMemberUids ? savedMemberUids.includes(m.uid) : i === 0;
+    const savedAmt = savedSplits?.find(s => normalizeSplitMemberUid(s, proj) === m.uid)?.amount ?? '';
     const row = document.createElement('label');
     row.className = 'split-card-row';
     row.innerHTML = `
-      <input type="checkbox" class="split-member-cb" data-member="${m}" ${shouldCheck ? 'checked' : ''} />
-      <span class="split-card-name">${label}</span>
+      <input type="checkbox" class="split-member-cb" data-member-uid="${m.uid}" ${shouldCheck ? 'checked' : ''} />
+      <span class="split-card-name">${m.label}</span>
       <div class="amount-input-wrap split-card-input-wrap">
         <span class="currency-sign">$</span>
-        <input type="number" class="split-card-amount" data-member="${m}" placeholder="0" inputmode="decimal" value="${savedAmt}" />
+        <input type="number" class="split-card-amount" data-member-uid="${m.uid}" placeholder="0" inputmode="decimal" value="${savedAmt}" />
       </div>`;
     row.querySelector('.split-member-cb').addEventListener('change', syncSelectAllAndAmounts);
     row.querySelector('.split-card-amount').addEventListener('input', syncEqualAmounts);
     splitMemberList.appendChild(row);
   });
 
-  splitSelectAll.checked = members.every((m, i) => savedMemberNames ? savedMemberNames.includes(m) : i === 0);
+  splitSelectAll.checked = members.every((m, i) => savedMemberUids ? savedMemberUids.includes(m.uid) : i === 0);
   splitSelectAll.addEventListener('change', () => {
     splitMemberList.querySelectorAll('.split-member-cb').forEach(cb => {
       cb.checked = splitSelectAll.checked;
@@ -1837,7 +2055,7 @@ splitEqualToggle.addEventListener('change', () => {
 });
 
 function getCheckedMembers() {
-  return [...splitMemberList.querySelectorAll('.split-member-cb:checked')].map(el => el.dataset.member);
+  return [...splitMemberList.querySelectorAll('.split-member-cb:checked')].map(el => el.dataset.memberUid);
 }
 
 /**
@@ -1845,11 +2063,11 @@ function getCheckedMembers() {
  * 外幣記錄時 splitData 可能存的是原幣份額，依 record 台幣金額按比例換算。
  * 可傳入 project：專案情境下用專案匯率換算的台幣作為基準。
  */
-function getMemberShareTwd(r, memberName, project = null) {
+function getMemberShareTwd(r, memberUid, project = null) {
   if (!r.splitData?.length) return 0;
   const total = r.splitData.reduce((a, s) => a + s.amount, 0);
   if (total === 0) return 0;
-  const s = r.splitData.find(x => x.name === memberName);
+  const s = r.splitData.find(x => normalizeSplitMemberUid(x, project, r.uid || null) === memberUid);
   if (!s) return 0;
   const baseAmount = project ? getProjectRecordTwdAmount(r, project) : (r.amount ?? 0);
   if (r.foreignAmount != null && r.foreignCurrency) {
@@ -1861,22 +2079,26 @@ function getMemberShareTwd(r, memberName, project = null) {
 function getSplitData(amountToSplit) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
-  if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitData: null };
-  if (splitEnableToggle && !splitEnableToggle.checked) return { splitPayer: null, splitData: null };
+  if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitPayerUid: null, splitData: null };
+  if (splitEnableToggle && !splitEnableToggle.checked) return { splitPayer: null, splitPayerUid: null, splitData: null };
 
   const members = getCheckedMembers();
   const amount  = amountToSplit ?? (parseFloat(document.getElementById('amount').value) || 0);
   let splits = [];
   if (splitMode === 'equal') {
     const each = Math.round(amount / members.length);
-    splits = members.map(m => ({ name: m, amount: each }));
+    splits = members.map(uid => ({ uid, name: getProjectMemberLabelByUid(proj, uid), amount: each }));
   } else {
-    splits = members.map(m => {
-      const inp = splitMemberList.querySelector(`input.split-card-amount[data-member="${m}"]`);
-      return { name: m, amount: parseFloat(inp?.value) || 0 };
+    splits = members.map(uid => {
+      const inp = splitMemberList.querySelector(`input.split-card-amount[data-member-uid="${uid}"]`);
+      return { uid, name: getProjectMemberLabelByUid(proj, uid), amount: parseFloat(inp?.value) || 0 };
     });
   }
-  return { splitPayer: splitPayer.value, splitData: splits };
+  return {
+    splitPayer: getProjectMemberLabelByUid(proj, splitPayer.value),
+    splitPayerUid: splitPayer.value || null,
+    splitData: splits
+  };
 }
 
 function renderBudgetPage() {
@@ -1902,7 +2124,7 @@ function renderMonthBudget() {
   const spent = allRecords
     .filter(r => {
       if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
-      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+      if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
       if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
       if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
       return true;
@@ -1941,7 +2163,7 @@ function renderCatBudgetList() {
   allRecords
     .filter(r => {
       if (r.type !== 'expense' || !r.date?.startsWith(yearPrefix)) return false;
-      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+      if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
       return true;
     })
     .forEach(r => {
@@ -3525,6 +3747,11 @@ modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) c
 deleteRecordBtn.addEventListener('click', async () => {
   const editId = recordEditId.value;
   if (!editId) return;
+  const target = findRecordById(editId);
+  if (!canModifyRecord(target)) {
+    alert('只有建立這筆記帳的人可以刪除');
+    return;
+  }
   if (confirm('確定要刪除這筆記錄嗎？')) {
     await deleteRecord(editId);
     closeModal();
@@ -3533,6 +3760,10 @@ deleteRecordBtn.addEventListener('click', async () => {
 
 function openModal(record = null) {
   if (record) {
+    if (!canModifyRecord(record)) {
+      alert('只有建立這筆記帳的人可以修改或刪除');
+      return;
+    }
     recordEditId.value = record.docId;
     recordModalTitle.textContent = record.type === 'transfer' ? '編輯轉帳' : '編輯記帳';
     submitBtn.textContent = '儲存修改';
@@ -3890,6 +4121,14 @@ recordForm.addEventListener('submit', async (e) => {
   submitBtn.textContent = '儲存中...';
 
   try {
+    if (editId) {
+      const target = findRecordById(editId);
+      if (!canModifyRecord(target)) {
+        alert('只有建立這筆記帳的人可以修改');
+        return;
+      }
+    }
+
     // ===== 轉帳 =====
     if (currentType === 'transfer') {
       const fromId  = transferFrom.value;
@@ -3999,7 +4238,7 @@ recordForm.addEventListener('submit', async (e) => {
       }
     }
 
-    const { splitPayer: sp, splitData: sd } = getSplitData(isForeignPrimary ? amount : undefined);
+    const { splitPayer: sp, splitPayerUid: spUid, splitData: sd } = getSplitData(isForeignPrimary ? amount : undefined);
     const data = {
       type:             currentType,
       amount,
@@ -4020,6 +4259,7 @@ recordForm.addEventListener('submit', async (e) => {
       projectId:          recordProjectSelect.value || null,
       rewardActivityId:   rewardActivitySelect.value || null,
       splitPayer:         sp || null,
+      splitPayerUid:      spUid || null,
       splitData:          sd || null,
     };
     if (editId) {
@@ -4068,7 +4308,11 @@ function resetForm() {
 
 async function deleteRecord(docId) {
   try {
-    const rec = allRecords.find(r => r.docId === docId);
+    const rec = findRecordById(docId);
+    if (!canModifyRecord(rec)) {
+      alert('只有建立這筆記帳的人可以刪除');
+      return;
+    }
     if (rec?.transferId) {
       // 轉帳：刪除兩筆關聯記錄
       const paired = allRecords.filter(r => r.transferId === rec.transferId);
@@ -4710,7 +4954,7 @@ function getMonthRecords() {
   return allRecords.filter(r => {
     if (!r.date || !r.date.startsWith(ym)) return false;
     // 主頁只顯示我付的或結清後產生的；別人付的未結清不計入
-    if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+    if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
     return true;
   });
 }
@@ -4774,7 +5018,7 @@ function renderHomeBudget() {
     const spent = allRecords
       .filter(r => {
         if (r.type !== 'expense' || !r.date?.startsWith(ym)) return false;
-        if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+        if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
         if (r.subCategoryId && excluded.includes(`${r.categoryId}::${r.subCategoryId}`)) return false;
         if (!r.subCategoryId && excluded.includes(r.categoryId)) return false;
         return true;
@@ -4794,7 +5038,7 @@ function renderHomeBudget() {
     allRecords
       .filter(r => {
         if (r.type !== 'expense' || !r.date?.startsWith(yearPrefix)) return false;
-        if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+        if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
         return true;
       })
       .forEach(r => {
@@ -4885,7 +5129,7 @@ function renderList() {
   let displayRecs = recs.filter(r => {
     if (r.isSettlement) return true; // 結算記錄正常顯示在主頁
     if (r.type === 'transfer') return r.accountId === r.transferFromId;
-    if (r.splitPayer && r.splitPayer !== '我') return false;
+    if (r.splitPayer && !isCurrentUserSplitPayer(r)) return false;
     return true;
   });
 
@@ -5793,7 +6037,7 @@ function getMonthRecordsByYM(year, month) {
   return allRecords.filter(r => {
     if (!r.date?.startsWith(prefix) || r.type === 'transfer') return false;
     // 報表＝主頁明細：別人付款、我有份額的記錄在結清前不會出現在主頁，也不計入報表
-    if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+    if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
     // 報表只排除結清「收入」，結清「支出」仍顯示（方便對帳、看錢花到哪）
     if (r.isSettlement && r.type === 'income') return false;
     return true;
@@ -5807,7 +6051,11 @@ function getMonthRecordsByYM(year, month) {
  * 帳戶餘額計算仍使用原始金額，只有報表分析使用此函數。
  */
 function getReportAmount(r) {
-  if (r.splitData && r.splitData.length > 0) return getMemberShareTwd(r, '我');
+  if (r.splitData && r.splitData.length > 0) {
+    const uid = getCurrentUserSplitUid(r);
+    if (!uid) return 0;
+    return getMemberShareTwd(r, uid, r.projectId ? allProjects.find(p => p.docId === r.projectId) : null);
+  }
   return r.amount;
 }
 
@@ -5838,7 +6086,7 @@ function getCatViewRecords() {
     const prefix = `${reportYear}-`;
     return allRecords.filter(r => {
       if (!r.date?.startsWith(prefix) || r.type === 'transfer') return false;
-      if (r.splitPayer && r.splitPayer !== '我' && !r.isSettlement) return false;
+      if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
       if (r.isSettlement && r.type === 'income') return false;
       return true;
     });

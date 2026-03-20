@@ -4359,7 +4359,7 @@ input.form-input {
 
 .project-edit-btn {
   display: block;
-  margin: 16px auto 40px;
+  margin: 16px auto;
   padding: 10px 28px;
   border: 1.5px solid var(--pink-main);
   border-radius: 20px;

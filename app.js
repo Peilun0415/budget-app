@@ -1720,11 +1720,13 @@ function renderProjectSettle(proj, recs) {
 
   // 結清按鈕（只有有淨額且為專案建立者時才顯示）
   const isOwner = proj.uid === currentUser?.uid;
-  const needSettle = isOwner && myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
-  const settleBtnHtml = needSettle
-    ? `<button class="settle-all-btn${isSettled ? ' done' : ''}" id="settleAllBtn">
-        ${isSettled ? '✓ 已結清' : '結清'}
-       </button>`
+  const canSettle = isOwner && !isSettled && myNet !== 0 && members.length >= 2 && sharedRecs.length > 0;
+  const canUnsettle = isOwner && isSettled;
+  const settleBtnHtml = canSettle
+    ? `<button class="settle-all-btn" id="settleAllBtn">結清</button>`
+    : '';
+  const unsettleBtnHtml = canUnsettle
+    ? `<button class="settle-all-btn settle-cancel-btn" id="unsettleAllBtn">取消結清</button>`
     : '';
 
   projectSettleSummary.innerHTML = `
@@ -1737,13 +1739,26 @@ function renderProjectSettle(proj, recs) {
       </div>
     </div>
     ${memberTableHtml}
-    ${settleBtnHtml}`;
+    ${settleBtnHtml}
+    ${unsettleBtnHtml}`;
 
-  if (needSettle && !isSettled) {
-    document.getElementById('settleAllBtn')?.addEventListener('click', async () => {
-      await doSettle(proj, recs, myNet);
-    });
-  }
+  document.getElementById('settleAllBtn')?.addEventListener('click', async () => {
+    if (!isOwner || isSettled) return;
+    const step1 = confirm('確定要進行「結清」嗎？\n\n此操作會新增結清的收入/支出紀錄並標記為已結清。');
+    if (!step1) return;
+    const step2 = confirm('最後一次確認：真的要結清嗎？此操作無法在不修改資料的情況下自動撤回。');
+    if (!step2) return;
+    await doSettle(proj, recs, myNet);
+  });
+
+  document.getElementById('unsettleAllBtn')?.addEventListener('click', async () => {
+    if (!isOwner) return;
+    const step1 = confirm('確定要「取消結清」嗎？\n\n此操作會刪除結清產生的收入/支出紀錄。');
+    if (!step1) return;
+    const step2 = confirm('最後一次確認：真的要取消結清嗎？');
+    if (!step2) return;
+    await doUnsettle(proj);
+  });
 }
 
 
@@ -1803,6 +1818,37 @@ async function doSettle(proj, recs, myNet) {
 
   await Promise.all(writes);
   await updateDoc(doc(db, 'projects', proj.docId), { 'settled.all': true });
+}
+
+// 取消結清：刪除由結清產生的紀錄，並把專案狀態還原
+async function doUnsettle(proj) {
+  if (!proj?.docId) return;
+  const myUid = currentUser?.uid || null;
+  if (!myUid) return;
+
+  try {
+    // 先只查「我自己」的 records，避免 query 掛到你無法讀取的文件而被權限擋住
+    const q = query(collection(db, 'records'), where('uid', '==', myUid));
+    const snap = await getDocs(q);
+
+    // 再在 client 端篩出「此專案」的結清紀錄
+    const toDelete = snap.docs
+      .map(d => ({ id: d.id, data: d.data() }))
+      .filter(({ data }) => !!data?.isSettlement && data?.settlementProjectId === proj.docId)
+      .map(({ id }) => id);
+
+    if (toDelete.length > 0) {
+      const batch = [];
+      toDelete.forEach(id => batch.push(deleteDoc(doc(db, 'records', id))));
+      await Promise.all(batch);
+    }
+
+    // 還原專案狀態
+    await updateDoc(doc(db, 'projects', proj.docId), { 'settled.all': false });
+  } catch (err) {
+    console.error(err);
+    alert(`取消結清失敗：${err?.message || '請檢查 Firestore 權限規則'}`);
+  }
 }
 
 function renderProjectReward(proj, recs) {

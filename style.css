@@ -4246,6 +4246,16 @@ input.form-input {
   cursor: default;
 }
 
+.settle-cancel-btn{
+  background: var(--white);
+  color: var(--text-mid);
+  border: 1.5px solid var(--border);
+}
+
+.settle-cancel-btn:active{
+  opacity: 0.85;
+}
+
 .project-section-title {
   font-size: 13px;
   font-weight: 600;

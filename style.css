@@ -4611,6 +4611,37 @@ input.form-input {
   margin-bottom: 18px;
 }
 
+#rewardActivitySelect[multiple] {
+  min-height: 132px;
+}
+
+.reward-activity-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.reward-clear-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.reward-activity-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reward-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e9edf4;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
 .split-header {
   padding: 4px 0 8px;
   border-top: 1px solid #f0f0f0;

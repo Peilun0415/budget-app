@@ -623,7 +623,8 @@ const projectEditBtn        = document.getElementById('projectEditBtn');
 const recordProjectSelect   = document.getElementById('recordProjectSelect');
 const recordProjectGroup    = document.getElementById('recordProjectGroup');
 const rewardActivityGroup   = document.getElementById('rewardActivityGroup');
-const rewardActivitySelect  = document.getElementById('rewardActivitySelect');
+const rewardActivityChecklist = document.getElementById('rewardActivityChecklist');
+const rewardActivityClearBtn = document.getElementById('rewardActivityClearBtn');
 const rewardActivityModalOverlay   = document.getElementById('rewardActivityModalOverlay');
 const rewardActivityModalList     = document.getElementById('rewardActivityModalList');
 const addRewardInModalBtn         = document.getElementById('addRewardInModalBtn');
@@ -1869,7 +1870,10 @@ function renderProjectReward(proj, recs) {
     //   活動幣別為 TWD → 用台幣金額
     //   活動幣別為外幣 → 只計入幣別相符的外幣金額，無外幣記錄不計入
     const spent = recs
-      .filter(r => r.rewardActivityId === act.id)
+      .filter(r => {
+        if (Array.isArray(r.rewardActivityIds)) return r.rewardActivityIds.includes(act.id);
+        return r.rewardActivityId === act.id; // 舊資料相容
+      })
       .reduce((s, r) => {
         if (currency === 'TWD') return s + getProjectRecordTwdAmount(r, proj);
         if (r.foreignAmount && r.foreignCurrency === currency) return s + r.foreignAmount;
@@ -1934,24 +1938,38 @@ recordProjectSelect.addEventListener('change', () => {
   updateRewardActivitySelect();
 });
 
-function updateRewardActivitySelect(savedId = null) {
+function updateRewardActivitySelect(savedIds = []) {
   const projId = recordProjectSelect.value;
   const proj   = allProjects.find(p => p.docId === projId);
   const acts   = proj?.rewardActivities?.filter(a => a.name) || [];
   if (!projId || acts.length === 0) {
     rewardActivityGroup.style.display = 'none';
-    rewardActivitySelect.value = '';
+    if (rewardActivityChecklist) rewardActivityChecklist.innerHTML = '';
     return;
   }
   rewardActivityGroup.style.display = '';
-  rewardActivitySelect.innerHTML = '<option value="">不套用回饋活動</option>';
+  if (rewardActivityChecklist) rewardActivityChecklist.innerHTML = '';
+  const idSet = new Set(Array.isArray(savedIds) ? savedIds : (savedIds ? [savedIds] : []));
   acts.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = `${a.name}（上限 ${a.currency || 'TWD'} ${formatMoney(a.limit)}）`;
-    rewardActivitySelect.appendChild(opt);
+    const row = document.createElement('label');
+    row.className = 'reward-activity-item';
+    row.innerHTML = `
+      <input type="checkbox" class="reward-activity-cb" value="${a.id}" ${idSet.has(a.id) ? 'checked' : ''} />
+      <span class="reward-activity-label">${a.name}（上限 ${a.currency || 'TWD'} ${formatMoney(a.limit)}）</span>
+    `;
+    rewardActivityChecklist?.appendChild(row);
   });
-  if (savedId) rewardActivitySelect.value = savedId;
+}
+
+function getSelectedRewardActivityIds() {
+  if (!rewardActivityChecklist) return [];
+  return [...rewardActivityChecklist.querySelectorAll('.reward-activity-cb:checked')].map(el => el.value);
+}
+
+if (rewardActivityClearBtn) {
+  rewardActivityClearBtn.addEventListener('click', () => {
+    rewardActivityChecklist?.querySelectorAll('.reward-activity-cb').forEach(cb => { cb.checked = false; });
+  });
 }
 
 function updateSplitGroupVisibility(record = null) {
@@ -3820,7 +3838,7 @@ function openModal(record = null) {
     }
     // 還原專案與分攤
     recordProjectSelect.value = record.projectId || '';
-    updateRewardActivitySelect(record.rewardActivityId || null);
+    updateRewardActivitySelect(record.rewardActivityIds || (record.rewardActivityId ? [record.rewardActivityId] : []));
     updateSplitGroupVisibility(record);
   } else {
     recordEditId.value = '';
@@ -4293,7 +4311,8 @@ recordForm.addEventListener('submit', async (e) => {
       foreignCurrency:  accountCurrency || manualForeignCurrency,
       foreignAmount:    primaryForeignAmount,
       projectId:          recordProjectSelect.value || null,
-      rewardActivityId:   rewardActivitySelect.value || null,
+      rewardActivityId:   null, // 舊欄位停用，保留相容讀取
+      rewardActivityIds:  getSelectedRewardActivityIds(),
       splitPayer:         sp || null,
       splitPayerUid:      spUid || null,
       splitData:          sd || null,
@@ -4332,7 +4351,7 @@ function resetForm() {
   submitBtn.textContent = '記下來！';
   recordProjectSelect.value = '';
   rewardActivityGroup.style.display = 'none';
-  rewardActivitySelect.value = '';
+  if (rewardActivityChecklist) rewardActivityChecklist.innerHTML = '';
   splitGroup.style.display = 'none';
   splitMode = 'equal';
   if (splitEqualToggle) splitEqualToggle.checked = true;

@@ -769,9 +769,11 @@
         <div id="rewardActivityGroup" style="display:none">
           <div class="form-group">
             <label class="form-label">回饋活動（選填）</label>
-            <select id="rewardActivitySelect" class="form-select">
-              <option value="">不套用回饋活動</option>
-            </select>
+            <p class="billing-day-hint">可勾選多個活動；可用「清除」快速取消全部</p>
+            <div class="reward-activity-toolbar">
+              <button type="button" class="btn-secondary reward-clear-btn" id="rewardActivityClearBtn">清除</button>
+            </div>
+            <div id="rewardActivityChecklist" class="reward-activity-checklist"></div>
           </div>
         </div>
 

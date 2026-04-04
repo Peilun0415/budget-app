@@ -1612,7 +1612,11 @@ function renderProjectDetail() {
     projectRecordList.innerHTML = '<div class="project-empty">還沒有相關記帳記錄</div>';
     return;
   }
-  const sorted = [...recs].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sorted = [...recs].sort((a, b) => {
+    const dCmp = (b.date || '').localeCompare(a.date || '');
+    if (dCmp !== 0) return dCmp;
+    return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+  });
   const groups = {};
   sorted.forEach(r => {
     const d = r.date || '';

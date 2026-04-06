@@ -4202,9 +4202,17 @@ recordForm.addEventListener('submit', async (e) => {
       const note = noteInput.value.trim();
       const date = dateInput.value;
 
-      // 換匯：到帳金額可與轉出金額不同
-      const isExchange   = exchangeOn && !!exchangeAmountInput.value;
-      const toAmount     = isExchange ? (parseFloat(exchangeAmountInput.value) || inputAmount) : inputAmount;
+      // 換匯：到帳金額可與轉出金額不同（需為有效正數）
+      const rawExchangeAmount = parseFloat(exchangeAmountInput.value);
+      const isExchange = exchangeOn;
+      if (isExchange) {
+        if (!(rawExchangeAmount > 0)) {
+          shakeEl(exchangeAmountInput.parentElement || exchangeAmountGroup);
+          alert('已開啟換匯，請輸入大於 0 的到帳金額');
+          return;
+        }
+      }
+      const toAmount = isExchange ? rawExchangeAmount : inputAmount;
       const exchangeRate = isExchange && inputAmount > 0 ? +(toAmount / inputAmount).toFixed(6) : null;
 
       if (editId) {

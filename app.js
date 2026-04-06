@@ -1174,7 +1174,7 @@ function subscribeSharedProjectRecords() {
     const byProject = {};
     ids.forEach(id => { byProject[id] = []; });
     snap.docs.forEach(d => {
-      const r = { docId: d.id, ...d.data() };
+      const r = normalizeTransferRecordShape({ docId: d.id, ...d.data() });
       if (r.projectId && byProject[r.projectId]) byProject[r.projectId].push(r);
     });
     sharedProjectRecords = byProject;
@@ -1244,6 +1244,35 @@ function findRecordById(docId) {
 
 function canModifyRecord(record) {
   return !!record && record.uid === currentUser?.uid;
+}
+
+function isTransferRecord(record) {
+  if (!record) return false;
+  if (record.type === 'transfer') return true;
+  // 相容舊資料：有 transfer 關聯欄位時仍視為轉帳記錄
+  return !!(record.transferId || (record.transferFromId && record.transferToId));
+}
+
+function normalizeTransferRecordShape(record) {
+  if (!record) return record;
+  if (!isTransferRecord(record)) return record;
+  return { ...record, type: 'transfer' };
+}
+
+function getTransferPairRecords(record) {
+  if (!record?.transferId) return record ? [record] : [];
+  const pool = [...allRecords];
+  for (const pid of Object.keys(sharedProjectRecords || {})) {
+    pool.push(...(sharedProjectRecords[pid] || []));
+  }
+  const seen = new Set();
+  const paired = [];
+  pool.forEach(r => {
+    if (r?.transferId !== record.transferId || !r?.docId || seen.has(r.docId)) return;
+    seen.add(r.docId);
+    paired.push(r);
+  });
+  return paired.length ? paired : [record];
 }
 
 /**
@@ -2767,7 +2796,7 @@ function subscribeRecords() {
     orderBy('createdAt', 'desc')
   );
   unsubRecords = onSnapshot(q, (snap) => {
-    allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    allRecords = snap.docs.map(d => normalizeTransferRecordShape({ docId: d.id, ...d.data() }));
     renderAll();
     renderAccountList();
     scheduleAccountsRefresh();
@@ -3797,23 +3826,43 @@ function openModal(record = null) {
       return;
     }
     recordEditId.value = record.docId;
-    recordModalTitle.textContent = record.type === 'transfer' ? '編輯轉帳' : '編輯記帳';
+    const transferRecord = isTransferRecord(record);
+    recordModalTitle.textContent = transferRecord ? '編輯轉帳' : '編輯記帳';
     submitBtn.textContent = '儲存修改';
     deleteRecordBtn.style.display = 'block';
-    switchType(record.type);
-    if (record.type === 'transfer') {
-      transferFrom.value = record.transferFromId || '';
-      transferTo.value   = record.transferToId   || '';
-      // 還原換匯：找配對的收入那筆，若金額不同則展開換匯欄位
-      const paired = record.transferId
-        ? allRecords.filter(r => r.transferId === record.transferId)
-        : [];
-      const outRec = paired.find(r => r.type === 'expense') || record;
-      const inRec  = paired.find(r => r.type === 'income');
-      if (inRec && inRec.amount !== outRec.amount) {
+    switchType(transferRecord ? 'transfer' : record.type);
+    let formRecord = record;
+    if (transferRecord) {
+      const paired = getTransferPairRecords(record);
+      const outRec = paired.find(r => r.accountId && r.accountId === r.transferFromId)
+        || paired.find(r => r.type === 'expense')
+        || paired[0]
+        || record;
+      const inRec  = paired.find(r => r.accountId && r.accountId === r.transferToId)
+        || paired.find(r => r.type === 'income')
+        || (paired.length > 1 ? paired.find(r => r.docId !== outRec.docId) : null);
+      formRecord = outRec || record;
+
+      transferFrom.value = formRecord.transferFromId || record.transferFromId || '';
+      transferTo.value   = formRecord.transferToId   || record.transferToId   || '';
+
+      const hasExchangeFlag = (outRec?.exchangeRate != null) || (inRec?.exchangeRate != null) || (record.exchangeRate != null);
+      const hasDifferentAmount = !!inRec && (inRec.amount !== outRec.amount);
+      if (inRec && (hasExchangeFlag || hasDifferentAmount)) {
         setExchangeOn(true);
-        exchangeAmountInput.value = inRec.amount;
+        exchangeAmountInput.value = inRec.amount != null ? String(inRec.amount) : '';
         setTimeout(updateExchangeHint, 0);
+      } else if (!inRec && hasExchangeFlag && (outRec?.amount > 0)) {
+        // 兼容舊資料：若另一筆遺失，至少用匯率還原到帳金額給使用者確認
+        const rate = outRec?.exchangeRate ?? record.exchangeRate;
+        const restored = rate > 0 ? +(outRec.amount * rate).toFixed(2) : null;
+        if (restored && restored > 0) {
+          setExchangeOn(true);
+          exchangeAmountInput.value = String(restored);
+          setTimeout(updateExchangeHint, 0);
+        } else {
+          setExchangeOn(false);
+        }
       } else {
         setExchangeOn(false);
       }
@@ -3825,25 +3874,25 @@ function openModal(record = null) {
       updateCatPickBtn(parentCat, subCat);
       accountSelect.value = record.accountId || '';
     }
-    const editAcc = allAccounts.find(a => a.docId === (record.accountId || ''));
+    const editAcc = allAccounts.find(a => a.docId === (formRecord.accountId || ''));
     const editPrimaryAmount = editAcc?.currency
-      ? (record.foreignAmount ?? record.amount)
-      : record.amount;
+      ? (formRecord.foreignAmount ?? formRecord.amount)
+      : formRecord.amount;
     calcExpr = String(editPrimaryAmount);
     calcRaw  = String(editPrimaryAmount);
     amountInput.value = calcExpr;
-    dateInput.value   = record.date;
-    noteInput.value   = record.note || '';
-    foreignCurrencyInput.value = record.foreignCurrency || '';
-    foreignAmountInput.value   = record.foreignAmount   || '';
-    if (!editAcc?.currency && (record.foreignCurrency || record.foreignAmount)) {
+    dateInput.value   = formRecord.date;
+    noteInput.value   = formRecord.note || '';
+    foreignCurrencyInput.value = formRecord.foreignCurrency || '';
+    foreignAmountInput.value   = formRecord.foreignAmount   || '';
+    if (!editAcc?.currency && (formRecord.foreignCurrency || formRecord.foreignAmount)) {
       foreignAmountRow.style.display = '';
       foreignToggleLabel.textContent = '− 外幣金額';
     }
     // 還原專案與分攤
-    recordProjectSelect.value = record.projectId || '';
-    updateRewardActivitySelect(record.rewardActivityIds || (record.rewardActivityId ? [record.rewardActivityId] : []));
-    updateSplitGroupVisibility(record);
+    recordProjectSelect.value = formRecord.projectId || '';
+    updateRewardActivitySelect(formRecord.rewardActivityIds || (formRecord.rewardActivityId ? [formRecord.rewardActivityId] : []));
+    updateSplitGroupVisibility(formRecord);
   } else {
     recordEditId.value = '';
     recordModalTitle.textContent = '新增記帳';
@@ -4225,6 +4274,7 @@ recordForm.addEventListener('submit', async (e) => {
         const inRec  = paired.find(r => r.type === 'income')  || paired[1];
         const updates = [];
         if (outRec) updates.push(updateDoc(doc(db, 'records', outRec.docId), {
+          type: 'transfer',
           amount: inputAmount, date, note,
           accountId: fromId, accountName: fromAcc?.name || null,
           transferFromId: fromId, transferToId: toId,
@@ -4232,6 +4282,7 @@ recordForm.addEventListener('submit', async (e) => {
           displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
         }));
         if (inRec) updates.push(updateDoc(doc(db, 'records', inRec.docId), {
+          type: 'transfer',
           amount: toAmount, date, note,
           accountId: toId, accountName: toAcc?.name || null,
           transferFromId: fromId, transferToId: toId,
@@ -5549,7 +5600,7 @@ function buildRecordItem(r) {
   const item = document.createElement('div');
   item.className = 'record-item record-item-clickable';
 
-  if (r.type === 'transfer') {
+  if (isTransferRecord(r)) {
     // 轉帳：顯示「A → B」，金額藍字
     // 優先從 allAccounts 找（即時名稱），找不到則從 displayName 解析，最後才顯示 ?
     const fromAccObj = allAccounts.find(a => a.docId === r.transferFromId);

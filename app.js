@@ -1288,9 +1288,15 @@ function getProjectRecordTwdAmount(record, project) {
   return record.amount ?? 0;
 }
 
+function isProjectExpenseLikeRecord(record) {
+  if (!record) return false;
+  if (record.type === 'expense') return true;
+  return isTransferRecord(record) && record.accountId === record.transferFromId;
+}
+
 function calcProjectTotal(proj) {
   return getProjectRecords(proj)
-    .filter(r => r.type === 'expense')
+    .filter(isProjectExpenseLikeRecord)
     .reduce((s, r) => s + getProjectRecordTwdAmount(r, proj), 0);
 }
 
@@ -1626,8 +1632,8 @@ function renderProjectDetail() {
   projectDetailMembers.textContent = proj.members?.length
     ? `👥 ${proj.members.map(m => getMemberLabel(m, proj)).join('、')}` : '';
 
-  // 此專案的所有支出記錄（含被邀請專案時他人記的）
-  const recs = getProjectRecords(proj).filter(r => r.type === 'expense');
+  // 此專案的所有支出記錄（含被邀請專案時他人記的；專案轉帳轉出也計入）
+  const recs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
 
   // 結算計算
   renderProjectSettle(proj, recs);
@@ -5093,7 +5099,12 @@ function getMonthRecords() {
 function renderSummary() {
   const recs    = getMonthRecords();
   const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-  const expense = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+  const expenseBase = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+  // 專案轉帳也視為主頁支出（僅計轉出那一筆，避免同筆轉帳重複）
+  const projectTransferExpense = recs
+    .filter(r => isTransferRecord(r) && r.projectId && r.accountId === r.transferFromId)
+    .reduce((s, r) => s + (r.amount || 0), 0);
+  const expense = expenseBase + projectTransferExpense;
   const balance = income - expense;
   totalIncome.textContent  = `$${formatMoney(income)}`;
   totalExpense.textContent = `$${formatMoney(expense)}`;
@@ -5653,7 +5664,7 @@ function buildDateHeader(date, dayRecs, account = null, project = null) {
     ? dayRecs.filter(r => r.type === 'income').reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
     : dayRecs.filter(r => r.type === 'income').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
   const exp = project
-    ? dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
+    ? dayRecs.filter(isProjectExpenseLikeRecord).reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
     : dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
 
   const header = document.createElement('div');

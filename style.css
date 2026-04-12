@@ -1016,6 +1016,43 @@ body {
   color: var(--text-dark);
 }
 
+/* 記帳彈窗：協作者唯讀檢視（純文字） */
+.record-readonly-panel {
+  margin-bottom: 8px;
+}
+.record-readonly-body {
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 4px 2px 12px;
+}
+.record-readonly-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.record-readonly-row:last-child {
+  border-bottom: none;
+}
+.record-readonly-label {
+  color: var(--text-mid);
+  font-weight: 600;
+}
+.record-readonly-val {
+  color: var(--text-dark);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.record-readonly-note {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .account-modal-header {
   gap: 10px;
   margin-bottom: 16px;

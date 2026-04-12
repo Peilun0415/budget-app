@@ -418,6 +418,9 @@ const deleteRecordBtn   = document.getElementById('deleteRecordBtn');
 const openFormBtn   = document.getElementById('openFormBtn');
 const closeFormBtn  = document.getElementById('closeFormBtn');
 const recordForm    = document.getElementById('recordForm');
+const recordModalEditor    = document.getElementById('recordModalEditor');
+const recordReadOnlyPanel  = document.getElementById('recordReadOnlyPanel');
+const recordReadOnlyBody   = document.getElementById('recordReadOnlyBody');
 const btnExpense    = document.getElementById('btnExpense');
 const btnIncome     = document.getElementById('btnIncome');
 const btnTransfer   = document.getElementById('btnTransfer');
@@ -1275,6 +1278,136 @@ function getTransferPairRecords(record) {
   return paired.length ? paired : [record];
 }
 
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function recordReadonlyRow(label, text) {
+  const t = text == null || text === '' ? '—' : String(text);
+  return `<div class="record-readonly-row"><span class="record-readonly-label">${escapeHtml(label)}</span><span class="record-readonly-val">${escapeHtml(t)}</span></div>`;
+}
+
+function getRecordAccountDisplayName(accountId, recordForHint) {
+  if (!accountId) return '—';
+  const acc = allAccounts.find(a => a.docId === accountId);
+  if (acc?.name) return acc.name;
+  if (recordForHint?.accountId === accountId && recordForHint.accountName) return recordForHint.accountName;
+  return '?';
+}
+
+function getTransferFromToLabelsForReadOnly(record) {
+  const paired = getTransferPairRecords(record);
+  const outRec = paired.find(r => r.accountId && r.accountId === r.transferFromId)
+    || paired.find(r => r.type === 'expense')
+    || paired[0]
+    || record;
+  const inRec = paired.find(r => r.accountId && r.accountId === r.transferToId)
+    || paired.find(r => r.type === 'income')
+    || (paired.length > 1 ? paired.find(r => r.docId !== outRec.docId) : null);
+  const fromId = outRec?.transferFromId || record.transferFromId;
+  const toId = outRec?.transferToId || record.transferToId;
+  const fromName = getRecordAccountDisplayName(fromId, outRec);
+  const toName = getRecordAccountDisplayName(toId, inRec || record);
+  return { outRec, inRec, fromName, toName };
+}
+
+function getRewardActivityLabels(proj, record) {
+  const acts = proj?.rewardActivities || [];
+  const ids = record.rewardActivityIds || (record.rewardActivityId ? [record.rewardActivityId] : []);
+  if (!ids.length) return '';
+  return ids.map(id => acts.find(a => a.id === id)?.name).filter(Boolean).join('、');
+}
+
+function buildProjectRecordReadOnlyHtml(record, proj) {
+  if (!record || !proj) return recordReadonlyRow('提示', '無法顯示此筆資料');
+  const rows = [];
+  rows.push(recordReadonlyRow('建立者', getRecordCreatorLabel(record, proj)));
+
+  if (isTransferRecord(record)) {
+    const { outRec, inRec, fromName, toName } = getTransferFromToLabelsForReadOnly(record);
+    const dn = (outRec?.displayName || record.displayName || '');
+    const typeLabel = dn.includes('換匯') ? '換匯轉帳' : '轉帳';
+    rows.push(recordReadonlyRow('類型', typeLabel));
+    rows.push(recordReadonlyRow('從 → 到', `${fromName} → ${toName}`));
+    const baseOut = outRec || record;
+    const outAmt = getProjectRecordTwdAmount(baseOut, proj);
+    rows.push(recordReadonlyRow('轉出金額（台幣）', `$${formatMoney(outAmt)}`));
+    if (inRec && inRec.amount !== baseOut.amount) {
+      const inAmt = getProjectRecordTwdAmount(inRec, proj);
+      rows.push(recordReadonlyRow('到帳金額（台幣）', `$${formatMoney(inAmt)}`));
+      if (outAmt > 0) {
+        rows.push(recordReadonlyRow('匯率約', `1 : ${(inAmt / outAmt).toFixed(4)}`));
+      }
+    }
+  } else {
+    const typeLabel = record.type === 'income' ? '收入' : record.type === 'expense' ? '支出' : (record.type || '—');
+    rows.push(recordReadonlyRow('類型', typeLabel));
+    const emoji = record.displayEmoji || record.categoryEmoji || '📦';
+    const name = record.displayName || record.categoryName || '其他';
+    rows.push(recordReadonlyRow('分類', `${emoji} ${name}`));
+    const amt = getProjectRecordTwdAmount(record, proj);
+    const sign = record.type === 'income' ? '+' : '−';
+    rows.push(recordReadonlyRow('金額（台幣）', `${sign}$${formatMoney(amt)}`));
+    if (record.foreignCurrency && record.foreignAmount != null) {
+      rows.push(recordReadonlyRow('外幣', `${record.foreignCurrency} ${formatMoneyByCurrency(record.foreignAmount, record.foreignCurrency)}`));
+    }
+    const accName = record.accountId
+      ? (allAccounts.find(a => a.docId === record.accountId)?.name || record.accountName || '—')
+      : '無';
+    rows.push(recordReadonlyRow('帳戶', accName));
+  }
+
+  rows.push(recordReadonlyRow('日期', formatDateDisplay(record.date || '')));
+
+  const noteRaw = (record.note || '').trim();
+  rows.push(recordReadonlyRow('備註', noteRaw || '—'));
+
+  rows.push(recordReadonlyRow('所屬專案', proj.name || '—'));
+
+  const rewardText = getRewardActivityLabels(proj, record);
+  if (rewardText) rows.push(recordReadonlyRow('回饋活動', rewardText));
+
+  if (record.splitPayer && record.splitData?.length) {
+    rows.push(recordReadonlyRow('付款人', getCurrentUserSplitPayerLabel(record)));
+    const splitLines = record.splitData.map(s => {
+      const uid = normalizeSplitMemberUid(s, proj, record.uid || null);
+      const label = uid ? getProjectMemberLabelByUid(proj, uid) : (s.name || '—');
+      const share = uid ? getMemberShareTwd(record, uid, proj) : (parseFloat(s.amount) || 0);
+      return `${label}：$${formatMoney(share)}`;
+    }).join('\n');
+    rows.push(recordReadonlyRow('分攤', splitLines));
+  }
+
+  if (record.isSettlement) rows.push(recordReadonlyRow('註記', '結清相關紀錄'));
+
+  return rows.join('');
+}
+
+function showRecordModalEditorMode() {
+  if (recordReadOnlyPanel) recordReadOnlyPanel.style.display = 'none';
+  if (recordModalEditor) recordModalEditor.style.display = '';
+  if (openTplListBtn) openTplListBtn.style.display = '';
+}
+
+function showRecordModalReadOnlyMode() {
+  if (recordReadOnlyPanel) recordReadOnlyPanel.style.display = 'block';
+  if (recordModalEditor) recordModalEditor.style.display = 'none';
+  if (openTplListBtn) openTplListBtn.style.display = 'none';
+}
+
+function openProjectRecordReadOnlyView(record, proj) {
+  if (!record || !proj) return;
+  recordModalTitle.textContent = '記帳詳情（僅檢視）';
+  if (recordReadOnlyBody) recordReadOnlyBody.innerHTML = buildProjectRecordReadOnlyHtml(record, proj);
+  showRecordModalReadOnlyMode();
+  modalOverlay.classList.add('active');
+}
+
 /**
  * 專案情境下該筆記錄的台幣金額（顯示／加總用）。
  * 若專案有設匯率且記錄幣別相符，用專案匯率換算；否則用儲存的 amount。
@@ -1699,7 +1832,10 @@ function renderProjectDetail() {
           </div>
         </div>
         `;
-      item.addEventListener('click', () => openModal(r));
+      item.addEventListener('click', () => {
+        if (canModifyRecord(r)) openModal(r);
+        else openProjectRecordReadOnlyView(r, proj);
+      });
       projectRecordList.appendChild(item);
     });
   });
@@ -3826,6 +3962,7 @@ deleteRecordBtn.addEventListener('click', async () => {
 });
 
 function openModal(record = null) {
+  showRecordModalEditorMode();
   if (record) {
     if (!canModifyRecord(record)) {
       alert('只有建立這筆記帳的人可以修改或刪除');
@@ -3914,6 +4051,7 @@ function openModal(record = null) {
 
 function closeModal() {
   modalOverlay.classList.remove('active');
+  showRecordModalEditorMode();
   resetForm();
 }
 

@@ -627,6 +627,7 @@ const projectReportBtn      = document.getElementById('projectReportBtn');
 const projectReportModalOverlay = document.getElementById('projectReportModalOverlay');
 const closeProjectReportModalBtn = document.getElementById('closeProjectReportModalBtn');
 const projectReportMemberSelect = document.getElementById('projectReportMemberSelect');
+const projectReportPayerSelect = document.getElementById('projectReportPayerSelect');
 const projectReportCheckAll = document.getElementById('projectReportCheckAll');
 const projectReportTableBody = document.getElementById('projectReportTableBody');
 const projectReportTotalAmount = document.getElementById('projectReportTotalAmount');
@@ -2118,16 +2119,23 @@ if (projectReportBtn) {
 function openProjectReportModal(proj) {
   const members = getProjectMemberEntries(proj);
   projectReportMemberSelect.innerHTML = '<option value="">全部成員</option>';
+  projectReportPayerSelect.innerHTML = '<option value="">全部</option>';
   members.forEach(m => {
     const opt = document.createElement('option');
     opt.value = m.uid;
     opt.textContent = m.label;
     projectReportMemberSelect.appendChild(opt);
+    
+    const payerOpt = document.createElement('option');
+    payerOpt.value = m.uid;
+    payerOpt.textContent = m.label;
+    projectReportPayerSelect.appendChild(payerOpt);
   });
   
   currentReportRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
   
   projectReportMemberSelect.onchange = () => renderProjectReportTable(proj);
+  projectReportPayerSelect.onchange = () => renderProjectReportTable(proj);
   projectReportCheckAll.onchange = () => {
     const cbs = projectReportTableBody.querySelectorAll('.report-row-cb');
     cbs.forEach(cb => cb.checked = projectReportCheckAll.checked);
@@ -2151,6 +2159,7 @@ if (projectReportModalOverlay) {
 
 function renderProjectReportTable(proj) {
   const filterUid = projectReportMemberSelect.value;
+  const filterPayerUid = projectReportPayerSelect.value;
   projectReportTableBody.innerHTML = '';
   
   const sorted = [...currentReportRecs].sort((a, b) => {
@@ -2160,6 +2169,11 @@ function renderProjectReportTable(proj) {
   });
   
   sorted.forEach(r => {
+    if (filterPayerUid) {
+      const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
+      if (payerUid !== filterPayerUid) return;
+    }
+    
     let rowTwd = 0;
     
     if (filterUid) {
@@ -2192,11 +2206,6 @@ function renderProjectReportTable(proj) {
     const tdNote = document.createElement('td');
     tdNote.textContent = r.note || '';
     
-    const tdFc = document.createElement('td');
-    if (r.foreignCurrency && r.foreignAmount != null) {
-      tdFc.textContent = `${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}`;
-    }
-    
     const tdTwd = document.createElement('td');
     tdTwd.className = 'num-col';
     tdTwd.textContent = `$${formatMoney(rowTwd)}`;
@@ -2208,7 +2217,6 @@ function renderProjectReportTable(proj) {
     tr.appendChild(tdDate);
     tr.appendChild(tdItem);
     tr.appendChild(tdNote);
-    tr.appendChild(tdFc);
     tr.appendChild(tdTwd);
     tr.appendChild(tdPayer);
     

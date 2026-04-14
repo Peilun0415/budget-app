@@ -6041,7 +6041,10 @@ function foreignHint(r) {
 // ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
 function buildRecordItem(r) {
   const item = document.createElement('div');
-  item.className = 'record-item record-item-clickable';
+  item.className = 'record-item-wrapper';
+
+  const content = document.createElement('div');
+  content.className = 'record-item record-item-clickable';
 
   if (isTransferRecord(r)) {
     // 轉帳：顯示「A → B」，金額藍字
@@ -6053,7 +6056,7 @@ function buildRecordItem(r) {
     const fromName = fromAccObj?.name || (r.accountId === r.transferFromId ? r.accountName : parsedFrom) || '?';
     const toName   = toAccObj?.name   || (r.accountId === r.transferToId   ? r.accountName : parsedTo)   || '?';
     const metaText = r.note || '無備註';
-    item.innerHTML = `
+    content.innerHTML = `
       <div class="record-cat-icon transfer-icon">🔄</div>
       <div class="record-info">
         <div class="record-cat-name">${fromName} → ${toName}</div>
@@ -6069,7 +6072,7 @@ function buildRecordItem(r) {
     const metaText  = [accLabel, r.note].filter(Boolean).join(' · ') || '無備註';
     const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
     const dispName  = r.displayName  || r.categoryName  || '其他';
-    item.innerHTML = `
+    content.innerHTML = `
       <div class="record-cat-icon ${r.type}-icon">${dispEmoji}</div>
       <div class="record-info">
         <div class="record-cat-name">${dispName}</div>
@@ -6084,7 +6087,139 @@ function buildRecordItem(r) {
       </div>
     `;
   }
-  item.addEventListener('click', () => openModal(r));
+  
+  // 點擊編輯
+  content.addEventListener('click', (e) => {
+    // 若正在滑動，不觸發點擊
+    if (content.dataset.isSwiping === 'true') return;
+    openModal(r);
+  });
+
+  // 刪除按鈕
+  const deleteBtn = document.createElement('div');
+  deleteBtn.className = 'record-item-delete';
+  deleteBtn.textContent = '刪除';
+  deleteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!canModifyRecord(r)) {
+      alert('只有建立這筆記帳的人可以刪除');
+      return;
+    }
+    if (confirm('確定要刪除這筆記錄嗎？')) {
+      await deleteRecord(r.docId);
+    } else {
+      // 取消刪除時，把卡片滑回去
+      content.style.transform = 'translateX(0)';
+      content.dataset.isSwiped = 'false';
+    }
+  });
+
+  item.appendChild(deleteBtn);
+  item.appendChild(content);
+
+  // 實作滑動刪除邏輯
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let isSwiping = false;
+  let isVerticalScroll = false;
+  const SWIPE_THRESHOLD = 60; // 滑動多少距離才顯示刪除按鈕
+
+  content.addEventListener('touchstart', (e) => {
+    // 關閉其他已展開的卡片
+    document.querySelectorAll('.record-item[data-is-swiped="true"]').forEach(el => {
+      if (el !== content) {
+        el.style.transform = 'translateX(0)';
+        el.dataset.isSwiped = 'false';
+      }
+    });
+
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    currentX = startX;
+    currentY = startY;
+    isSwiping = true;
+    isVerticalScroll = false;
+    content.style.transition = 'none'; // 滑動時取消動畫，讓跟隨手指更順暢
+    content.dataset.isSwiping = 'false';
+  }, { passive: true });
+
+  content.addEventListener('touchmove', (e) => {
+    if (!isSwiping) return;
+    currentX = e.touches[0].clientX;
+    currentY = e.touches[0].clientY;
+    const diffX = currentX - startX;
+    const diffY = currentY - startY;
+    
+    // 如果垂直滑動距離大於水平滑動，且還沒被判定為水平滑動，則視為頁面滾動
+    if (!isVerticalScroll && Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 10) {
+      isVerticalScroll = true;
+      content.style.transform = content.dataset.isSwiped === 'true' ? 'translateX(-80px)' : 'translateX(0)';
+    }
+    
+    if (isVerticalScroll) return; // 如果是垂直滾動，就不處理水平滑動
+    
+    // 如果已經是展開狀態
+    if (content.dataset.isSwiped === 'true') {
+      if (diffX > 0) { // 往右滑（收起）
+        content.dataset.isSwiping = 'true';
+        let moveX = -80 + diffX;
+        if (moveX > 0) moveX = 0;
+        content.style.transform = `translateX(${moveX}px)`;
+      }
+    } else {
+      if (diffX < 0) { // 往左滑（展開）
+        content.dataset.isSwiping = 'true';
+        let moveX = diffX;
+        if (moveX < -100) moveX = -100; // 限制最大滑動距離
+        content.style.transform = `translateX(${moveX}px)`;
+      }
+    }
+  }, { passive: true });
+
+  content.addEventListener('touchend', (e) => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    content.style.transition = 'transform 0.3s ease, background 0.15s';
+    
+    if (isVerticalScroll) {
+      // 垂直滾動時，恢復原本狀態
+      content.style.transform = content.dataset.isSwiped === 'true' ? 'translateX(-80px)' : 'translateX(0)';
+      return;
+    }
+
+    const diffX = currentX - startX;
+    // 如果沒有滑動距離，視為點擊
+    if (Math.abs(diffX) < 10) {
+      currentX = 0;
+      return;
+    }
+
+    if (content.dataset.isSwiped === 'true') {
+      if (diffX > 30) {
+        content.style.transform = 'translateX(0)';
+        content.dataset.isSwiped = 'false';
+      } else {
+        content.style.transform = 'translateX(-80px)';
+      }
+    } else {
+      if (diffX < -SWIPE_THRESHOLD) {
+        content.style.transform = 'translateX(-80px)';
+        content.dataset.isSwiped = 'true';
+      } else {
+        content.style.transform = 'translateX(0)';
+        content.dataset.isSwiped = 'false';
+      }
+    }
+    currentX = 0;
+    
+    // 延遲重置 isSwiping 狀態，避免觸發 click
+    setTimeout(() => {
+      content.dataset.isSwiping = 'false';
+    }, 50);
+  });
+
   return item;
 }
 
@@ -7581,3 +7716,14 @@ function renderReportWealth() {
     }
   });
 })();
+
+// 點擊卡片以外的地方時，收起所有已展開的滑動刪除卡片
+document.addEventListener('touchstart', (e) => {
+  // 如果點擊的目標不是在 record-item-wrapper 內，就收起所有卡片
+  if (!e.target.closest('.record-item-wrapper')) {
+    document.querySelectorAll('.record-item[data-is-swiped="true"]').forEach(el => {
+      el.style.transform = 'translateX(0)';
+      el.dataset.isSwiped = 'false';
+    });
+  }
+}, { passive: true });

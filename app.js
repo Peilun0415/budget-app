@@ -631,6 +631,7 @@ const projectReportPayerSelect = document.getElementById('projectReportPayerSele
 const projectReportCheckAll = document.getElementById('projectReportCheckAll');
 const projectReportTableBody = document.getElementById('projectReportTableBody');
 const projectReportTotalAmount = document.getElementById('projectReportTotalAmount');
+const exportProjectReportCsvBtn = document.getElementById('exportProjectReportCsvBtn');
 
 let currentReportRecs = [];
 const recordProjectSelect   = document.getElementById('recordProjectSelect');
@@ -2234,6 +2235,72 @@ function calculateProjectReportTotal() {
     total += parseFloat(cb.dataset.amount) || 0;
   });
   if (projectReportTotalAmount) projectReportTotalAmount.textContent = `$${formatMoney(total)}`;
+}
+
+if (exportProjectReportCsvBtn) {
+  exportProjectReportCsvBtn.addEventListener('click', () => {
+    const proj = allProjects.find(p => p.docId === currentProjectId);
+    const projName = proj ? proj.name : '專案';
+    const filterUid = projectReportMemberSelect.value;
+    const filterMemberName = filterUid ? projectReportMemberSelect.options[projectReportMemberSelect.selectedIndex].textContent : '全部成員';
+    
+    // 從表格抓取已勾選的列
+    const rows = Array.from(projectReportTableBody.querySelectorAll('tr')).filter(tr => {
+      const cb = tr.querySelector('.report-row-cb');
+      return cb && cb.checked;
+    });
+
+    if (rows.length === 0) {
+      alert('請至少勾選一筆資料匯出');
+      return;
+    }
+
+    const headers = ['消費日期', '消費項目', '備註', '台幣', '付款人'];
+    const escapeCell = (v) => {
+      if (v == null) return '';
+      const s = String(v).trim();
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    let totalTwd = 0;
+    const csvData = rows.map(tr => {
+      const tds = tr.querySelectorAll('td');
+      // tds[1] = 日期, tds[2] = 項目, tds[3] = 備註, tds[4] = 台幣, tds[5] = 付款人
+      const twdVal = (tds[4]?.textContent || '').replace(/[$,]/g, '');
+      totalTwd += parseFloat(twdVal) || 0;
+      return [
+        tds[1]?.textContent || '',
+        tds[2]?.textContent || '',
+        tds[3]?.textContent || '',
+        twdVal,
+        tds[5]?.textContent || ''
+      ];
+    });
+
+    // 加上總計列，直接寫入加總後的數字
+    csvData.push(['', '', '總計', String(totalTwd), '']);
+
+    const lines = [
+      headers.join(','),
+      ...csvData.map(row => row.map(escapeCell).join(','))
+    ];
+    
+    const csv = '\uFEFF' + lines.join('\r\n'); // BOM
+    const ts = new Date().toISOString().slice(0, 10);
+    const filename = `${projName}_${filterMemberName}_報表_${ts}.csv`;
+    
+    // 下載檔案
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
 }
 
 // ===== 記帳 modal 的專案選單 =====

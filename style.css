@@ -1025,9 +1025,15 @@ body {
   margin-bottom: 16px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
-.project-report-top select {
+.project-report-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.project-report-filters select {
   width: auto;
   min-width: 150px;
 }
@@ -1071,7 +1077,8 @@ body {
 }
 .project-report-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-dark);

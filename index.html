@@ -653,10 +653,12 @@
       </div>
       <div class="project-report-body">
         <div class="project-report-top">
-          <label for="projectReportMemberSelect">選擇成員：</label>
-          <select id="projectReportMemberSelect" class="form-select"></select>
-          <label for="projectReportPayerSelect" style="margin-left:12px;">付款人：</label>
-          <select id="projectReportPayerSelect" class="form-select"></select>
+          <div class="project-report-filters">
+            <label for="projectReportMemberSelect">選擇成員：</label>
+            <select id="projectReportMemberSelect" class="form-select"></select>
+            <label for="projectReportPayerSelect" style="margin-left:12px;">付款人：</label>
+            <select id="projectReportPayerSelect" class="form-select"></select>
+          </div>
         </div>
         <div class="project-report-table-container">
           <table class="project-report-table">
@@ -675,6 +677,7 @@
           </table>
         </div>
         <div class="project-report-footer">
+          <button type="button" class="btn-save" id="exportProjectReportCsvBtn" style="padding:8px 16px; font-size:14px; border-radius:16px; width: 150px;">匯出 CSV</button>
           <div class="project-report-total">
             總計：<span id="projectReportTotalAmount">$0</span>
           </div>

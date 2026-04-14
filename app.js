@@ -623,6 +623,15 @@ const projectDetailMembers  = document.getElementById('projectDetailMembers');
 const projectSettleSummary  = document.getElementById('projectSettleSummary');
 const projectRecordList     = document.getElementById('projectRecordList');
 const projectEditBtn        = document.getElementById('projectEditBtn');
+const projectReportBtn      = document.getElementById('projectReportBtn');
+const projectReportModalOverlay = document.getElementById('projectReportModalOverlay');
+const closeProjectReportModalBtn = document.getElementById('closeProjectReportModalBtn');
+const projectReportMemberSelect = document.getElementById('projectReportMemberSelect');
+const projectReportCheckAll = document.getElementById('projectReportCheckAll');
+const projectReportTableBody = document.getElementById('projectReportTableBody');
+const projectReportTotalAmount = document.getElementById('projectReportTotalAmount');
+
+let currentReportRecs = [];
 const recordProjectSelect   = document.getElementById('recordProjectSelect');
 const recordProjectGroup    = document.getElementById('recordProjectGroup');
 const rewardActivityGroup   = document.getElementById('rewardActivityGroup');
@@ -2097,6 +2106,126 @@ if (projectRewardManageBtn) {
     const proj = allProjects.find(p => p.docId === currentProjectId);
     if (proj) openRewardActivityModal(proj);
   });
+}
+
+if (projectReportBtn) {
+  projectReportBtn.addEventListener('click', () => {
+    const proj = allProjects.find(p => p.docId === currentProjectId);
+    if (proj) openProjectReportModal(proj);
+  });
+}
+
+function openProjectReportModal(proj) {
+  const members = getProjectMemberEntries(proj);
+  projectReportMemberSelect.innerHTML = '<option value="">全部成員</option>';
+  members.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.uid;
+    opt.textContent = m.label;
+    projectReportMemberSelect.appendChild(opt);
+  });
+  
+  currentReportRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  
+  projectReportMemberSelect.onchange = () => renderProjectReportTable(proj);
+  projectReportCheckAll.onchange = () => {
+    const cbs = projectReportTableBody.querySelectorAll('.report-row-cb');
+    cbs.forEach(cb => cb.checked = projectReportCheckAll.checked);
+    calculateProjectReportTotal();
+  };
+  
+  renderProjectReportTable(proj);
+  projectReportModalOverlay.classList.add('active');
+}
+
+if (closeProjectReportModalBtn) {
+  closeProjectReportModalBtn.addEventListener('click', () => {
+    projectReportModalOverlay.classList.remove('active');
+  });
+}
+if (projectReportModalOverlay) {
+  projectReportModalOverlay.addEventListener('click', (e) => {
+    if (e.target === projectReportModalOverlay) projectReportModalOverlay.classList.remove('active');
+  });
+}
+
+function renderProjectReportTable(proj) {
+  const filterUid = projectReportMemberSelect.value;
+  projectReportTableBody.innerHTML = '';
+  
+  const sorted = [...currentReportRecs].sort((a, b) => {
+    const dCmp = (b.date || '').localeCompare(a.date || '');
+    if (dCmp !== 0) return dCmp;
+    return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+  });
+  
+  sorted.forEach(r => {
+    let rowTwd = 0;
+    
+    if (filterUid) {
+      const share = getMemberShareTwd(r, filterUid, proj);
+      if (share <= 0) return;
+      rowTwd = share;
+    } else {
+      rowTwd = getProjectRecordTwdAmount(r, proj);
+    }
+    
+    const tr = document.createElement('tr');
+    
+    const tdCb = document.createElement('td');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'report-row-cb';
+    cb.checked = true;
+    cb.onchange = () => calculateProjectReportTotal();
+    cb.dataset.amount = rowTwd;
+    tdCb.appendChild(cb);
+    
+    const tdDate = document.createElement('td');
+    tdDate.textContent = r.date || '';
+    
+    const tdItem = document.createElement('td');
+    const emoji = r.displayEmoji || r.categoryEmoji || '📦';
+    const name = r.displayName || r.categoryName || '其他';
+    tdItem.textContent = `${emoji} ${name}`;
+    
+    const tdNote = document.createElement('td');
+    tdNote.textContent = r.note || '';
+    
+    const tdFc = document.createElement('td');
+    if (r.foreignCurrency && r.foreignAmount != null) {
+      tdFc.textContent = `${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}`;
+    }
+    
+    const tdTwd = document.createElement('td');
+    tdTwd.className = 'num-col';
+    tdTwd.textContent = `$${formatMoney(rowTwd)}`;
+    
+    const tdPayer = document.createElement('td');
+    tdPayer.textContent = getCurrentUserSplitPayerLabel(r);
+    
+    tr.appendChild(tdCb);
+    tr.appendChild(tdDate);
+    tr.appendChild(tdItem);
+    tr.appendChild(tdNote);
+    tr.appendChild(tdFc);
+    tr.appendChild(tdTwd);
+    tr.appendChild(tdPayer);
+    
+    projectReportTableBody.appendChild(tr);
+  });
+  
+  projectReportCheckAll.checked = true;
+  calculateProjectReportTotal();
+}
+
+function calculateProjectReportTotal() {
+  const cbs = projectReportTableBody.querySelectorAll('.report-row-cb:checked');
+  let total = 0;
+  cbs.forEach(cb => {
+    total += parseFloat(cb.dataset.amount) || 0;
+  });
+  if (projectReportTotalAmount) projectReportTotalAmount.textContent = `$${formatMoney(total)}`;
 }
 
 // ===== 記帳 modal 的專案選單 =====

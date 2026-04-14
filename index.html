@@ -606,8 +606,23 @@
     <!-- ===== 專案詳情頁 ===== -->
     <div id="pageProjectDetail" style="display:none; padding-bottom: 30px;">
       <div class="project-detail-hero">
-        <div class="project-detail-dates" id="projectDetailDates"></div>
-        <div class="project-detail-members" id="projectDetailMembers"></div>
+        <div class="project-detail-hero-glow" aria-hidden="true"></div>
+        <div class="project-detail-hero-inner">
+          <div class="project-detail-meta">
+            <div class="project-detail-dates" id="projectDetailDates"></div>
+            <div class="project-detail-members" id="projectDetailMembers"></div>
+            <div class="project-detail-hero-actions">
+              <button type="button" class="project-edit-btn" id="projectEditBtn" aria-label="編輯專案">
+                <span class="project-edit-btn-icon" aria-hidden="true">✏️</span>
+                <span class="project-edit-btn-label">編輯專案</span>
+              </button>
+              <button type="button" class="project-edit-btn" id="projectReportBtn" aria-label="顯示報表">
+                <span class="project-edit-btn-icon" aria-hidden="true">📊</span>
+                <span class="project-edit-btn-label">顯示報表</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 結算總覽 -->
@@ -625,11 +640,47 @@
       <!-- 花費明細 -->
       <div class="project-section-title">花費明細</div>
       <div id="projectRecordList"></div>
-
-      <button class="project-edit-btn" id="projectEditBtn">編輯專案</button>
     </div>
 
   </div><!-- /app-screen -->
+
+  <!-- ===== 報表 Modal ===== -->
+  <div class="modal-overlay" id="projectReportModalOverlay">
+    <div class="modal project-report-modal">
+      <div class="modal-header">
+        <h2 id="projectReportModalTitle">專案消費明細</h2>
+        <button class="close-btn" id="closeProjectReportModalBtn">✕</button>
+      </div>
+      <div class="project-report-body">
+        <div class="project-report-top">
+          <label for="projectReportMemberSelect">選擇成員：</label>
+          <select id="projectReportMemberSelect" class="form-select"></select>
+        </div>
+        <div class="project-report-table-container">
+          <table class="project-report-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="projectReportCheckAll" checked></th>
+                <th>消費日期</th>
+                <th>消費項目</th>
+                <th>備註</th>
+                <th>外幣</th>
+                <th>台幣</th>
+                <th>付款人</th>
+              </tr>
+            </thead>
+            <tbody id="projectReportTableBody">
+            </tbody>
+          </table>
+        </div>
+        <div class="project-report-footer">
+          <div class="project-report-total">
+            總計：<span id="projectReportTotalAmount">$0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 新增/編輯記帳彈窗 -->
   <div class="modal-overlay" id="modalOverlay">

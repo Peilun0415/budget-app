@@ -781,9 +781,57 @@ function hideSplash() {
   splashScreen.classList.add('hidden');
 }
 
+let initialLoadStatus = {
+  records: false,
+  accounts: false,
+  categories: false,
+  templates: false,
+  recurring: false,
+  budgets: false,
+  projects: false
+};
+
+let initialLoadTimeout = null;
+
+function checkInitialLoad() {
+  if (
+    initialLoadStatus.records &&
+    initialLoadStatus.accounts &&
+    initialLoadStatus.categories &&
+    initialLoadStatus.templates &&
+    initialLoadStatus.recurring &&
+    initialLoadStatus.budgets &&
+    initialLoadStatus.projects
+  ) {
+    if (initialLoadTimeout) {
+      clearTimeout(initialLoadTimeout);
+      initialLoadTimeout = null;
+    }
+    hideSplash();
+  }
+}
+
+function resetInitialLoad() {
+  initialLoadStatus = {
+    records: false,
+    accounts: false,
+    categories: false,
+    templates: false,
+    recurring: false,
+    budgets: false,
+    projects: false
+  };
+  if (initialLoadTimeout) clearTimeout(initialLoadTimeout);
+  // 最多等待 5 秒，避免因為網路或權限問題卡在載入畫面
+  initialLoadTimeout = setTimeout(() => {
+    console.warn('Initial load timeout, hiding splash screen.');
+    hideSplash();
+  }, 5000);
+}
+
 onAuthStateChanged(auth, (user) => {
-  hideSplash();
   if (user) {
+    resetInitialLoad();
     currentUser = user;
     // 寫入/更新 users 集合，供專案邀請時以 email 查詢
     const email = (user.email || '').trim().toLowerCase();
@@ -800,6 +848,7 @@ onAuthStateChanged(auth, (user) => {
     subscribeBudgets();
     subscribeProjects();
   } else {
+    hideSplash();
     currentUser = null;
     showLogin();
     if (unsubRecords)     { unsubRecords();     unsubRecords     = null; }
@@ -1150,6 +1199,11 @@ function subscribeBudgets() {
     allBudgets = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
     if (currentPage === 'budget') renderBudgetPage();
     if (currentPage === 'home')   renderHomeBudget();
+    
+    if (!initialLoadStatus.budgets) {
+      initialLoadStatus.budgets = true;
+      checkInitialLoad();
+    }
   });
 }
 
@@ -1168,6 +1222,11 @@ function subscribeProjects() {
     if (currentPage === 'projectDetail') renderProjectDetail();
     updateRecordProjectSelect();
     subscribeSharedProjectRecords();
+    
+    if (!initialLoadStatus.projects) {
+      initialLoadStatus.projects = true;
+      checkInitialLoad();
+    }
   };
 
   let ownSnap = null, invitedSnap = null;
@@ -3156,6 +3215,10 @@ function subscribeRecords() {
       const acc = allAccounts.find(a => a.docId === detailAccountId);
       if (acc) renderAccountDetail(acc);
     }
+    if (!initialLoadStatus.records) {
+      initialLoadStatus.records = true;
+      checkInitialLoad();
+    }
   }, console.error);
 }
 
@@ -3178,6 +3241,10 @@ function subscribeAccounts() {
     if (currentPage === 'accountDetail' && detailAccountId) {
       const acc = allAccounts.find(a => a.docId === detailAccountId);
       if (acc) renderAccountDetail(acc);
+    }
+    if (!initialLoadStatus.accounts) {
+      initialLoadStatus.accounts = true;
+      checkInitialLoad();
     }
   }, console.error);
 }
@@ -3210,6 +3277,14 @@ function subscribeCategories() {
     if (currentPage === 'categories') renderCategoryMgmtList();
     // 分類載入後，若尚未選分類，設預設值
     if (!selectedCategory) setDefaultCategory();
+    
+    // 分類更新後，重新渲染首頁與記帳表單，確保分類資料正確顯示
+    renderAll();
+    
+    if (!initialLoadStatus.categories) {
+      initialLoadStatus.categories = true;
+      checkInitialLoad();
+    }
   }, console.error);
 }
 
@@ -3251,6 +3326,11 @@ function subscribeTemplates() {
     allTemplates = snap.docs
       .map(d => ({ docId: d.id, ...d.data() }))
       .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      
+    if (!initialLoadStatus.templates) {
+      initialLoadStatus.templates = true;
+      checkInitialLoad();
+    }
   }, console.error);
 }
 
@@ -3442,6 +3522,11 @@ function subscribeRecurring() {
     if (currentPage === 'recurring') renderRecurringList();
     // 登入後自動觸發到期項目
     processRecurringItems();
+    
+    if (!initialLoadStatus.recurring) {
+      initialLoadStatus.recurring = true;
+      checkInitialLoad();
+    }
   }, console.error);
 }
 

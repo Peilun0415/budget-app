@@ -1017,29 +1017,58 @@ body {
 }
 
 /* ===== 專案報表 Modal ===== */
+#projectReportModalOverlay {
+  padding: 16px;
+  align-items: stretch;
+}
 .project-report-modal {
   max-width: 900px; /* 寬一點以容納表格 */
+  width: 100%;
+  margin: 0 auto;
   padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+.project-report-modal .modal-header {
+  flex-shrink: 0;
+}
+.project-report-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .project-report-top {
   margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-shrink: 0;
 }
 .project-report-filters {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+.report-filter-item {
+  display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 180px;
 }
-.project-report-filters select {
-  width: auto;
-  min-width: 150px;
+.report-filter-item label {
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-mid);
+}
+.report-filter-item select {
+  flex: 1;
+  min-width: 0;
 }
 .project-report-table-container {
   overflow-x: auto;
-  max-height: 60vh;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   margin-bottom: 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -1076,6 +1105,7 @@ body {
   text-align: right;
 }
 .project-report-footer {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;

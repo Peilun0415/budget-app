@@ -1039,7 +1039,7 @@ body {
 }
 .project-report-table-container {
   overflow-x: auto;
-  max-height: 65vh;
+  max-height: 60vh;
   margin-bottom: 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);

@@ -1496,6 +1496,35 @@ function getProjectRecordTwdAmount(record, project) {
   return record.amount ?? 0;
 }
 
+/** 報表篩選下拉 value 與真實 UID 對齊（舊專案「我」可能為 legacy:__owner__） */
+function resolveProjectReportFilterMemberUid(proj, filterUid) {
+  if (filterUid == null || filterUid === '') return null;
+  if (filterUid === 'legacy:__owner__') return proj?.uid || currentUser?.uid || null;
+  return filterUid;
+}
+
+/**
+ * 專案報表「成員」篩選用金額：
+ * 1. 有分攤（splitData）：該成員在分攤列中的金額（getMemberShareTwd）。
+ * 2. 無分攤：僅當篩選成員＝建立者（record.uid）時為整筆金額，否則 0。
+ */
+function getProjectReportMemberShareTwd(r, memberUid, proj) {
+  if (!r || !memberUid) return 0;
+  const canonical = resolveProjectReportFilterMemberUid(proj, memberUid) || memberUid;
+  if (r.splitData?.length) {
+    return getMemberShareTwd(r, canonical, proj);
+  }
+  return canonical === r.uid ? getProjectRecordTwdAmount(r, proj) : 0;
+}
+
+/** 專案報表「付款人」欄：有分攤顯示付款人；無分攤顯示建立者於專案中的名稱 */
+function getProjectReportPayerColumnText(record, proj) {
+  if (record.splitData?.length) return getCurrentUserSplitPayerLabel(record);
+  const uid = record.uid;
+  if (uid && proj) return getProjectMemberLabelByUid(proj, uid);
+  return getRecordCreatorLabel(record, proj);
+}
+
 function isProjectExpenseLikeRecord(record) {
   if (!record) return false;
   if (record.type === 'expense') return true;
@@ -2218,8 +2247,14 @@ if (projectReportModalOverlay) {
 }
 
 function renderProjectReportTable(proj) {
-  const filterUid = projectReportMemberSelect.value;
-  const filterPayerUid = projectReportPayerSelect.value;
+  const filterUidRaw = projectReportMemberSelect.value;
+  const filterUid = filterUidRaw
+    ? (resolveProjectReportFilterMemberUid(proj, filterUidRaw) || filterUidRaw)
+    : '';
+  const filterPayerRaw = projectReportPayerSelect.value;
+  const filterPayerUid = filterPayerRaw
+    ? (resolveProjectReportFilterMemberUid(proj, filterPayerRaw) || filterPayerRaw)
+    : '';
   projectReportTableBody.innerHTML = '';
   
   const sorted = [...currentReportRecs].sort((a, b) => {
@@ -2230,14 +2265,14 @@ function renderProjectReportTable(proj) {
   
   sorted.forEach(r => {
     if (filterPayerUid) {
-      const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
+      const payerUid = resolveRecordSplitPayerUid(r, proj);
       if (payerUid !== filterPayerUid) return;
     }
     
     let rowTwd = 0;
     
     if (filterUid) {
-      const share = getMemberShareTwd(r, filterUid, proj);
+      const share = getProjectReportMemberShareTwd(r, filterUid, proj);
       if (share <= 0) return;
       rowTwd = share;
     } else {
@@ -2271,7 +2306,7 @@ function renderProjectReportTable(proj) {
     tdTwd.textContent = `$${formatMoney(rowTwd)}`;
     
     const tdPayer = document.createElement('td');
-    tdPayer.textContent = getCurrentUserSplitPayerLabel(r);
+    tdPayer.textContent = getProjectReportPayerColumnText(r, proj);
     
     tr.appendChild(tdCb);
     tr.appendChild(tdDate);
@@ -2428,10 +2463,20 @@ function updateSplitGroupVisibility(record = null) {
 
 function renderSplitUI(proj, record = null) {
   const members = getProjectMemberEntries(proj);
-  const savedPayerUid = normalizeSplitPayerUid(record, proj, record?.uid || null);
-  const savedSplits = record?.splitData   || null;
+  const savedSplits = record?.splitData ?? null;
 
-  const hasSplit = !!(savedPayerUid && savedSplits?.length);
+  // 付款人：有明確儲存值則還原；否則（含新紀錄）預設為目前登入者
+  let selectedPayerUid = null;
+  if (record) {
+    if (record.splitPayerUid && members.some(m => m.uid === record.splitPayerUid)) {
+      selectedPayerUid = record.splitPayerUid;
+    } else if (record.splitPayer || record.splitPayerUid) {
+      const resolved = normalizeSplitPayerUid(record, proj, record?.uid || null);
+      if (resolved && members.some(m => m.uid === resolved)) selectedPayerUid = resolved;
+    }
+  }
+
+  const hasSplit = !!(savedSplits && savedSplits.length > 0);
   if (splitEnableToggle) splitEnableToggle.checked = hasSplit;
   if (splitDetail) splitDetail.style.display = hasSplit ? '' : 'none';
 
@@ -2448,16 +2493,22 @@ function renderSplitUI(proj, record = null) {
     opt.textContent = m.label;
     splitPayer.appendChild(opt);
   });
-  if (savedPayerUid && members.some(m => m.uid === savedPayerUid)) splitPayer.value = savedPayerUid;
+  if (selectedPayerUid) {
+    splitPayer.value = selectedPayerUid;
+  } else if (currentUser?.uid && members.some(m => m.uid === currentUser.uid)) {
+    splitPayer.value = currentUser.uid;
+  }
 
   splitMode = restoreCustom ? 'custom' : 'equal';
   splitEqualToggle.checked = !restoreCustom;
 
   const savedMemberUids = savedSplits ? savedSplits.map(s => normalizeSplitMemberUid(s, proj)).filter(Boolean) : null;
+  const hasSavedMemberSelection = !!(savedMemberUids && savedMemberUids.length > 0);
 
   splitMemberList.innerHTML = '';
   members.forEach((m, i) => {
-    const shouldCheck = savedMemberUids ? savedMemberUids.includes(m.uid) : i === 0;
+    // 無儲存的分攤成員時：預設全選（與「全選」勾選一致）；有儲存則依紀錄還原
+    const shouldCheck = hasSavedMemberSelection ? savedMemberUids.includes(m.uid) : true;
     const savedAmt = savedSplits?.find(s => normalizeSplitMemberUid(s, proj) === m.uid)?.amount ?? '';
     const row = document.createElement('label');
     row.className = 'split-card-row';
@@ -2473,7 +2524,9 @@ function renderSplitUI(proj, record = null) {
     splitMemberList.appendChild(row);
   });
 
-  splitSelectAll.checked = members.every((m, i) => savedMemberUids ? savedMemberUids.includes(m.uid) : i === 0);
+  splitSelectAll.checked = hasSavedMemberSelection
+    ? (members.length > 0 && members.every(m => savedMemberUids.includes(m.uid)))
+    : (members.length > 0);
   splitSelectAll.addEventListener('change', () => {
     splitMemberList.querySelectorAll('.split-member-cb').forEach(cb => {
       cb.checked = splitSelectAll.checked;

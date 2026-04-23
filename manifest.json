@@ -1,0 +1,26 @@
+{
+  "name": "貓貓記帳",
+  "short_name": "貓貓記帳",
+  "description": "記帳與預算，手機與電腦同步",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f0f6ff",
+  "theme_color": "#3b6fb8",
+  "lang": "zh-TW",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icons/cat.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/cat.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -7780,3 +7780,12 @@ document.addEventListener('touchstart', (e) => {
     });
   }
 }, { passive: true });
+
+// PWA：註冊 Service Worker（與 app.js 同目錄，子路徑部署時可正確範圍）
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swUrl = new URL('sw.js', import.meta.url);
+    const scope = new URL('./', import.meta.url);
+    navigator.serviceWorker.register(swUrl, { scope }).catch(() => {});
+  });
+}

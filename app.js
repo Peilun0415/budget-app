@@ -976,12 +976,195 @@ function showApp(user) {
   }
 }
 
-// ===== 頁面切換 =====
-navHome.addEventListener('click', () => switchPage('home'));
-navAccountsBtn.addEventListener('click', () => switchPage('accounts'));
-navReportBtn.addEventListener('click', () => switchPage('report'));
-navSettingsBtn.addEventListener('click', () => switchPage('settings'));
-backToAccountsBtn.addEventListener('click', () => switchPage('accounts'));
+// ===== 頁面切換：pushState 與 popstate（明細／專案／設定子頁可用「上一頁」；離開時自動清歷程）=====
+const HIST_STATE_ACCOUNT_DETAIL  = 'accountDetail';
+const HIST_STATE_PROJECT_DETAIL  = 'projectDetail';
+const HIST_STATE_SETTINGS_SUB   = 'settingsSub';
+const HIST_STATE_BUDGET_FROM_HOME = 'budgetFromHome';
+
+let _histNavPending = null;
+let pushedFromSettings = false;
+let pushedBudgetFromHome = false;
+
+function goToAccountsList() {
+  const st = history.state;
+  if (st && st._page === HIST_STATE_ACCOUNT_DETAIL && st.accountId) {
+    history.back();
+    return;
+  }
+  switchPage('accounts');
+}
+
+function goToProjectsList() {
+  const st = history.state;
+  if (st && st._page === HIST_STATE_PROJECT_DETAIL && st.projectId) {
+    history.back();
+    return;
+  }
+  switchPage('projects');
+}
+
+function goToSettingsFromSub() {
+  if (history.state?._page === HIST_STATE_SETTINGS_SUB) {
+    history.back();
+    return;
+  }
+  switchPage('settings');
+}
+
+function goToHomeFromBudget() {
+  if (history.state?._page === HIST_STATE_BUDGET_FROM_HOME) {
+    history.back();
+    return;
+  }
+  switchPage('home');
+}
+
+function navigateToPage(page) {
+  const st = history.state;
+  if (st && st._page === HIST_STATE_ACCOUNT_DETAIL && st.accountId) {
+    if (page === 'accounts' && currentPage === 'accountDetail') {
+      goToAccountsList();
+      return;
+    }
+    if (page === 'accountDetail' || page === 'accounts') {
+      switchPage(page);
+      return;
+    }
+    _histNavPending = { page };
+    history.back();
+    return;
+  }
+  if (st && st._page === HIST_STATE_PROJECT_DETAIL && st.projectId) {
+    if (page === 'projects' && currentPage === 'projectDetail') {
+      goToProjectsList();
+      return;
+    }
+    if (page === 'projectDetail' || page === 'projects') {
+      switchPage(page);
+      return;
+    }
+    _histNavPending = { page };
+    history.back();
+    return;
+  }
+  if (st && st._page === HIST_STATE_SETTINGS_SUB && st.sub) {
+    if (page === 'settings' && ['budget', 'recurring', 'categories'].includes(currentPage)) {
+      goToSettingsFromSub();
+      return;
+    }
+    if (page === st.sub) {
+      switchPage(page);
+      return;
+    }
+    if (['budget', 'recurring', 'categories'].includes(page) && page !== st.sub) {
+      try {
+        history.replaceState({ _page: HIST_STATE_SETTINGS_SUB, sub: page }, '', location.href);
+      } catch { /* empty */ }
+      pushedFromSettings = true;
+      switchPage(page);
+      return;
+    }
+    if (!['settings', 'budget', 'recurring', 'categories'].includes(page)) {
+      _histNavPending = { page };
+      history.back();
+      return;
+    }
+    switchPage(page);
+    return;
+  }
+  if (st && st._page === HIST_STATE_BUDGET_FROM_HOME) {
+    if (page === 'home' && currentPage === 'budget') {
+      goToHomeFromBudget();
+      return;
+    }
+    if (page === 'budget') {
+      switchPage('budget');
+      return;
+    }
+    _histNavPending = { page };
+    history.back();
+    return;
+  }
+  switchPage(page);
+}
+
+navHome.addEventListener('click', () => navigateToPage('home'));
+navAccountsBtn.addEventListener('click', () => {
+  if (currentPage === 'accountDetail') goToAccountsList();
+  else navigateToPage('accounts');
+});
+navReportBtn.addEventListener('click', () => navigateToPage('report'));
+navSettingsBtn.addEventListener('click', () => {
+  if (['budget', 'recurring', 'categories'].includes(currentPage) && history.state?._page === HIST_STATE_SETTINGS_SUB) {
+    goToSettingsFromSub();
+    return;
+  }
+  navigateToPage('settings');
+});
+backToAccountsBtn.addEventListener('click', () => goToAccountsList());
+
+window.addEventListener('popstate', (e) => {
+  if (_histNavPending) {
+    const p = _histNavPending.page;
+    _histNavPending = null;
+    pushedFromSettings = false;
+    pushedBudgetFromHome = false;
+    switchPage(p);
+    return;
+  }
+  const st = e.state;
+  if (st && st._page === HIST_STATE_ACCOUNT_DETAIL && st.accountId) {
+    const acc = allAccounts.find(a => a.docId === st.accountId);
+    if (acc) {
+      showAccountDetailView(acc);
+    } else {
+      switchPage('accounts');
+    }
+    return;
+  }
+  if (st && st._page === HIST_STATE_PROJECT_DETAIL && st.projectId) {
+    const proj = allProjects.find(p => p.docId === st.projectId);
+    if (proj) {
+      showProjectDetailView(proj);
+    } else {
+      switchPage('projects');
+    }
+    return;
+  }
+  if (st && st._page === HIST_STATE_SETTINGS_SUB && st.sub) {
+    pushedFromSettings = true;
+    if (['budget', 'recurring', 'categories'].includes(st.sub)) {
+      switchPage(st.sub);
+    } else {
+      switchPage('settings');
+    }
+    return;
+  }
+  if (st && st._page === HIST_STATE_BUDGET_FROM_HOME) {
+    pushedBudgetFromHome = true;
+    switchPage('budget');
+    return;
+  }
+  if (currentPage === 'accountDetail') {
+    switchPage('accounts');
+    return;
+  }
+  if (currentPage === 'projectDetail') {
+    switchPage('projects');
+    return;
+  }
+  if (['budget', 'recurring', 'categories'].includes(currentPage) && pushedFromSettings) {
+    pushedFromSettings = false;
+    switchPage('settings');
+    return;
+  }
+  if (currentPage === 'budget' && pushedBudgetFromHome) {
+    pushedBudgetFromHome = false;
+    switchPage('home');
+    return;
+  }
+});
 
 // 回到頂部按鈕：捲動超過 300px 時顯示，點擊平滑捲回頂部
 const BACK_TO_TOP_THRESHOLD = 300;
@@ -1014,6 +1197,8 @@ function switchPage(page) {
     applySearchMode(false);
   }
   currentPage = page;
+  if (page === 'accounts') detailAccountId = null;
+  if (page === 'projects') currentProjectId = null;
   pageHome.style.display          = page === 'home'          ? 'block' : 'none';
   pageAccounts.style.display      = page === 'accounts'      ? 'block' : 'none';
   pageAccountDetail.style.display = page === 'accountDetail' ? 'block' : 'none';
@@ -1052,13 +1237,54 @@ function switchPage(page) {
   if (page === 'projectDetail') renderProjectDetail();
 }
 
-// ===== 主頁預算小卡 =====
-homeBudgetMoreBtn.addEventListener('click', () => switchPage('budget'));
+// ===== 主頁預算小卡（從主頁進預算時 push 一層，上一頁可回主頁）=====
+homeBudgetMoreBtn.addEventListener('click', () => {
+  if (currentPage !== 'settings') pushedFromSettings = false;
+  if (currentPage === 'home') {
+    switchPage('budget');
+    try {
+      history.pushState({ _page: HIST_STATE_BUDGET_FROM_HOME }, '', location.href);
+    } catch { /* empty */ }
+    pushedBudgetFromHome = true;
+    return;
+  }
+  navigateToPage('budget');
+});
 
-// ===== 設定頁按鈕 =====
-goBudgetBtn.addEventListener('click', () => switchPage('budget'));
-goRecurringBtn.addEventListener('click', () => switchPage('recurring'));
-goCategoriesBtn.addEventListener('click', () => switchPage('categories'));
+// ===== 設定頁按鈕（從設定進入子頁時 push 一層，上一頁可回設定）=====
+goBudgetBtn.addEventListener('click', () => {
+  if (currentPage === 'settings') {
+    try {
+      history.pushState({ _page: HIST_STATE_SETTINGS_SUB, sub: 'budget' }, '', location.href);
+    } catch { /* empty */ }
+    pushedFromSettings = true;
+  } else {
+    pushedFromSettings = false;
+  }
+  switchPage('budget');
+});
+goRecurringBtn.addEventListener('click', () => {
+  if (currentPage === 'settings') {
+    try {
+      history.pushState({ _page: HIST_STATE_SETTINGS_SUB, sub: 'recurring' }, '', location.href);
+    } catch { /* empty */ }
+    pushedFromSettings = true;
+  } else {
+    pushedFromSettings = false;
+  }
+  switchPage('recurring');
+});
+goCategoriesBtn.addEventListener('click', () => {
+  if (currentPage === 'settings') {
+    try {
+      history.pushState({ _page: HIST_STATE_SETTINGS_SUB, sub: 'categories' }, '', location.href);
+    } catch { /* empty */ }
+    pushedFromSettings = true;
+  } else {
+    pushedFromSettings = false;
+  }
+  switchPage('categories');
+});
 
 if (exportDataBtn) {
   const openExportModal = () => exportModalOverlay?.classList.add('active');
@@ -1262,7 +1488,10 @@ function subscribeSharedProjectRecords() {
 }
 
 // ===== 頁面切換（專案） =====
-navProjectsBtn.addEventListener('click', () => switchPage('projects'));
+navProjectsBtn.addEventListener('click', () => {
+  if (currentPage === 'projectDetail') goToProjectsList();
+  else navigateToPage('projects');
+});
 
 // ===== 專案列表 =====
 function renderProjectList() {
@@ -1847,13 +2076,28 @@ deleteProjectBtn.addEventListener('click', async () => {
   await deleteDoc(doc(db, 'projects', editId));
   closeProjectModal();
   switchPage('projects');
+  try {
+    if (history.state?._page === HIST_STATE_PROJECT_DETAIL) {
+      history.replaceState(null, '', location.href);
+    }
+  } catch { /* empty */ }
 });
 
 // ===== 專案詳情 =====
-function openProjectDetail(proj) {
+function showProjectDetailView(proj) {
   currentProjectId = proj.docId;
   renderProjectDetail();
   switchPage('projectDetail');
+}
+function openProjectDetail(proj) {
+  showProjectDetailView(proj);
+  try {
+    history.pushState(
+      { _page: HIST_STATE_PROJECT_DETAIL, projectId: proj.docId },
+      '',
+      location.href
+    );
+  } catch { /* empty */ }
 }
 
 function renderProjectDetail() {
@@ -3069,7 +3313,7 @@ function calcBillingCycle(billingDay) {
   return { start: toDateStr(startDate), end: toDateStr(endDate) };
 }
 
-function openAccountDetail(account) {
+function showAccountDetailView(account) {
   detailAccountId   = account.docId;
   detailViewYear    = new Date().getFullYear();
   detailViewMonth   = new Date().getMonth();
@@ -3094,6 +3338,17 @@ function openAccountDetail(account) {
   syncDetailModeUI();
   renderAccountDetail(account);
   switchPage('accountDetail');
+}
+
+function openAccountDetail(account) {
+  showAccountDetailView(account);
+  try {
+    history.pushState(
+      { _page: HIST_STATE_ACCOUNT_DETAIL, accountId: account.docId },
+      '',
+      location.href
+    );
+  } catch { /* 極少數環境 */ }
 }
 
 // 切換模式 UI

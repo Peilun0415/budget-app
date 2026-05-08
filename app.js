@@ -520,7 +520,8 @@ foreignClearBtn.addEventListener('click', () => {
   syncForeignAccountUI();
 });
 const submitBtn     = document.getElementById('submitBtn');
-const saveTplBtn    = document.getElementById('saveTplBtn');
+const saveTplBtn          = document.getElementById('saveTplBtn');
+const duplicateRecordBtn  = document.getElementById('duplicateRecordBtn');
 const openTplListBtn  = document.getElementById('openTplListBtn');
 const tplListOverlay  = document.getElementById('tplListOverlay');
 const closeTplListBtn = document.getElementById('closeTplListBtn');
@@ -3696,6 +3697,20 @@ saveTplBtn.addEventListener('click', () => {
   tplNameInput.value = '';
   tplNameOverlay.classList.add('active');
 });
+
+/** 保留表單內容，改為新增一筆（清除編輯 id，送出時會新增而非更新） */
+function duplicateCurrentFormAsNewRecord() {
+  recordEditId.value = '';
+  recordModalTitle.textContent = '新增記帳';
+  submitBtn.textContent = '記下來！';
+  if (deleteRecordBtn) deleteRecordBtn.style.display = 'none';
+  syncForeignAccountUI();
+  void maybeAutoConvertForeignIncome();
+}
+
+if (duplicateRecordBtn) {
+  duplicateRecordBtn.addEventListener('click', () => duplicateCurrentFormAsNewRecord());
+}
 
 confirmSaveTplBtn.addEventListener('click', saveCurrentAsTemplate);
 tplNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveCurrentAsTemplate(); });

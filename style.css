@@ -269,11 +269,29 @@ body {
   justify-content: space-between;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+}
+
 .header-title h1 {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 1px;
   text-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  margin: 0;
+  min-width: 0;
 }
 
 .header-right {
@@ -1474,6 +1492,16 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   transition: background 0.15s;
 }
 .tpl-apply-btn:hover { background: var(--pink-mid); }
+
+.record-form-secondary-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.record-form-secondary-row .save-tpl-btn {
+  flex: 1;
+  margin-top: 0;
+}
 
 .save-tpl-btn {
   width: 100%;

@@ -79,6 +79,7 @@
     <!-- 頂部標題 -->
     <header class="app-header">
       <div class="header-title">
+        <img class="header-logo" src="icons/cat.png" width="40" height="40" alt="" decoding="async" />
         <h1 id="pageTitle">貓貓記帳</h1>
       </div>
       <div class="header-right">
@@ -899,7 +900,10 @@
           <button type="submit" class="submit-btn" id="submitBtn">記下來！</button>
           <button type="button" class="delete-record-btn" id="deleteRecordBtn" style="display:none">刪除</button>
         </div>
-        <button type="button" class="save-tpl-btn" id="saveTplBtn">📌 儲存為範本</button>
+        <div class="record-form-secondary-row">
+          <button type="button" class="save-tpl-btn" id="saveTplBtn">📌 儲存為範本</button>
+          <button type="button" class="save-tpl-btn" id="duplicateRecordBtn">📋 再記一筆</button>
+        </div>
       </form>
       </div><!-- /recordModalEditor -->
     </div>

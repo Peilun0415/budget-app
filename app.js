@@ -591,6 +591,7 @@ const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 const billingCycleBar    = document.getElementById('billingCycleBar');
 const billingCycleBtn    = document.getElementById('billingCycleBtn');
+const accountDetailAddRecordBtn = document.getElementById('accountDetailAddRecordBtn');
 
 // ===== DOM — 專案 =====
 const pageProjects          = document.getElementById('pageProjects');
@@ -1171,7 +1172,12 @@ const BACK_TO_TOP_THRESHOLD = 300;
 function updateBackToTopVisibility() {
   const show = window.scrollY > BACK_TO_TOP_THRESHOLD;
   if (backToTopBtn) backToTopBtn.classList.toggle('visible', show);
-  if (fabAddRecordBtn) fabAddRecordBtn.classList.toggle('visible', show && currentPage === 'home');
+  if (fabAddRecordBtn) {
+    fabAddRecordBtn.classList.toggle(
+      'visible',
+      show && (currentPage === 'home' || currentPage === 'accountDetail')
+    );
+  }
 }
 window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
 if (backToTopBtn) {
@@ -1180,7 +1186,13 @@ if (backToTopBtn) {
   });
 }
 if (fabAddRecordBtn) {
-  fabAddRecordBtn.addEventListener('click', () => openModal());
+  fabAddRecordBtn.addEventListener('click', () => {
+    if (currentPage === 'accountDetail' && detailAccountId) {
+      openModal(null, { presetAccountId: detailAccountId });
+    } else {
+      openModal();
+    }
+  });
 }
 
 function switchPage(page) {
@@ -3482,6 +3494,13 @@ billingCycleBtn.addEventListener('click', () => {
   renderAccountDetail(acc);
 });
 
+if (accountDetailAddRecordBtn) {
+  accountDetailAddRecordBtn.addEventListener('click', () => {
+    if (!detailAccountId) return;
+    openModal(null, { presetAccountId: detailAccountId });
+  });
+}
+
 detailPrevMonth.addEventListener('click', () => {
   detailViewMonth--;
   if (detailViewMonth < 0) { detailViewMonth = 11; detailViewYear--; }
@@ -4567,7 +4586,7 @@ deleteRecordBtn.addEventListener('click', async () => {
   }
 });
 
-function openModal(record = null) {
+function openModal(record = null, newRecordOptions = null) {
   showRecordModalEditorMode();
   if (record) {
     if (!canModifyRecord(record)) {
@@ -4649,8 +4668,19 @@ function openModal(record = null) {
     recordModalTitle.textContent = '新增記帳';
     submitBtn.textContent = '記下來！';
     deleteRecordBtn.style.display = 'none';
+    const preset = newRecordOptions?.presetAccountId;
+    const presetOk = preset && allAccounts.some(a => a.docId === preset);
     const defaultAcc = allAccounts.find(a => a.isDefault);
-    accountSelect.value = defaultAcc ? defaultAcc.docId : (allAccounts[0]?.docId || '');
+    const fallbackId = defaultAcc ? defaultAcc.docId : (allAccounts[0]?.docId || '');
+    const chosenId   = presetOk ? preset : fallbackId;
+    accountSelect.value = chosenId;
+    if (currentType === 'transfer' && chosenId) {
+      transferFrom.value = chosenId;
+      if (transferTo.value === chosenId) {
+        const alt = allAccounts.find(a => a.docId !== chosenId);
+        if (alt) transferTo.value = alt.docId;
+      }
+    }
   }
   syncForeignAccountUI();
   void maybeAutoConvertForeignIncome();

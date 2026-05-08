@@ -3289,7 +3289,7 @@ deleteCatBudgetBtn.addEventListener('click', async () => {
 /**
  * 計算信用卡本期帳單的起訖日
  * 結算日 billingDay：每月 N 號結帳
- * 本期 = 上個結算日+1 到 本次結算日
+ * 基準週期 = 上個結算日+1 到 本次結算日；再整體往回一個月（與常見帳單閱讀區間對齊）
  */
 function calcBillingCycle(billingDay) {
   const today = new Date();
@@ -3309,6 +3309,10 @@ function calcBillingCycle(billingDay) {
     endDate   = new Date(y, m + 1, billingDay);
     startDate = new Date(y, m, billingDay + 1);
   }
+
+  // 起訖一律再往回一個月
+  startDate.setMonth(startDate.getMonth() - 1);
+  endDate.setMonth(endDate.getMonth() - 1);
 
   return { start: toDateStr(startDate), end: toDateStr(endDate) };
 }
@@ -4639,6 +4643,8 @@ function openModal(record = null) {
     updateRewardActivitySelect(formRecord.rewardActivityIds || (formRecord.rewardActivityId ? [formRecord.rewardActivityId] : []));
     updateSplitGroupVisibility(formRecord);
   } else {
+    // 每次開「新增」都對齊今天（避免分頁久未重整仍停留在上次載入的日期）
+    setDefaultDate();
     recordEditId.value = '';
     recordModalTitle.textContent = '新增記帳';
     submitBtn.textContent = '記下來！';
@@ -7312,6 +7318,17 @@ const PIE_COLORS = [
   '#2ECC71','#E67E22','#16A085','#8E44AD','#D35400',
 ];
 
+// 圓餅圖：圖例點選會切換各筆資料的可見性；加總須排除已隱藏扇形（Chart.getDataVisibility）
+function getDoughnutVisibleDataTotal(chart) {
+  const ds = chart.data.datasets[0];
+  if (!ds?.data?.length) return 0;
+  let sum = 0;
+  ds.data.forEach((val, i) => {
+    if (chart.getDataVisibility(i) !== false) sum += Number(val) || 0;
+  });
+  return sum;
+}
+
 // 圓餅圖中間顯示總額的 plugin
 const doughnutCenterPlugin = {
   id: 'doughnutCenter',
@@ -7320,7 +7337,7 @@ const doughnutCenterPlugin = {
     const { ctx, chartArea: { left, right, top, bottom } } = chart;
     const cx = (left + right) / 2;
     const cy = (top + bottom) / 2;
-    const total = chart.config.options.plugins?.doughnutCenter?.total ?? 0;
+    const total = getDoughnutVisibleDataTotal(chart);
     const label = chart.config.options.plugins?.doughnutCenter?.label ?? '';
 
     ctx.save();
@@ -7367,7 +7384,8 @@ function renderPieChart(items, total) {
         tooltip: {
           callbacks: {
             label: ctx => {
-              const pct = total > 0 ? Math.round(ctx.parsed / total * 100) : 0;
+              const visTotal = getDoughnutVisibleDataTotal(ctx.chart);
+              const pct = visTotal > 0 ? Math.round(ctx.parsed / visTotal * 100) : 0;
               return ` $${formatMoney(ctx.parsed)}（${pct}%）`;
             },
           },

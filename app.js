@@ -3704,6 +3704,7 @@ function duplicateCurrentFormAsNewRecord() {
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   if (deleteRecordBtn) deleteRecordBtn.style.display = 'none';
+  setDefaultDate();
   syncForeignAccountUI();
   void maybeAutoConvertForeignIncome();
 }

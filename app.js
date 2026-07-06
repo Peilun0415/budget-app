@@ -1168,19 +1168,66 @@ window.addEventListener('popstate', (e) => {
   }
 });
 
-// 回到頂部按鈕：捲動超過 300px 時顯示，點擊平滑捲回頂部
+// 回到頂部 / 新增記帳浮動按鈕：捲動超過閾值時顯示，停止捲動 2 秒後隱藏
 const BACK_TO_TOP_THRESHOLD = 300;
-function updateBackToTopVisibility() {
-  const show = window.scrollY > BACK_TO_TOP_THRESHOLD;
-  if (backToTopBtn) backToTopBtn.classList.toggle('visible', show);
+const FLOATING_BTN_IDLE_HIDE_MS = 2000;
+let floatingBtnScrollActive = false;
+let floatingBtnHideTimer = null;
+
+function shouldShowBackToTop() {
+  return window.scrollY > BACK_TO_TOP_THRESHOLD;
+}
+
+function shouldShowFabAddRecord() {
+  return shouldShowBackToTop() && (currentPage === 'home' || currentPage === 'accountDetail');
+}
+
+function applyFloatingBtnVisibility() {
+  if (backToTopBtn) {
+    backToTopBtn.classList.toggle('visible', floatingBtnScrollActive && shouldShowBackToTop());
+  }
   if (fabAddRecordBtn) {
-    fabAddRecordBtn.classList.toggle(
-      'visible',
-      show && (currentPage === 'home' || currentPage === 'accountDetail')
-    );
+    fabAddRecordBtn.classList.toggle('visible', floatingBtnScrollActive && shouldShowFabAddRecord());
   }
 }
-window.addEventListener('scroll', updateBackToTopVisibility, { passive: true });
+
+function clearFloatingBtnHideTimer() {
+  if (floatingBtnHideTimer) {
+    clearTimeout(floatingBtnHideTimer);
+    floatingBtnHideTimer = null;
+  }
+}
+
+function scheduleFloatingBtnHide() {
+  clearFloatingBtnHideTimer();
+  if (!shouldShowBackToTop()) return;
+  floatingBtnHideTimer = setTimeout(() => {
+    floatingBtnScrollActive = false;
+    applyFloatingBtnVisibility();
+    floatingBtnHideTimer = null;
+  }, FLOATING_BTN_IDLE_HIDE_MS);
+}
+
+function onFloatingBtnScroll() {
+  if (shouldShowBackToTop()) {
+    floatingBtnScrollActive = true;
+    applyFloatingBtnVisibility();
+    scheduleFloatingBtnHide();
+  } else {
+    clearFloatingBtnHideTimer();
+    floatingBtnScrollActive = false;
+    applyFloatingBtnVisibility();
+  }
+}
+
+function resetFloatingBtns() {
+  clearFloatingBtnHideTimer();
+  floatingBtnScrollActive = false;
+  if (backToTopBtn) backToTopBtn.classList.remove('visible');
+  if (fabAddRecordBtn) fabAddRecordBtn.classList.remove('visible');
+}
+
+window.addEventListener('scroll', onFloatingBtnScroll, { passive: true });
 if (backToTopBtn) {
   backToTopBtn.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1195,12 +1242,12 @@ if (fabAddRecordBtn) {
     }
   });
 }
+onFloatingBtnScroll();
 
 function switchPage(page) {
   // 切換頁面時捲回頂部
   window.scrollTo({ top: 0, behavior: 'instant' });
-  if (backToTopBtn) backToTopBtn.classList.remove('visible');
-  if (fabAddRecordBtn) fabAddRecordBtn.classList.remove('visible');
+  resetFloatingBtns();
 
   // 離開記帳頁時清除搜尋
   if (page !== 'home' && searchKeyword) {

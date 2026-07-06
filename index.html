@@ -210,6 +210,7 @@
           <div>
             <div class="account-detail-name" id="detailName"></div>
             <div class="account-detail-type" id="detailType"></div>
+            <div class="account-detail-reward-period" id="detailRewardPeriod" style="display:none"></div>
           </div>
         </div>
         <div class="account-detail-stats">
@@ -1248,6 +1249,16 @@
             <option value="">不設定</option>
           </select>
           <p class="billing-day-hint">設定後，查看明細時會自動顯示本期帳單範圍</p>
+        </div>
+
+        <!-- 回饋計算時間（僅信用卡顯示） -->
+        <div class="form-group" id="rewardPeriodGroup" style="display:none">
+          <label for="accountRewardPeriod">回饋計算時間</label>
+          <select id="accountRewardPeriod" class="form-select">
+            <option value="calendar">日曆月（每月 1 日～月底）</option>
+            <option value="billing">帳單週期（依結算日）</option>
+          </select>
+          <p class="billing-day-hint">選「帳單週期」時請一併設定結算日；此設定會顯示於帳戶明細</p>
         </div>
 
         <!-- 外幣幣別（選填，選了就是外幣帳戶） -->

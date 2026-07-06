@@ -575,6 +575,7 @@ const backToAccountsBtn  = document.getElementById('backToAccountsBtn');
 const detailIcon         = document.getElementById('detailIcon');
 const detailName         = document.getElementById('detailName');
 const detailType         = document.getElementById('detailType');
+const detailRewardPeriod = document.getElementById('detailRewardPeriod');
 
 const detailIncome       = document.getElementById('detailIncome');
 const detailExpense      = document.getElementById('detailExpense');
@@ -3379,6 +3380,49 @@ function calcBillingCycle(billingDay) {
   return { start: toDateStr(startDate), end: toDateStr(endDate) };
 }
 
+const REWARD_PERIOD_CALENDAR = 'calendar';
+const REWARD_PERIOD_BILLING = 'billing';
+
+function getRewardPeriodModeLabel(mode) {
+  return mode === REWARD_PERIOD_BILLING ? '帳單週期' : '日曆月';
+}
+
+function getCurrentCalendarMonthRange() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  return {
+    start: toDateStr(new Date(y, m, 1)),
+    end: toDateStr(new Date(y, m + 1, 0)),
+  };
+}
+
+function getAccountRewardPeriodRange(account) {
+  const mode = account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
+  if (mode === REWARD_PERIOD_BILLING && account?.billingDay) {
+    return calcBillingCycle(account.billingDay);
+  }
+  return getCurrentCalendarMonthRange();
+}
+
+function updateAccountDetailRewardPeriod(account) {
+  if (!detailRewardPeriod) return;
+  if (account?.typeId !== 'credit') {
+    detailRewardPeriod.style.display = 'none';
+    detailRewardPeriod.textContent = '';
+    return;
+  }
+  const mode = account.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
+  if (mode === REWARD_PERIOD_BILLING && !account.billingDay) {
+    detailRewardPeriod.textContent = '回饋計算：帳單週期（請設定結算日）';
+  } else {
+    const range = getAccountRewardPeriodRange(account);
+    detailRewardPeriod.textContent =
+      `回饋計算：${getRewardPeriodModeLabel(mode)}（${range.start} ～ ${range.end}）`;
+  }
+  detailRewardPeriod.style.display = '';
+}
+
 function showAccountDetailView(account) {
   detailAccountId   = account.docId;
   detailViewYear    = new Date().getFullYear();
@@ -3386,6 +3430,7 @@ function showAccountDetailView(account) {
   detailIcon.textContent = account.emoji;
   detailName.textContent = account.name;
   detailType.textContent = account.typeName;
+  updateAccountDetailRewardPeriod(account);
 
   // 信用卡且有設結算日 → 自動切換到本期帳單範圍
   if (account.typeId === 'credit' && account.billingDay) {
@@ -3447,6 +3492,7 @@ function getDetailFilteredRecords(accountDocId) {
 }
 
 function renderAccountDetail(account) {
+  updateAccountDetailRewardPeriod(account);
   const detailCurrency = account.currency || 'TWD';
   const detailPrefix = account.currency ? `${account.currency} ` : '$';
   // 目前餘額永遠用全部記錄計算（含轉帳）
@@ -5342,6 +5388,8 @@ accountModalOverlay.addEventListener('click', (e) => {
 
 const billingDayGroup   = document.getElementById('billingDayGroup');
 const accountBillingDay = document.getElementById('accountBillingDay');
+const rewardPeriodGroup = document.getElementById('rewardPeriodGroup');
+const accountRewardPeriod = document.getElementById('accountRewardPeriod');
 
 // 填入 1~31 選項
 for (let d = 1; d <= 31; d++) {
@@ -5360,16 +5408,19 @@ function openAccountModal(account = null) {
   accountIncludeInTotal.checked   = account ? (account.includeInTotal !== false) : true;
   accountIsDefault.checked        = account?.isDefault ?? false;
   accountBillingDay.value         = account?.billingDay ?? '';
+  accountRewardPeriod.value       = account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
-  updateBillingDayVisibility();
+  updateCreditCardFieldsVisibility();
   accountModalOverlay.classList.add('active');
 }
 
 const accountBalanceLabel = document.getElementById('accountBalanceLabel');
 
-function updateBillingDayVisibility() {
-  billingDayGroup.style.display = selectedAccountType === 'credit' ? '' : 'none';
+function updateCreditCardFieldsVisibility() {
+  const isCredit = selectedAccountType === 'credit';
+  billingDayGroup.style.display = isCredit ? '' : 'none';
+  rewardPeriodGroup.style.display = isCredit ? '' : 'none';
   // 動態更新餘額說明
   if (selectedAccountType === 'credit') {
     accountBalanceLabel.textContent = '初始餘額（信用卡欠款請輸入負數，例：-5000）';
@@ -5393,7 +5444,7 @@ function renderAccountTypeGrid() {
     item.type = 'button';
     item.className = 'cat-item' + (selectedAccountType === t.id ? ' selected' : '');
     item.innerHTML = `<span class="cat-emoji">${t.emoji}</span><span>${t.name}</span>`;
-    item.addEventListener('click', () => { selectedAccountType = t.id; renderAccountTypeGrid(); updateBillingDayVisibility(); });
+    item.addEventListener('click', () => { selectedAccountType = t.id; renderAccountTypeGrid(); updateCreditCardFieldsVisibility(); });
     accountTypeGrid.appendChild(item);
   });
 }
@@ -5411,6 +5462,9 @@ accountForm.addEventListener('submit', async (e) => {
   const isDefault       = accountIsDefault.checked;
   const billingDay = selectedAccountType === 'credit' && accountBillingDay.value
     ? parseInt(accountBillingDay.value) : null;
+  const rewardPeriodMode = selectedAccountType === 'credit'
+    ? (accountRewardPeriod.value || REWARD_PERIOD_CALENDAR)
+    : null;
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
   const editId  = accountEditId.value;
 
@@ -5427,7 +5481,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, currency, includeInTotal, isDefault: isDefault || null,
+        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal, isDefault: isDefault || null,
       });
     } else {
       const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
@@ -5436,7 +5490,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, currency, includeInTotal, isDefault: isDefault || null,
+        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal, isDefault: isDefault || null,
         order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });

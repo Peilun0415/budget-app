@@ -22,7 +22,8 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
-  getDocs
+  getDocs,
+  limit
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ===== Firebase 設定 =====
@@ -147,6 +148,7 @@ let viewMonth = new Date().getMonth();
 let unsubRecords    = null;
 let unsubAccounts   = null;
 let unsubCategories = null;
+let seedingCategories = false;
 let unsubTemplates  = null;
 let unsubRecurring  = null;
 let allRecords     = [];
@@ -3629,6 +3631,41 @@ function subscribeAccounts() {
 }
 
 // ===== Firestore 監聽 — 分類 =====
+async function userHasAnyData(uid) {
+  const ownedCollections = ['records', 'accounts', 'categories', 'templates', 'recurring', 'budgets'];
+  for (const col of ownedCollections) {
+    const snap = await getDocs(query(
+      collection(db, col),
+      where('uid', '==', uid),
+      limit(1)
+    ));
+    if (!snap.empty) return true;
+  }
+  const ownProjects = await getDocs(query(
+    collection(db, 'projects'),
+    where('uid', '==', uid),
+    limit(1)
+  ));
+  if (!ownProjects.empty) return true;
+  const invitedProjects = await getDocs(query(
+    collection(db, 'projects'),
+    where('editorUids', 'array-contains', uid),
+    limit(1)
+  ));
+  return !invitedProjects.empty;
+}
+
+function applyCategoriesData(parents) {
+  allCategories = parents;
+  if (currentPage === 'categories') renderCategoryMgmtList();
+  if (!selectedCategory) setDefaultCategory();
+  renderAll();
+  if (!initialLoadStatus.categories) {
+    initialLoadStatus.categories = true;
+    checkInitialLoad();
+  }
+}
+
 function subscribeCategories() {
   if (unsubCategories) unsubCategories();
   // 只用 where，排序在 client 端做，避免需要建複合索引
@@ -3638,10 +3675,32 @@ function subscribeCategories() {
   );
   unsubCategories = onSnapshot(q, async (snap) => {
     const docs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-    // 若使用者尚無分類，寫入預設值（清除資料期間跳過）
+    // 若使用者尚無分類，且帳戶完全沒有任何資料時才寫入預設值
     if (docs.length === 0) {
       if (window._clearingData) return;
-      await seedDefaultCategories();
+      // 等待伺服器確認，避免本機快取暫時為空就誤建預設分類
+      if (snap.metadata.fromCache) return;
+      if (seedingCategories) return;
+
+      const hasData = await userHasAnyData(currentUser.uid);
+      if (hasData) {
+        applyCategoriesData([]);
+        return;
+      }
+
+      const recheck = await getDocs(query(
+        collection(db, 'categories'),
+        where('uid', '==', currentUser.uid),
+        limit(1)
+      ));
+      if (!recheck.empty) return;
+
+      seedingCategories = true;
+      try {
+        await seedDefaultCategories();
+      } finally {
+        seedingCategories = false;
+      }
       return; // onSnapshot 會再次觸發
     }
     // 組裝：主分類 + 子分類
@@ -3651,19 +3710,7 @@ function subscribeCategories() {
       p.subs = docs.filter(d => d.parentId === p.docId)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     });
-    allCategories = parents;
-    // 若目前在分類管理頁，重新渲染
-    if (currentPage === 'categories') renderCategoryMgmtList();
-    // 分類載入後，若尚未選分類，設預設值
-    if (!selectedCategory) setDefaultCategory();
-    
-    // 分類更新後，重新渲染首頁與記帳表單，確保分類資料正確顯示
-    renderAll();
-    
-    if (!initialLoadStatus.categories) {
-      initialLoadStatus.categories = true;
-      checkInitialLoad();
-    }
+    applyCategoriesData(parents);
   }, console.error);
 }
 

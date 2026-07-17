@@ -1623,6 +1623,13 @@ function isTransferRecord(record) {
   return !!(record.transferId || (record.transferFromId && record.transferToId));
 }
 
+/** 轉帳「轉出」且來源為信用卡（代墊收回等情境計入支出） */
+function isCreditCardTransferOut(record) {
+  if (!isTransferRecord(record) || record.accountId !== record.transferFromId) return false;
+  const fromAcc = allAccounts.find(a => a.docId === record.transferFromId);
+  return fromAcc?.typeId === 'credit';
+}
+
 function normalizeTransferRecordShape(record) {
   if (!record) return record;
   if (!isTransferRecord(record)) return record;
@@ -3500,10 +3507,10 @@ function renderAccountDetail(account) {
   detailBalance.textContent = formatSignedMoneyByCurrency(curBal, detailCurrency, detailPrefix);
   detailBalance.style.color = curBal >= 0 ? 'white' : '#ffb3b3';
 
-  // 期間收入/支出用篩選後的記錄（轉帳不計入收支統計）
+  // 期間收入/支出用篩選後的記錄（轉入不算收入；信用卡期間支出含轉出）
   const filtered = getDetailFilteredRecords(account.docId);
   const incTotal = filtered.filter(r => r.type === 'income').reduce((s, r)  => s + getAccountRecordAmount(account, r), 0);
-  const expTotal = filtered.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  const expTotal = sumAccountPeriodExpense(filtered, account);
   detailIncome.textContent  = `+${detailPrefix}${formatMoneyByCurrency(incTotal, detailCurrency)}`;
   detailExpense.textContent = `-${detailPrefix}${formatMoneyByCurrency(expTotal, detailCurrency)}`;
 
@@ -6040,11 +6047,12 @@ function renderSummary() {
   const recs    = getMonthRecords();
   const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
   const expenseBase = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  // 專案轉帳也視為主頁支出（僅計轉出那一筆，避免同筆轉帳重複）
-  const projectTransferExpense = recs
-    .filter(r => isTransferRecord(r) && r.projectId && r.accountId === r.transferFromId)
+  // 專案轉帳、信用卡轉出（代墊收回）也視為主頁支出（僅計轉出那一筆）
+  const transferExpense = recs
+    .filter(r => isTransferRecord(r) && r.accountId === r.transferFromId)
+    .filter(r => r.projectId || isCreditCardTransferOut(r))
     .reduce((s, r) => s + (r.amount || 0), 0);
-  const expense = expenseBase + projectTransferExpense;
+  const expense = expenseBase + transferExpense;
   const balance = income - expense;
   totalIncome.textContent  = `$${formatMoney(income)}`;
   totalExpense.textContent = `$${formatMoney(expense)}`;
@@ -6388,6 +6396,23 @@ function getAccountRecordAmount(account, record) {
     return record.amount || 0;
   }
   return record.amount || 0;
+}
+
+/** 帳戶明細「期間／當日支出」：一般支出；信用卡另含轉出；首頁含所有信用卡轉出 */
+function sumAccountPeriodExpense(records, account) {
+  let total = records
+    .filter(r => r.type === 'expense')
+    .reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  if (account?.typeId === 'credit') {
+    total += records
+      .filter(r => r.type === 'transfer' && r.transferFromId === account.docId)
+      .reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+  } else if (!account) {
+    total += records
+      .filter(r => isCreditCardTransferOut(r))
+      .reduce((s, r) => s + (r.amount || 0), 0);
+  }
+  return total;
 }
 
 function setCalcAmountValue(value, { autoFilled = false, suppressAutoConvert = false } = {}) {
@@ -6740,7 +6765,7 @@ function buildDateHeader(date, dayRecs, account = null, project = null) {
     : dayRecs.filter(r => r.type === 'income').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
   const exp = project
     ? dayRecs.filter(isProjectExpenseLikeRecord).reduce((s, r) => s + getProjectRecordTwdAmount(r, project), 0)
-    : dayRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getAccountRecordAmount(account, r), 0);
+    : sumAccountPeriodExpense(dayRecs, account);
 
   const header = document.createElement('div');
   header.className = 'date-group-header';

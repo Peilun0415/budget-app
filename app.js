@@ -23,7 +23,8 @@ import {
   onSnapshot,
   serverTimestamp,
   getDocs,
-  limit
+  limit,
+  runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ===== Firebase 設定 =====
@@ -149,6 +150,7 @@ let unsubRecords    = null;
 let unsubAccounts   = null;
 let unsubCategories = null;
 let seedingCategories = false;
+let categoriesSeededFlagSynced = false;
 let unsubTemplates  = null;
 let unsubRecurring  = null;
 let allRecords     = [];
@@ -867,6 +869,7 @@ onAuthStateChanged(auth, (user) => {
     allAccounts   = [];
     allTemplates  = [];
     allRecurring  = [];
+    categoriesSeededFlagSynced = false;
     allCategories = [];
     allBudgets    = [];
     allProjects   = [];
@@ -1473,6 +1476,10 @@ confirmClearDataBtn.addEventListener('click', async () => {
   }
 
   window._clearingData = false;
+
+  if (currentUser?.uid) {
+    await setDoc(doc(db, 'users', currentUser.uid), { defaultCategoriesSeeded: false }, { merge: true });
+  }
 
   clearDataProgress.textContent = '✅ 已清除完成';
   setTimeout(() => {
@@ -3719,6 +3726,47 @@ function applyCategoriesData(parents) {
   }
 }
 
+/** 以 Firestore 交易確保預設分類只會被建立一次（跨分頁／多裝置） */
+async function claimDefaultCategoriesSeed(uid) {
+  try {
+    return await runTransaction(db, async (transaction) => {
+      const userRef = doc(db, 'users', uid);
+      const userSnap = await transaction.get(userRef);
+      if (userSnap.exists() && userSnap.data().defaultCategoriesSeeded) return false;
+      transaction.set(userRef, { uid, defaultCategoriesSeeded: true }, { merge: true });
+      return true;
+    });
+  } catch (err) {
+    console.error('claimDefaultCategoriesSeed failed', err);
+    return false;
+  }
+}
+
+async function handleEmptyCategoriesSnapshot() {
+  const uid = currentUser?.uid;
+  if (!uid) return;
+
+  const shouldSeed = await claimDefaultCategoriesSeed(uid);
+  if (!shouldSeed) {
+    const recheck = await getDocs(query(
+      collection(db, 'categories'),
+      where('uid', '==', uid),
+      limit(1)
+    ));
+    if (!recheck.empty) return;
+    const hasData = await userHasAnyData(uid);
+    if (hasData) applyCategoriesData([]);
+    return;
+  }
+
+  try {
+    await seedDefaultCategories();
+  } catch (err) {
+    console.error('seedDefaultCategories failed', err);
+    await setDoc(doc(db, 'users', uid), { defaultCategoriesSeeded: false }, { merge: true });
+  }
+}
+
 function subscribeCategories() {
   if (unsubCategories) unsubCategories();
   // 只用 where，排序在 client 端做，避免需要建複合索引
@@ -3735,26 +3783,18 @@ function subscribeCategories() {
       if (snap.metadata.fromCache) return;
       if (seedingCategories) return;
 
-      const hasData = await userHasAnyData(currentUser.uid);
-      if (hasData) {
-        applyCategoriesData([]);
-        return;
-      }
-
-      const recheck = await getDocs(query(
-        collection(db, 'categories'),
-        where('uid', '==', currentUser.uid),
-        limit(1)
-      ));
-      if (!recheck.empty) return;
-
       seedingCategories = true;
       try {
-        await seedDefaultCategories();
+        await handleEmptyCategoriesSnapshot();
       } finally {
         seedingCategories = false;
       }
       return; // onSnapshot 會再次觸發
+    }
+    // 已有分類：標記為已種子，避免日後誤判為新帳號
+    if (currentUser?.uid && !categoriesSeededFlagSynced) {
+      categoriesSeededFlagSynced = true;
+      setDoc(doc(db, 'users', currentUser.uid), { defaultCategoriesSeeded: true }, { merge: true }).catch(() => {});
     }
     // 組裝：主分類 + 子分類
     const parents = docs.filter(d => !d.parentId)

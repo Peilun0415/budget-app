@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=1.9" />
+  <link rel="stylesheet" href="style.css?v=2.4" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -626,15 +626,27 @@
           <div class="project-detail-meta">
             <div class="project-detail-dates" id="projectDetailDates"></div>
             <div class="project-detail-members" id="projectDetailMembers"></div>
-            <div class="project-detail-hero-actions">
-              <button type="button" class="project-edit-btn" id="projectEditBtn" aria-label="編輯專案">
-                <span class="project-edit-btn-icon" aria-hidden="true">✏️</span>
-                <span class="project-edit-btn-label">編輯專案</span>
-              </button>
-              <button type="button" class="project-edit-btn" id="projectReportBtn" aria-label="顯示報表">
-                <span class="project-edit-btn-icon" aria-hidden="true">📊</span>
-                <span class="project-edit-btn-label">顯示報表</span>
-              </button>
+            <div class="project-detail-hero-toolbar">
+              <div class="project-active-bar" id="projectActiveBar">
+                <div class="project-active-text">
+                  <span class="project-active-title" id="projectActiveTitle">專案進行中</span>
+                  <span class="project-active-hint" id="projectActiveHint">關閉後，新增記帳時不會出現此專案</span>
+                </div>
+                <label class="toggle-switch" id="projectActiveToggleWrap">
+                  <input type="checkbox" id="projectActiveToggle" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="project-detail-hero-actions">
+                <button type="button" class="project-edit-btn" id="projectEditBtn" aria-label="編輯專案">
+                  <span class="project-edit-btn-icon" aria-hidden="true">✏️</span>
+                  <span class="project-edit-btn-label">編輯專案</span>
+                </button>
+                <button type="button" class="project-edit-btn" id="projectReportBtn" aria-label="顯示報表">
+                  <span class="project-edit-btn-icon" aria-hidden="true">📊</span>
+                  <span class="project-edit-btn-label">顯示報表</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -653,7 +665,14 @@
       </div>
 
       <!-- 花費明細 -->
-      <div class="project-section-title">花費明細</div>
+      <div class="project-section-title" id="projectRecordSectionTitle">花費明細</div>
+      <div class="search-bar-wrap project-search-bar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="projectSearchInput" class="search-input" placeholder="搜尋備註、分類、付款人…" />
+          <button type="button" class="search-clear-btn" id="projectSearchClearBtn" style="display:none">✕</button>
+        </div>
+      </div>
       <div id="projectRecordList"></div>
     </div>
 
@@ -1351,6 +1370,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.9"></script>
+  <script type="module" src="app.js?v=2.4"></script>
 </body>
 </html>

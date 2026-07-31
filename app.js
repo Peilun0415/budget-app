@@ -164,10 +164,13 @@ let editingCatBudgetId = null; // 目前編輯的類別預算 docId
 let allProjects    = [];
 let unsubProjects  = null;
 let currentProjectId = null; // 目前查看的專案 docId
+let projectSearchKeyword = '';
 let splitMode      = 'equal'; // 'equal' | 'custom'
 /** 專案記帳快取（key = projectId），不與 allRecords 合併，僅在專案頁使用 */
 let sharedProjectRecords = {};
 let unsubSharedProjectRecords = null;
+/** 目前 shared records 訂閱的專案 ID 集合（避免每次 projects 更新都重訂閱導致結算區重繪） */
+let sharedProjectRecordIdsKey = '';
 let tempRewardActivities = []; // 專案 modal 中暫存的回饋活動
 let tempEditorUids = [];           // 專案 modal 中暫存的邀請編輯 UID
 let tempEditorEmails = [];        // 對應的 email（儲存用）
@@ -631,6 +634,14 @@ const projectDetailDates    = document.getElementById('projectDetailDates');
 const projectDetailMembers  = document.getElementById('projectDetailMembers');
 const projectSettleSummary  = document.getElementById('projectSettleSummary');
 const projectRecordList     = document.getElementById('projectRecordList');
+const projectRecordSectionTitle = document.getElementById('projectRecordSectionTitle');
+const projectSearchInput    = document.getElementById('projectSearchInput');
+const projectSearchClearBtn = document.getElementById('projectSearchClearBtn');
+const projectActiveBar      = document.getElementById('projectActiveBar');
+const projectActiveTitle    = document.getElementById('projectActiveTitle');
+const projectActiveHint     = document.getElementById('projectActiveHint');
+const projectActiveToggle   = document.getElementById('projectActiveToggle');
+const projectActiveToggleWrap = document.getElementById('projectActiveToggleWrap');
 const projectEditBtn        = document.getElementById('projectEditBtn');
 const projectReportBtn      = document.getElementById('projectReportBtn');
 const projectReportModalOverlay = document.getElementById('projectReportModalOverlay');
@@ -876,6 +887,7 @@ onAuthStateChanged(auth, (user) => {
     allBudgets    = [];
     allProjects   = [];
     sharedProjectRecords = {};
+    sharedProjectRecordIdsKey = '';
   }
 });
 
@@ -1511,13 +1523,23 @@ function subscribeProjects() {
   const qInvited = query(collection(db, 'projects'), where('editorUids', 'array-contains', currentUser.uid));
 
   const mergeAndApply = (ownSnap, invitedSnap) => {
+    const prevById = new Map(allProjects.map(p => [p.docId, p]));
     const byId = new Map();
     (ownSnap?.docs || []).forEach(d => byId.set(d.id, { docId: d.id, ...d.data() }));
     (invitedSnap?.docs || []).forEach(d => { if (!byId.has(d.id)) byId.set(d.id, { docId: d.id, ...d.data() }); });
     allProjects = Array.from(byId.values())
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     if (currentPage === 'projects') renderProjectList();
-    if (currentPage === 'projectDetail') renderProjectDetail();
+    if (currentPage === 'projectDetail') {
+      const prev = prevById.get(currentProjectId);
+      const next = allProjects.find(p => p.docId === currentProjectId);
+      // 僅開關狀態變更時，不要整頁重繪（避免結算區閃爍）
+      if (prev && next && isProjectDetailContentUnchanged(prev, next)) {
+        updateProjectActiveUI(next);
+      } else {
+        renderProjectDetail();
+      }
+    }
     updateRecordProjectSelect();
     subscribeSharedProjectRecords();
     
@@ -1532,19 +1554,33 @@ function subscribeProjects() {
 
   const unsubOwn = onSnapshot(qOwn, snap => { ownSnap = snap; maybeApply(); });
   const unsubInvited = onSnapshot(qInvited, snap => { invitedSnap = snap; maybeApply(); });
-  unsubProjects = () => { unsubOwn(); unsubInvited(); if (unsubSharedProjectRecords) unsubSharedProjectRecords(); };
+  unsubProjects = () => {
+    unsubOwn();
+    unsubInvited();
+    if (unsubSharedProjectRecords) {
+      unsubSharedProjectRecords();
+      unsubSharedProjectRecords = null;
+    }
+    sharedProjectRecordIdsKey = '';
+  };
 }
 
 function subscribeSharedProjectRecords() {
-  if (unsubSharedProjectRecords) { unsubSharedProjectRecords(); unsubSharedProjectRecords = null; }
   const projectIds = allProjects.map(p => p.docId).filter(Boolean);
-  if (projectIds.length === 0) {
+  const ids = projectIds.slice(0, 30); // Firestore 'in' 最多 30
+  const nextKey = ids.slice().sort().join(',');
+  // 專案集合沒變就不要撕掉重訂，否則 onSnapshot 會再觸發整頁 renderProjectDetail
+  if (nextKey === sharedProjectRecordIdsKey && unsubSharedProjectRecords) return;
+
+  if (unsubSharedProjectRecords) { unsubSharedProjectRecords(); unsubSharedProjectRecords = null; }
+  sharedProjectRecordIdsKey = nextKey;
+
+  if (ids.length === 0) {
     sharedProjectRecords = {};
     if (currentPage === 'projects') renderProjectList();
     if (currentPage === 'projectDetail') renderProjectDetail();
     return;
   }
-  const ids = projectIds.slice(0, 30); // Firestore 'in' 最多 30
   const q = query(collection(db, 'records'), where('projectId', 'in', ids));
   unsubSharedProjectRecords = onSnapshot(q, snap => {
     const byProject = {};
@@ -1577,7 +1613,8 @@ function renderProjectList() {
   projectEmpty.style.display = 'none';
   allProjects.forEach(proj => {
     const card = document.createElement('div');
-    card.className = 'project-card';
+    const active = isProjectActive(proj);
+    card.className = 'project-card' + (active ? '' : ' is-closed');
     const members = (proj.members || []).map(m => getMemberLabel(m, proj)).join('、');
     const dateStr = proj.startDate && proj.endDate
       ? `${proj.startDate} ～ ${proj.endDate}`
@@ -1586,7 +1623,10 @@ function renderProjectList() {
     const total = calcProjectTotal(proj);
     card.innerHTML = `
       <div class="project-card-main">
-        <div class="project-card-name">${proj.name}</div>
+        <div class="project-card-name-row">
+          <div class="project-card-name">${proj.name}</div>
+          ${active ? '' : '<span class="project-card-badge is-closed">已結束</span>'}
+        </div>
         ${dateStr ? `<div class="project-card-date">📅 ${dateStr}</div>` : ''}
         ${members ? `<div class="project-card-members">👥 ${members}</div>` : ''}
       </div>
@@ -2124,6 +2164,7 @@ projectForm.addEventListener('submit', async e => {
     } else {
       await addDoc(collection(db, 'projects'), {
         uid: currentUser.uid, ...payload,
+        active: true,
         createdAt: serverTimestamp(),
       });
     }
@@ -2165,6 +2206,9 @@ deleteProjectBtn.addEventListener('click', async () => {
 // ===== 專案詳情 =====
 function showProjectDetailView(proj) {
   currentProjectId = proj.docId;
+  projectSearchKeyword = '';
+  if (projectSearchInput) projectSearchInput.value = '';
+  if (projectSearchClearBtn) projectSearchClearBtn.style.display = 'none';
   renderProjectDetail();
   switchPage('projectDetail');
 }
@@ -2177,6 +2221,62 @@ function openProjectDetail(proj) {
       location.href
     );
   } catch { /* empty */ }
+}
+
+/** 未設定 active 的舊專案視為進行中 */
+function isProjectActive(proj) {
+  return proj?.active !== false;
+}
+
+/** 詳情頁內容是否與 active 無關的欄位都沒變（用於避免開關觸發結算區重繪） */
+function isProjectDetailContentUnchanged(prev, next) {
+  if (!prev || !next || prev.docId !== next.docId) return false;
+  const keys = [
+    'name', 'members', 'startDate', 'endDate', 'currency', 'rateToTwd',
+    'settled', 'rewardActivities', 'editorUids', 'editorEmails',
+    'editorDisplayNames', 'ownerDisplayName', 'uid',
+  ];
+  return keys.every(k => JSON.stringify(prev[k] ?? null) === JSON.stringify(next[k] ?? null));
+}
+
+function updateProjectActiveUI(proj) {
+  if (!projectActiveBar || !proj) return;
+  const active = isProjectActive(proj);
+  const isOwner = proj.uid === currentUser?.uid;
+  projectActiveBar.classList.toggle('is-closed', !active);
+  if (projectActiveTitle) {
+    projectActiveTitle.textContent = active ? '專案進行中' : '專案已結束';
+  }
+  const hintText = isOwner
+    ? (active ? '關閉後，新增記帳時不會出現此專案' : '重新開啟後，即可再次選入新增記帳')
+    : (active ? '進行中的專案' : '已結束的專案不會出現在新增記帳選單');
+  if (projectActiveHint) projectActiveHint.textContent = hintText;
+  if (projectActiveBar) projectActiveBar.title = hintText;
+  if (projectActiveToggle) {
+    projectActiveToggle.checked = active;
+    projectActiveToggle.disabled = !isOwner;
+  }
+  if (projectActiveToggleWrap) {
+    projectActiveToggleWrap.style.display = isOwner ? '' : 'none';
+  }
+}
+
+function matchesProjectSearch(r, kw, proj) {
+  if (!kw) return true;
+  const q = kw.toLowerCase();
+  const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
+  const payerLabel = payerUid ? getProjectMemberLabelByUid(proj, payerUid) : '';
+  const fields = [
+    r.note,
+    r.categoryName,
+    r.subCategoryName,
+    r.displayName,
+    r.accountName,
+    payerLabel,
+    getRecordCreatorLabel(r, proj),
+    r.foreignCurrency,
+  ];
+  return fields.some(f => f && String(f).toLowerCase().includes(q));
 }
 
 function renderProjectDetail() {
@@ -2192,19 +2292,36 @@ function renderProjectDetail() {
   projectDetailMembers.textContent = proj.members?.length
     ? `👥 ${proj.members.map(m => getMemberLabel(m, proj)).join('、')}` : '';
 
+  updateProjectActiveUI(proj);
+
   // 此專案的所有支出記錄（含被邀請專案時他人記的；專案轉帳轉出也計入）
-  const recs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
 
-  // 結算計算
-  renderProjectSettle(proj, recs);
+  // 結算／回饋用完整資料，不受搜尋影響
+  renderProjectSettle(proj, allRecs);
+  renderProjectReward(proj, allRecs);
+  renderProjectRecordList(proj, allRecs);
+}
 
-  // 回饋追蹤
-  renderProjectReward(proj, recs);
+function renderProjectRecordList(proj, allRecs) {
+  const kw = projectSearchKeyword.trim();
+  const recs = kw ? allRecs.filter(r => matchesProjectSearch(r, kw, proj)) : allRecs;
 
-  // 明細列表：依日期分組（與主頁一致），卡片上不重複標日期
+  if (projectRecordSectionTitle) {
+    if (kw) {
+      projectRecordSectionTitle.textContent = `搜尋「${kw}」的結果（${recs.length}）`;
+      projectRecordSectionTitle.classList.add('searching');
+    } else {
+      projectRecordSectionTitle.textContent = '花費明細';
+      projectRecordSectionTitle.classList.remove('searching');
+    }
+  }
+
   projectRecordList.innerHTML = '';
   if (recs.length === 0) {
-    projectRecordList.innerHTML = '<div class="project-empty">還沒有相關記帳記錄</div>';
+    projectRecordList.innerHTML = kw
+      ? `<div class="project-empty">找不到「${kw}」的相關花費</div>`
+      : '<div class="project-empty">還沒有相關記帳記錄</div>';
     return;
   }
   const sorted = [...recs].sort((a, b) => {
@@ -2514,6 +2631,51 @@ projectEditBtn.addEventListener('click', () => {
   if (proj) openProjectModal(proj);
 });
 
+projectSearchInput?.addEventListener('input', () => {
+  projectSearchKeyword = projectSearchInput.value;
+  if (projectSearchClearBtn) {
+    projectSearchClearBtn.style.display = projectSearchKeyword ? '' : 'none';
+  }
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj) return;
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  renderProjectRecordList(proj, allRecs);
+});
+
+projectSearchClearBtn?.addEventListener('click', () => {
+  if (projectSearchInput) projectSearchInput.value = '';
+  projectSearchKeyword = '';
+  if (projectSearchClearBtn) projectSearchClearBtn.style.display = 'none';
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj) return;
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  renderProjectRecordList(proj, allRecs);
+  projectSearchInput?.focus();
+});
+
+projectActiveToggle?.addEventListener('change', async () => {
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj || proj.uid !== currentUser?.uid) {
+    if (projectActiveToggle) projectActiveToggle.checked = isProjectActive(proj);
+    return;
+  }
+  const nextActive = !!projectActiveToggle.checked;
+  projectActiveToggle.disabled = true;
+  try {
+    await updateDoc(doc(db, 'projects', proj.docId), { active: nextActive });
+    // onSnapshot 會刷新列表／詳情；此處先樂觀更新 UI
+    proj.active = nextActive;
+    updateProjectActiveUI(proj);
+    updateRecordProjectSelect();
+  } catch (err) {
+    console.error(err);
+    alert('更新專案狀態失敗');
+    projectActiveToggle.checked = isProjectActive(proj);
+  } finally {
+    projectActiveToggle.disabled = false;
+  }
+});
+
 if (projectRewardManageBtn) {
   projectRewardManageBtn.addEventListener('click', () => {
     const proj = allProjects.find(p => p.docId === currentProjectId);
@@ -2721,16 +2883,32 @@ if (exportProjectReportCsvBtn) {
 }
 
 // ===== 記帳 modal 的專案選單 =====
+function ensureRecordProjectOption(projectId) {
+  if (!projectId || !recordProjectSelect) return;
+  if ([...recordProjectSelect.options].some(o => o.value === projectId)) return;
+  const p = allProjects.find(x => x.docId === projectId);
+  if (!p) return;
+  const opt = document.createElement('option');
+  opt.value = p.docId;
+  opt.textContent = isProjectActive(p) ? p.name : `${p.name}（已結束）`;
+  recordProjectSelect.appendChild(opt);
+}
+
 function updateRecordProjectSelect() {
   const prev = recordProjectSelect.value;
   recordProjectSelect.innerHTML = '<option value="">不屬於任何專案</option>';
-  allProjects.forEach(p => {
+  allProjects.filter(isProjectActive).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.docId;
     opt.textContent = p.name;
     recordProjectSelect.appendChild(opt);
   });
-  if (prev) recordProjectSelect.value = prev;
+  // 若先前選的是已結束專案，新增時清空；編輯時由 openModal 再補回
+  if (prev && [...recordProjectSelect.options].some(o => o.value === prev)) {
+    recordProjectSelect.value = prev;
+  } else {
+    recordProjectSelect.value = '';
+  }
   updateSplitGroupVisibility();
 }
 
@@ -4879,6 +5057,7 @@ function openModal(record = null, newRecordOptions = null) {
       foreignToggleLabel.textContent = '− 外幣金額';
     }
     // 還原專案與分攤
+    ensureRecordProjectOption(formRecord.projectId);
     recordProjectSelect.value = formRecord.projectId || '';
     updateRewardActivitySelect(formRecord.rewardActivityIds || (formRecord.rewardActivityId ? [formRecord.rewardActivityId] : []));
     updateSplitGroupVisibility(formRecord);

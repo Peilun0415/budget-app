@@ -550,6 +550,7 @@ const totalBalance  = document.getElementById('totalBalance');
 const currentMonthLabel = document.getElementById('currentMonthLabel');
 const prevMonthBtn  = document.getElementById('prevMonth');
 const nextMonthBtn  = document.getElementById('nextMonth');
+const homeTodayBtn  = document.getElementById('homeTodayBtn');
 
 // ===== DOM — 帳戶 =====
 const accountModalOverlay  = document.getElementById('accountModalOverlay');
@@ -593,6 +594,7 @@ const detailRangeNav     = document.getElementById('detailRangeNav');
 const detailMonthLabel   = document.getElementById('detailMonthLabel');
 const detailPrevMonth    = document.getElementById('detailPrevMonth');
 const detailNextMonth    = document.getElementById('detailNextMonth');
+const detailTodayBtn     = document.getElementById('detailTodayBtn');
 const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 const billingCycleBar    = document.getElementById('billingCycleBar');
@@ -3525,6 +3527,9 @@ function renderAccountDetail(account) {
   if (detailMode === 'month') {
     detailMonthLabel.textContent = `${detailViewYear}年${detailViewMonth + 1}月`;
     detailListTitle.textContent  = `${detailViewMonth + 1}月明細`;
+    const now = new Date();
+    const isCurrent = detailViewYear === now.getFullYear() && detailViewMonth === now.getMonth();
+    if (detailTodayBtn) detailTodayBtn.style.display = isCurrent ? 'none' : '';
   } else if (detailMode === 'range') {
     detailListTitle.textContent = '自訂範圍明細';
   } else {
@@ -3621,6 +3626,14 @@ detailPrevMonth.addEventListener('click', () => {
 detailNextMonth.addEventListener('click', () => {
   detailViewMonth++;
   if (detailViewMonth > 11) { detailViewMonth = 0; detailViewYear++; }
+  const acc = allAccounts.find(a => a.docId === detailAccountId);
+  if (acc) renderAccountDetail(acc);
+});
+
+detailTodayBtn?.addEventListener('click', () => {
+  const now = new Date();
+  detailViewYear = now.getFullYear();
+  detailViewMonth = now.getMonth();
   const acc = allAccounts.find(a => a.docId === detailAccountId);
   if (acc) renderAccountDetail(acc);
 });
@@ -4741,8 +4754,13 @@ recDeleteBtn.addEventListener('click', async () => {
 // ===== 月份切換 =====
 prevMonthBtn.addEventListener('click', () => changeMonth(-1));
 nextMonthBtn.addEventListener('click', () => changeMonth(1));
+homeTodayBtn?.addEventListener('click', () => {
+  const now = new Date();
+  viewYear = now.getFullYear();
+  viewMonth = now.getMonth();
+  renderAll();
+});
 
-// ===== 搜尋 =====
 function applySearchMode(isSearching) {
   homeMonthNav.style.display = isSearching ? 'none' : '';
   homeSummary.style.display  = isSearching ? 'none' : '';
@@ -6071,6 +6089,9 @@ function renderAll() {
 
 function renderMonthLabel() {
   currentMonthLabel.textContent = `${viewYear}年${viewMonth + 1}月`;
+  const now = new Date();
+  const isCurrent = viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  if (homeTodayBtn) homeTodayBtn.style.display = isCurrent ? 'none' : '';
 }
 
 function getMonthRecords() {
@@ -7177,6 +7198,7 @@ let barChartInstance = null;
 const reportMonthLabel   = document.getElementById('reportMonthLabel');
 const reportPrevMonth    = document.getElementById('reportPrevMonth');
 const reportNextMonth    = document.getElementById('reportNextMonth');
+const reportTodayBtn     = document.getElementById('reportTodayBtn');
 const reportTypeBtnExp   = document.getElementById('reportTypeBtnExpense');
 const reportTypeBtnInc   = document.getElementById('reportTypeBtnIncome');
 const reportBreadcrumb   = document.getElementById('reportBreadcrumb');
@@ -7191,6 +7213,7 @@ const trendYearNav       = document.getElementById('trendYearNav');
 const trendYearLabel     = document.getElementById('trendYearLabel');
 const trendPrevYearBtn   = document.getElementById('trendPrevYear');
 const trendNextYearBtn   = document.getElementById('trendNextYear');
+const trendTodayBtn      = document.getElementById('trendTodayBtn');
 const trendMetaBtnExpense = document.getElementById('trendMetaBtnExpense');
 const trendMetaBtnIncome  = document.getElementById('trendMetaBtnIncome');
 const trendMetaBtnBalance = document.getElementById('trendMetaBtnBalance');
@@ -7228,6 +7251,14 @@ reportNextMonth.addEventListener('click', () => {
   renderReport();
 });
 
+reportTodayBtn?.addEventListener('click', () => {
+  const now = new Date();
+  reportYear = now.getFullYear();
+  reportMonth = now.getMonth();
+  reportDrillCatId = null;
+  renderReport();
+});
+
 // 支出/收入/結餘切換
 [
   [trendMetaBtnExpense, 'expense'],
@@ -7244,6 +7275,10 @@ reportNextMonth.addEventListener('click', () => {
 // 趨勢年份切換
 trendPrevYearBtn.addEventListener('click', () => { reportYear--; renderReport(); });
 trendNextYearBtn.addEventListener('click', () => { reportYear++; renderReport(); });
+trendTodayBtn?.addEventListener('click', () => {
+  reportYear = new Date().getFullYear();
+  renderReport();
+});
 
 // 報表過濾說明小視窗
 if (reportFilterInfoBtn) {
@@ -7343,6 +7378,7 @@ function getReportAmount(r) {
 
 function renderReport() {
   if (reportTab === 'wealth') { renderReportWealth(); return; }
+  const now = new Date();
   const isYearView = reportTab === 'trend' || (reportTab === 'category' && catView === 'year');
   if (isYearView) {
     reportMonthLabel.textContent = `${reportYear} 年`;
@@ -7353,10 +7389,20 @@ function renderReport() {
   if (reportPeriodBarCat) {
     reportPeriodBarCat.style.display = reportTab === 'category' ? '' : 'none';
   }
+  if (reportTodayBtn && reportTab === 'category') {
+    const isCurrent = isYearView
+      ? reportYear === now.getFullYear()
+      : (reportYear === now.getFullYear() && reportMonth === now.getMonth());
+    reportTodayBtn.textContent = isYearView ? '今年' : '今天';
+    reportTodayBtn.style.display = isCurrent ? 'none' : '';
+  }
   // 年份列只在趨勢 Tab 顯示
   if (trendYearNav) {
     trendYearNav.style.display = reportTab === 'trend' ? '' : 'none';
     trendYearLabel.textContent = `${reportYear} 年`;
+  }
+  if (trendTodayBtn && reportTab === 'trend') {
+    trendTodayBtn.style.display = reportYear === now.getFullYear() ? 'none' : '';
   }
   if (reportTab === 'category') renderReportCategory();
   else renderReportTrend();

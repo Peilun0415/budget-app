@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=1.8" />
+  <link rel="stylesheet" href="style.css?v=1.9" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -95,6 +95,7 @@
         <button class="month-btn" id="prevMonth">‹</button>
         <span id="currentMonthLabel"></span>
         <button class="month-btn" id="nextMonth">›</button>
+        <button type="button" class="today-btn" id="homeTodayBtn" style="display:none">今天</button>
       </div>
 
       <!-- 統計卡片 -->
@@ -247,6 +248,7 @@
           <button class="month-btn" id="detailPrevMonth">‹</button>
           <span id="detailMonthLabel"></span>
           <button class="month-btn" id="detailNextMonth">›</button>
+          <button type="button" class="today-btn" id="detailTodayBtn" style="display:none">今天</button>
         </div>
 
         <!-- 自訂範圍模式 -->
@@ -488,6 +490,7 @@
           <button class="month-btn" id="reportPrevMonth">‹</button>
           <span id="reportMonthLabel"></span>
           <button class="month-btn" id="reportNextMonth">›</button>
+          <button type="button" class="today-btn" id="reportTodayBtn" style="display:none">今天</button>
         </div>
         <!-- 圓餅圖 -->
         <div class="report-chart-wrap">
@@ -518,6 +521,7 @@
           <button class="month-btn" id="trendPrevYear">‹</button>
           <span id="trendYearLabel"></span>
           <button class="month-btn" id="trendNextYear">›</button>
+          <button type="button" class="today-btn" id="trendTodayBtn" style="display:none">今年</button>
         </div>
         <!-- 長條圖 -->
         <div class="report-chart-wrap" style="max-height:300px">
@@ -1347,6 +1351,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.8"></script>
+  <script type="module" src="app.js?v=1.9"></script>
 </body>
 </html>

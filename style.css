@@ -331,6 +331,7 @@ body {
 
 /* ===== 月份導覽 ===== */
 .month-nav-bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,6 +361,29 @@ body {
 }
 
 .month-btn:active {
+  background: var(--pink-mid);
+}
+
+.today-btn {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--pink-light);
+  border: none;
+  color: var(--pink-dark);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 5px 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.today-btn:active {
   background: var(--pink-mid);
 }
 
@@ -2592,6 +2616,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 
 .detail-month-nav {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2599,6 +2624,11 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-dark);
+  min-height: 32px;
+}
+
+.detail-month-nav .today-btn {
+  right: 0;
 }
 
 .detail-range-nav {
@@ -3671,6 +3701,7 @@ input.form-input {
 }
 
 .report-period-bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3695,6 +3726,10 @@ input.form-input {
 }
 .report-period-bar .month-btn:active {
   background: var(--pink-mid);
+}
+
+.report-period-bar .today-btn {
+  right: 16px;
 }
 
 .report-period-bar span {

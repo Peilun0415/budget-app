@@ -24,7 +24,8 @@ import {
   serverTimestamp,
   getDocs,
   limit,
-  runTransaction
+  runTransaction,
+  writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ===== Firebase 設定 =====
@@ -1701,6 +1702,106 @@ function getTransferPairRecords(record) {
   return paired.length ? paired : [record];
 }
 
+/** 從轉帳配對中拆出轉出／轉入側（優先靠 accountId，相容舊 expense/income） */
+function pickTransferOutIn(paired, fallback = null) {
+  const list = Array.isArray(paired) ? paired.filter(Boolean) : [];
+  const outRec = list.find(r => r.accountId && r.accountId === r.transferFromId)
+    || list.find(r => r.type === 'expense')
+    || list[0]
+    || fallback
+    || null;
+  const inRec = list.find(r => r.accountId && r.accountId === r.transferToId)
+    || list.find(r => r.type === 'income')
+    || (list.length > 1 ? list.find(r => r.docId !== outRec?.docId) : null)
+    || null;
+  return { outRec, inRec };
+}
+
+/**
+ * 原子寫入一組轉帳（轉出＋轉入），避免只成功一半造成銀行側沒有到帳。
+ * 編輯時若缺轉入側會自動補建。
+ */
+async function commitTransferPair({
+  editId = null,
+  fromId,
+  toId,
+  fromAcc = null,
+  toAcc = null,
+  fromAmount,
+  toAmount,
+  date,
+  note = '',
+  exchangeRate = null,
+  isExchange = false,
+  transferIdHint = null,
+  displayNameBase = null,
+  recurringId = null,
+}) {
+  const transferId = transferIdHint
+    || (editId ? (findRecordById(editId)?.transferId || null) : null)
+    || `tf_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  const shared = {
+    uid: currentUser.uid,
+    type: 'transfer',
+    date,
+    note: note || '',
+    transferId,
+    transferFromId: fromId,
+    transferToId: toId,
+    exchangeRate: exchangeRate || null,
+    displayEmoji: isExchange ? '💱' : '🔄',
+    categoryId: null,
+    categoryName: null,
+  };
+  if (recurringId) shared.recurringId = recurringId;
+
+  const outPayload = {
+    ...shared,
+    amount: fromAmount,
+    accountId: fromId,
+    accountName: fromAcc?.name || null,
+    displayName: displayNameBase
+      || (isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`),
+  };
+  const inPayload = {
+    ...shared,
+    amount: toAmount,
+    accountId: toId,
+    accountName: toAcc?.name || null,
+    displayName: displayNameBase
+      || (isExchange ? `換匯 ← ${fromAcc?.name || ''}` : `轉帳 ← ${fromAcc?.name || ''}`),
+  };
+
+  const batch = writeBatch(db);
+  let outRec = null;
+  let inRec = null;
+
+  if (editId) {
+    const rec = findRecordById(editId) || allRecords.find(r => r.docId === editId);
+    const paired = getTransferPairRecords(rec || { transferId, docId: editId });
+    ({ outRec, inRec } = pickTransferOutIn(paired, rec));
+  }
+
+  if (outRec?.docId) {
+    batch.update(doc(db, 'records', outRec.docId), outPayload);
+  } else {
+    const outRef = doc(collection(db, 'records'));
+    batch.set(outRef, { ...outPayload, createdAt: serverTimestamp() });
+  }
+
+  if (inRec?.docId) {
+    batch.update(doc(db, 'records', inRec.docId), inPayload);
+  } else {
+    // 缺轉入側（歷史半斷資料）→ 補建，否則目標帳戶餘額不會對
+    const inRef = doc(collection(db, 'records'));
+    batch.set(inRef, { ...inPayload, createdAt: serverTimestamp() });
+  }
+
+  await batch.commit();
+  return transferId;
+}
+
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str)
@@ -1725,13 +1826,7 @@ function getRecordAccountDisplayName(accountId, recordForHint) {
 
 function getTransferFromToLabelsForReadOnly(record) {
   const paired = getTransferPairRecords(record);
-  const outRec = paired.find(r => r.accountId && r.accountId === r.transferFromId)
-    || paired.find(r => r.type === 'expense')
-    || paired[0]
-    || record;
-  const inRec = paired.find(r => r.accountId && r.accountId === r.transferToId)
-    || paired.find(r => r.type === 'income')
-    || (paired.length > 1 ? paired.find(r => r.docId !== outRec.docId) : null);
+  const { outRec, inRec } = pickTransferOutIn(paired, record);
   const fromId = outRec?.transferFromId || record.transferFromId;
   const toId = outRec?.transferToId || record.transferToId;
   const fromName = getRecordAccountDisplayName(fromId, outRec);
@@ -4381,33 +4476,19 @@ async function processRecurringItems() {
     // 連續補齊所有到期的執行次數
     while (nextDate <= today) {
       if (item.type === 'transfer') {
-        // 轉帳：建立兩筆（轉出 + 轉入），並共用 transferId
+        // 轉帳：原子寫入兩筆（轉出 + 轉入）
         const transferId = `rec_${item.docId}_${nextDate}`;
-        const base = {
-          uid: currentUser.uid,
-          type: 'transfer',
-          amount: item.amount,
+        await commitTransferPair({
+          fromId: item.transferFromId || null,
+          toId: item.transferToId || null,
+          fromAcc,
+          toAcc,
+          fromAmount: item.amount,
+          toAmount: item.amount,
           date: nextDate,
           note: item.note || '',
-          transferFromId: item.transferFromId || null,
-          transferToId:   item.transferToId   || null,
-          transferId,
-          displayEmoji: '🔄',
-          displayName:  item.name,
-          recurringId:  item.docId,
-          createdAt:    serverTimestamp(),
-        };
-        await addDoc(collection(db, 'records'), {
-          ...base,
-          accountId:   item.transferFromId || null,
-          accountName: fromAcc?.name || null,
-          displayName: `轉帳 → ${toAcc?.name || '?'}`,
-        });
-        await addDoc(collection(db, 'records'), {
-          ...base,
-          accountId:   item.transferToId || null,
-          accountName: toAcc?.name || null,
-          displayName: `轉帳 ← ${fromAcc?.name || '?'}`,
+          transferIdHint: transferId,
+          recurringId: item.docId,
         });
       } else {
         await addDoc(collection(db, 'records'), {
@@ -5000,14 +5081,7 @@ function openModal(record = null, newRecordOptions = null) {
     switchType(transferRecord ? 'transfer' : record.type);
     let formRecord = record;
     if (transferRecord) {
-      const paired = getTransferPairRecords(record);
-      const outRec = paired.find(r => r.accountId && r.accountId === r.transferFromId)
-        || paired.find(r => r.type === 'expense')
-        || paired[0]
-        || record;
-      const inRec  = paired.find(r => r.accountId && r.accountId === r.transferToId)
-        || paired.find(r => r.type === 'income')
-        || (paired.length > 1 ? paired.find(r => r.docId !== outRec.docId) : null);
+      const { outRec, inRec } = pickTransferOutIn(getTransferPairRecords(record), record);
       formRecord = outRec || record;
 
       transferFrom.value = formRecord.transferFromId || record.transferFromId || '';
@@ -5446,56 +5520,19 @@ recordForm.addEventListener('submit', async (e) => {
       const toAmount = isExchange ? rawExchangeAmount : inputAmount;
       const exchangeRate = isExchange && inputAmount > 0 ? +(toAmount / inputAmount).toFixed(6) : null;
 
-      if (editId) {
-        // 編輯：找到配對的另一筆，一起更新
-        const rec = allRecords.find(r => r.docId === editId);
-        const paired = rec?.transferId
-          ? allRecords.filter(r => r.transferId === rec.transferId)
-          : [rec];
-        const outRec = paired.find(r => r.type === 'expense') || paired[0];
-        const inRec  = paired.find(r => r.type === 'income')  || paired[1];
-        const updates = [];
-        if (outRec) updates.push(updateDoc(doc(db, 'records', outRec.docId), {
-          type: 'transfer',
-          amount: inputAmount, date, note,
-          accountId: fromId, accountName: fromAcc?.name || null,
-          transferFromId: fromId, transferToId: toId,
-          exchangeRate: exchangeRate || null,
-          displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
-        }));
-        if (inRec) updates.push(updateDoc(doc(db, 'records', inRec.docId), {
-          type: 'transfer',
-          amount: toAmount, date, note,
-          accountId: toId, accountName: toAcc?.name || null,
-          transferFromId: fromId, transferToId: toId,
-          exchangeRate: exchangeRate || null,
-          displayName: isExchange ? `換匯 ← ${fromAcc?.name || ''}` : `轉帳 ← ${fromAcc?.name || ''}`,
-        }));
-        await Promise.all(updates);
-      } else {
-        // 新增：建立兩筆並用同一個 transferId 關聯
-        const transferId = `tf_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-        const base = { uid: currentUser.uid, type: 'transfer', date, note,
-          transferId, transferFromId: fromId, transferToId: toId,
-          exchangeRate: exchangeRate || null,
-          displayEmoji: isExchange ? '💱' : '🔄',
-          categoryId: null, categoryName: null,
-          createdAt: serverTimestamp() };
-        await Promise.all([
-          addDoc(collection(db, 'records'), {
-            ...base,
-            amount: inputAmount,
-            accountId: fromId, accountName: fromAcc?.name || null,
-            displayName: isExchange ? `換匯 → ${toAcc?.name || ''}` : `轉帳 → ${toAcc?.name || ''}`,
-          }),
-          addDoc(collection(db, 'records'), {
-            ...base,
-            amount: toAmount,
-            accountId: toId, accountName: toAcc?.name || null,
-            displayName: isExchange ? `換匯 ← ${fromAcc?.name || ''}` : `轉帳 ← ${fromAcc?.name || ''}`,
-          }),
-        ]);
-      }
+      await commitTransferPair({
+        editId: editId || null,
+        fromId,
+        toId,
+        fromAcc,
+        toAcc,
+        fromAmount: inputAmount,
+        toAmount,
+        date,
+        note,
+        exchangeRate,
+        isExchange,
+      });
       closeModal();
       return;
     }
@@ -5614,9 +5651,16 @@ async function deleteRecord(docId) {
       return;
     }
     if (rec?.transferId) {
-      // 轉帳：刪除兩筆關聯記錄
-      const paired = allRecords.filter(r => r.transferId === rec.transferId);
-      await Promise.all(paired.map(r => deleteDoc(doc(db, 'records', r.docId))));
+      // 轉帳：一併刪除兩筆關聯（用 batch 確保一致）
+      const paired = getTransferPairRecords(rec);
+      const batch = writeBatch(db);
+      paired.forEach(r => {
+        if (r?.docId) batch.delete(doc(db, 'records', r.docId));
+      });
+      if (!paired.some(r => r.docId === docId)) {
+        batch.delete(doc(db, 'records', docId));
+      }
+      await batch.commit();
     } else {
       await deleteDoc(doc(db, 'records', docId));
     }

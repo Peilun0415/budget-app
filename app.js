@@ -2880,6 +2880,14 @@ function renderProjectReportTable(proj) {
     
     const tdNote = document.createElement('td');
     tdNote.textContent = r.note || '';
+
+    const tdFx = document.createElement('td');
+    tdFx.className = 'num-col';
+    if (r.foreignCurrency && r.foreignCurrency !== 'TWD' && r.foreignAmount != null) {
+      tdFx.textContent = `${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}`;
+    } else {
+      tdFx.textContent = '';
+    }
     
     const tdTwd = document.createElement('td');
     tdTwd.className = 'num-col';
@@ -2892,6 +2900,7 @@ function renderProjectReportTable(proj) {
     tr.appendChild(tdDate);
     tr.appendChild(tdItem);
     tr.appendChild(tdNote);
+    tr.appendChild(tdFx);
     tr.appendChild(tdTwd);
     tr.appendChild(tdPayer);
     
@@ -2929,7 +2938,7 @@ if (exportProjectReportCsvBtn) {
       return;
     }
 
-    const headers = ['消費日期', '消費項目', '備註', '台幣', '付款人'];
+    const headers = ['消費日期', '消費項目', '備註', '外幣', '台幣', '付款人'];
     const escapeCell = (v) => {
       if (v == null) return '';
       const s = String(v).trim();
@@ -2940,20 +2949,21 @@ if (exportProjectReportCsvBtn) {
     let totalTwd = 0;
     const csvData = rows.map(tr => {
       const tds = tr.querySelectorAll('td');
-      // tds[1] = 日期, tds[2] = 項目, tds[3] = 備註, tds[4] = 台幣, tds[5] = 付款人
-      const twdVal = (tds[4]?.textContent || '').replace(/[$,]/g, '');
+      // tds[1] = 日期, tds[2] = 項目, tds[3] = 備註, tds[4] = 外幣, tds[5] = 台幣, tds[6] = 付款人
+      const twdVal = (tds[5]?.textContent || '').replace(/[$,]/g, '');
       totalTwd += parseFloat(twdVal) || 0;
       return [
         tds[1]?.textContent || '',
         tds[2]?.textContent || '',
         tds[3]?.textContent || '',
+        tds[4]?.textContent || '',
         twdVal,
-        tds[5]?.textContent || ''
+        tds[6]?.textContent || ''
       ];
     });
 
     // 加上總計列，直接寫入加總後的數字
-    csvData.push(['', '', '總計', String(totalTwd), '']);
+    csvData.push(['', '', '總計', '', String(totalTwd), '']);
 
     const lines = [
       headers.join(','),

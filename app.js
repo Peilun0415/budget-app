@@ -554,6 +554,7 @@ let   searchKeyword  = '';
 const totalIncome   = document.getElementById('totalIncome');
 const totalExpense  = document.getElementById('totalExpense');
 const totalBalance  = document.getElementById('totalBalance');
+const summaryTrendBadge = document.getElementById('summaryTrendBadge');
 const currentMonthLabel = document.getElementById('currentMonthLabel');
 const prevMonthBtn  = document.getElementById('prevMonth');
 const nextMonthBtn  = document.getElementById('nextMonth');
@@ -6418,31 +6419,55 @@ function renderMonthLabel() {
   if (homeTodayBtn) homeTodayBtn.style.display = isCurrent ? 'none' : '';
 }
 
-function getMonthRecords() {
-  const ym = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
+function getMonthRecordsFor(year, month) {
+  const ym = `${year}-${String(month + 1).padStart(2, '0')}`;
   return allRecords.filter(r => {
     if (!r.date || !r.date.startsWith(ym)) return false;
-    // 主頁只顯示我付的或結清後產生的；別人付的未結清不計入
     if (r.splitPayer && !isCurrentUserSplitPayer(r) && !r.isSettlement) return false;
     return true;
   });
 }
 
-function renderSummary() {
-  const recs    = getMonthRecords();
+function getMonthRecords() {
+  return getMonthRecordsFor(viewYear, viewMonth);
+}
+
+function calcMonthIncomeExpense(recs) {
   const income  = recs.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
   const expenseBase = recs.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  // 專案轉帳、信用卡轉出（代墊收回）也視為主頁支出（僅計轉出那一筆）
   const transferExpense = recs
     .filter(r => isTransferRecord(r) && r.accountId === r.transferFromId)
     .filter(r => r.projectId || isCreditCardTransferOut(r))
     .reduce((s, r) => s + (r.amount || 0), 0);
   const expense = expenseBase + transferExpense;
-  const balance = income - expense;
-  totalIncome.textContent  = `$${formatMoney(income)}`;
-  totalExpense.textContent = `$${formatMoney(expense)}`;
-  totalBalance.textContent = `$${formatMoney(balance)}`;
-  totalBalance.style.color = balance >= 0 ? 'var(--purple-main)' : 'var(--red-main)';
+  return { income, expense, balance: income - expense };
+}
+
+function renderSummary() {
+  const { income, expense, balance } = calcMonthIncomeExpense(getMonthRecords());
+  totalIncome.textContent  = `NT$ ${formatMoney(income)}`;
+  totalExpense.textContent = `NT$ ${formatMoney(expense)}`;
+  totalBalance.textContent = `NT$ ${formatMoney(balance)}`;
+  totalBalance.style.color = '';
+
+  if (!summaryTrendBadge) return;
+  let prevYear = viewYear;
+  let prevMonth = viewMonth - 1;
+  if (prevMonth < 0) {
+    prevMonth = 11;
+    prevYear -= 1;
+  }
+  const prevBalance = calcMonthIncomeExpense(getMonthRecordsFor(prevYear, prevMonth)).balance;
+  if (prevBalance === 0) {
+    summaryTrendBadge.hidden = true;
+    summaryTrendBadge.textContent = '';
+    return;
+  }
+  const pct = Math.round(((balance - prevBalance) / Math.abs(prevBalance)) * 100);
+  summaryTrendBadge.hidden = false;
+  summaryTrendBadge.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+  summaryTrendBadge.classList.toggle('down', pct < 0);
+  summaryTrendBadge.classList.toggle('up', pct >= 0);
 }
 
 function renderHomeBudget() {

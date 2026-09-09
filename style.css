@@ -364,55 +364,102 @@ body {
   background: var(--pink-mid);
 }
 
-/* ===== 統計卡片 ===== */
+/* ===== 統計卡片（本月結餘表） ===== */
 .summary-section {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
   padding: 18px 16px 0;
 }
 
-.summary-card {
+.summary-sheet {
   background: var(--white);
-  border-radius: var(--radius);
-  padding: 14px 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  box-shadow: var(--shadow);
-  transition: transform 0.2s;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 18px rgba(24, 33, 43, 0.06);
+  padding: 18px 20px 16px;
 }
 
-.summary-card:active {
-  transform: scale(0.97);
+.summary-sheet-main {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
 
-.summary-icon {
-  font-size: 24px;
-}
-
-.summary-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.summary-label {
-  font-size: 11px;
-  color: var(--text-light);
+.summary-sheet-label {
+  display: block;
+  font-size: 13px;
   font-weight: 500;
+  color: var(--text-mid);
+  margin-bottom: 6px;
 }
 
-.summary-amount {
-  font-size: 15px;
+.summary-sheet-main-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summary-sheet-balance {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-dark);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.summary-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 1.3;
+  background: var(--green-light);
+  color: var(--green-main);
 }
 
-.income-card .summary-amount { color: var(--green-main); }
-.expense-card .summary-amount { color: var(--red-main); }
-.balance-card .summary-amount { color: var(--pink-main); }
+.summary-trend-badge.down {
+  background: var(--red-light);
+  color: var(--red-main);
+}
+
+.summary-trend-badge[hidden] {
+  display: none;
+}
+
+.summary-sheet-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 14px;
+}
+
+.summary-sheet-col {
+  min-width: 0;
+}
+
+.summary-sheet-col + .summary-sheet-col {
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
+
+.summary-sheet-col .summary-sheet-label {
+  margin-bottom: 4px;
+}
+
+.summary-sheet-amount {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.summary-sheet-col.income .summary-sheet-amount {
+  color: var(--green-main);
+}
+
+.summary-sheet-col.expense .summary-sheet-amount {
+  color: var(--red-main);
+}
 
 /* ===== 主頁預算小卡（水位圖） ===== */
 #homeBudgetWidget {

@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=3.5" />
+  <link rel="stylesheet" href="style.css?v=3.6" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -96,25 +96,23 @@
 
       <!-- 統計卡片 -->
       <section class="summary-section" id="homeSummary">
-        <div class="summary-card income-card">
-          <div class="summary-icon">💰</div>
-          <div class="summary-info">
-            <span class="summary-label">本月收入</span>
-            <span class="summary-amount" id="totalIncome">$0</span>
+        <div class="summary-sheet">
+          <div class="summary-sheet-main">
+            <span class="summary-sheet-label">本月結餘</span>
+            <div class="summary-sheet-main-row">
+              <span class="summary-sheet-balance" id="totalBalance">NT$ 0</span>
+              <span class="summary-trend-badge" id="summaryTrendBadge" hidden></span>
+            </div>
           </div>
-        </div>
-        <div class="summary-card expense-card">
-          <div class="summary-icon">🛍️</div>
-          <div class="summary-info">
-            <span class="summary-label">本月支出</span>
-            <span class="summary-amount" id="totalExpense">$0</span>
-          </div>
-        </div>
-        <div class="summary-card balance-card">
-          <div class="summary-icon">✨</div>
-          <div class="summary-info">
-            <span class="summary-label">結餘</span>
-            <span class="summary-amount" id="totalBalance">$0</span>
+          <div class="summary-sheet-split">
+            <div class="summary-sheet-col income">
+              <span class="summary-sheet-label">收入</span>
+              <span class="summary-sheet-amount" id="totalIncome">NT$ 0</span>
+            </div>
+            <div class="summary-sheet-col expense">
+              <span class="summary-sheet-label">支出</span>
+              <span class="summary-sheet-amount" id="totalExpense">NT$ 0</span>
+            </div>
           </div>
         </div>
       </section>
@@ -1392,6 +1390,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=3.5"></script>
+  <script type="module" src="app.js?v=3.6"></script>
 </body>
 </html>

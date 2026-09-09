@@ -403,6 +403,9 @@ const appScreen      = document.getElementById('appScreen');
 const googleLoginBtn  = document.getElementById('googleLoginBtn');
 const logoutBtn       = document.getElementById('logoutBtn');
 const userAvatar      = document.getElementById('userAvatar');
+const userAvatarFallback = document.getElementById('userAvatarFallback');
+const settingsAccountName = document.getElementById('settingsAccountName');
+const settingsAccountSub  = document.getElementById('settingsAccountSub');
 const guestLoginBtn   = document.getElementById('guestLoginBtn');
 const guestNameInput  = document.getElementById('guestNameInput');
 const guestPassInput  = document.getElementById('guestPassInput');
@@ -986,21 +989,26 @@ function showLogin() {
 function showApp(user) {
   loginScreen.style.display = 'none';
   appScreen.style.display   = 'block';
-  // 暱稱登入用戶（非 Google）：顯示暱稱徽章
+
   const isNickname = !user.photoURL && user.displayName;
-  document.getElementById('guestBadge')?.remove();
-  if (isNickname) {
-    userAvatar.classList.remove('visible');
-    const badge = document.createElement('span');
-    badge.id = 'guestBadge';
-    badge.className = 'guest-badge';
-    badge.textContent = user.displayName;
-    logoutBtn.insertAdjacentElement('beforebegin', badge);
-  } else {
-    if (user.photoURL) {
-      userAvatar.src = user.photoURL;
-      userAvatar.classList.add('visible');
+  const displayName = user.displayName || user.email || '使用者';
+  if (settingsAccountName) settingsAccountName.textContent = displayName;
+  if (settingsAccountSub) {
+    if (isNickname) {
+      settingsAccountSub.textContent = '訪客帳號';
+    } else if (user.email && user.displayName) {
+      settingsAccountSub.textContent = user.email;
+    } else {
+      settingsAccountSub.textContent = user.email ? '' : '已登入';
     }
+  }
+
+  userAvatar?.classList.remove('visible');
+  userAvatarFallback?.classList.remove('hidden');
+  if (user.photoURL && userAvatar) {
+    userAvatar.src = user.photoURL;
+    userAvatar.classList.add('visible');
+    userAvatarFallback?.classList.add('hidden');
   }
 }
 

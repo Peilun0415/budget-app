@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=3.1" />
+  <link rel="stylesheet" href="style.css?v=3.5" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -81,10 +81,6 @@
       <div class="header-title">
         <img class="header-logo" src="icons/cat.png" width="40" height="40" alt="" decoding="async" />
         <h1 id="pageTitle">貓貓記帳</h1>
-      </div>
-      <div class="header-right">
-        <img class="user-avatar" id="userAvatar" src="" alt="" />
-        <button class="logout-btn" id="logoutBtn">登出</button>
       </div>
     </header>
 
@@ -301,6 +297,15 @@
     <!-- ===== 設定頁面 ===== -->
     <div id="pageSettings" style="display:none">
       <div class="settings-list">
+        <div class="settings-account" id="settingsAccount">
+          <img class="settings-account-avatar" id="userAvatar" src="" alt="" />
+          <div class="settings-account-avatar-fallback" id="userAvatarFallback" aria-hidden="true">👤</div>
+          <div class="settings-account-info">
+            <div class="settings-account-name" id="settingsAccountName">—</div>
+            <div class="settings-account-sub" id="settingsAccountSub"></div>
+          </div>
+          <button class="settings-logout-btn" id="logoutBtn" type="button">登出</button>
+        </div>
         <button class="settings-item" id="goDefaultDebitAccount" type="button">
           <span class="settings-item-icon">💳</span>
           <div class="settings-item-info">
@@ -1387,6 +1392,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=3.1"></script>
+  <script type="module" src="app.js?v=3.5"></script>
 </body>
 </html>

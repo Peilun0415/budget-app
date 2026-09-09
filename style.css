@@ -252,7 +252,7 @@ body {
   text-align: center;
   line-height: 1.5;
 }
-/* 訪客標示（header 右側） */
+/* 訪客標示（舊 header，保留 class 相容） */
 .guest-badge {
   font-size: 12px;
   color: var(--text-light);
@@ -273,7 +273,6 @@ body {
   z-index: 100;
   display: flex;
   align-items: center;
-  justify-content: space-between;
 }
 
 .header-title {
@@ -301,39 +300,10 @@ body {
   min-width: 0;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.6);
-  object-fit: cover;
-  display: none;
-}
-
-.user-avatar.visible {
-  display: block;
-}
-
+.header-right,
+.user-avatar,
 .logout-btn {
-  background: rgba(255,255,255,0.2);
-  border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.logout-btn:active {
-  background: rgba(255,255,255,0.35);
+  display: none;
 }
 
 /* ===== 月份導覽 ===== */
@@ -1908,6 +1878,62 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   line-height: 1;
 }
 
+.nav-btn {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 0 12px;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-light);
+  transition: color 0.2s, transform 0.15s;
+  z-index: 0;
+}
+
+.nav-btn.active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.nav-btn.active::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 57%;
+  width: 42px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  background: rgba(78, 143, 124, 0.14);
+  border-radius: 12px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.nav-btn.active .nav-icon {
+  transform: scale(1.04);
+}
+
+.nav-btn.active .nav-label {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.nav-icon {
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.nav-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -1919,34 +1945,6 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   z-index: 150;
   max-width: 480px;
   margin: 0 auto;
-}
-
-.nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 10px 0 12px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-light);
-  transition: color 0.2s;
-}
-
-.nav-btn.active {
-  color: var(--pink-main);
-}
-
-.nav-icon {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.nav-label {
-  font-size: 11px;
-  font-weight: 600;
 }
 
 /* 讓頁面內容不被底部導覽列遮住 */
@@ -3259,6 +3257,79 @@ input[type=number]::-webkit-outer-spin-button {
 .settings-item-danger:hover { background: #ffe0e0; }
 .settings-item-danger .settings-item-title { color: var(--red-main); }
 .settings-item-danger .settings-item-desc  { color: #e57373; }
+
+.settings-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  box-sizing: border-box;
+}
+.settings-account-avatar,
+.settings-account-avatar-fallback {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.settings-account-avatar {
+  display: none;
+  border: 2px solid var(--pink-mid);
+}
+.settings-account-avatar.visible {
+  display: block;
+}
+.settings-account-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pink-light);
+  font-size: 22px;
+}
+.settings-account-avatar-fallback.hidden {
+  display: none;
+}
+.settings-account-info {
+  flex: 1;
+  min-width: 0;
+}
+.settings-account-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-account-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 1.2em;
+}
+.settings-logout-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--bg);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.settings-logout-btn:active {
+  background: var(--pink-light);
+}
 
 .settings-modal-hint {
   font-size: 13px;

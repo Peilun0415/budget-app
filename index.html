@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=4.1" />
+  <link rel="stylesheet" href="style.css?v=5.2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -89,9 +89,13 @@
     <div id="pageHome">
       <!-- 月份導覽 -->
       <div class="month-nav-bar" id="homeMonthNav">
-        <button class="month-btn" id="prevMonth">‹</button>
+        <button type="button" class="month-btn" id="prevMonth" aria-label="上個月">
+          <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </button>
         <span id="currentMonthLabel"></span>
-        <button class="month-btn" id="nextMonth">›</button>
+        <button type="button" class="month-btn" id="nextMonth" aria-label="下個月">
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </button>
         <button type="button" class="today-btn" id="homeTodayBtn" style="display:none">今天</button>
       </div>
 
@@ -243,9 +247,13 @@
 
         <!-- 月份模式 -->
         <div class="detail-month-nav" id="detailMonthNav">
-          <button class="month-btn" id="detailPrevMonth">‹</button>
+          <button type="button" class="month-btn" id="detailPrevMonth" aria-label="上個月">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+          </button>
           <span id="detailMonthLabel"></span>
-          <button class="month-btn" id="detailNextMonth">›</button>
+          <button type="button" class="month-btn" id="detailNextMonth" aria-label="下個月">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </button>
           <button type="button" class="today-btn" id="detailTodayBtn" style="display:none">今天</button>
         </div>
 
@@ -565,9 +573,13 @@
         </div>
         <!-- 月份選擇 -->
         <div class="report-period-bar" id="reportPeriodBarCat">
-          <button class="month-btn" id="reportPrevMonth">‹</button>
+          <button type="button" class="month-btn" id="reportPrevMonth" aria-label="上個月">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+          </button>
           <span id="reportMonthLabel"></span>
-          <button class="month-btn" id="reportNextMonth">›</button>
+          <button type="button" class="month-btn" id="reportNextMonth" aria-label="下個月">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </button>
           <button type="button" class="today-btn" id="reportTodayBtn" style="display:none">今天</button>
         </div>
         <!-- 圓餅圖 -->
@@ -596,9 +608,13 @@
         </div>
         <!-- 年份切換 -->
         <div class="report-period-bar" id="trendYearNav">
-          <button class="month-btn" id="trendPrevYear">‹</button>
+          <button type="button" class="month-btn" id="trendPrevYear" aria-label="上一年">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+          </button>
           <span id="trendYearLabel"></span>
-          <button class="month-btn" id="trendNextYear">›</button>
+          <button type="button" class="month-btn" id="trendNextYear" aria-label="下一年">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </button>
           <button type="button" class="today-btn" id="trendTodayBtn" style="display:none">今年</button>
         </div>
         <!-- 長條圖 -->
@@ -654,12 +670,12 @@
 
     <!-- 首頁捲動後：浮動新增記帳（在回到頂部按鈕上方） -->
     <button type="button" class="fab-add-record-btn" id="fabAddRecordBtn" title="新增記帳" aria-label="新增記帳">
-      <span class="fab-add-record-icon" aria-hidden="true">＋</span>
+      <i class="bi bi-plus-lg fab-add-record-icon" aria-hidden="true"></i>
     </button>
 
     <!-- 回到頂部按鈕（捲動後顯示） -->
     <button type="button" class="back-to-top-btn" id="backToTopBtn" title="回到頂部" aria-label="回到頂部">
-      <span class="back-to-top-icon">▲</span>
+      <i class="bi bi-chevron-up back-to-top-icon" aria-hidden="true"></i>
     </button>
 
     <!-- 底部導覽列 -->
@@ -942,10 +958,19 @@
 
         <!-- 所屬專案 -->
         <div class="form-group" id="recordProjectGroup">
-          <label class="form-label">所屬專案（選填）</label>
-          <select id="recordProjectSelect" class="form-select">
-            <option value="">不屬於任何專案</option>
-          </select>
+          <label class="account-include-toggle" for="recordProjectToggle">
+            <div class="toggle-label-wrap">
+              <span class="toggle-label-main">加入專案</span>
+              <span class="toggle-label-sub">開啟後選擇所屬專案</span>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="recordProjectToggle" />
+              <span class="toggle-slider"></span>
+            </div>
+          </label>
+          <div id="recordProjectSelectWrap" style="display:none">
+            <select id="recordProjectSelect" class="form-select"></select>
+          </div>
         </div>
 
         <!-- 回饋活動（選擇專案後才顯示） -->
@@ -1004,7 +1029,7 @@
           <button type="button" class="delete-record-btn" id="deleteRecordBtn" style="display:none">刪除</button>
         </div>
         <div class="record-form-secondary-row">
-          <button type="button" class="save-tpl-btn" id="saveTplBtn">📌 儲存為範本</button>
+          <button type="button" class="save-tpl-btn" id="saveTplBtn">儲存為範本</button>
           <button type="button" class="save-tpl-btn" id="duplicateRecordBtn">📋 再記一筆</button>
         </div>
       </form>
@@ -1155,7 +1180,7 @@
   <div class="modal-overlay" id="tplNameOverlay">
     <div class="modal tpl-name-modal">
       <div class="modal-header">
-        <h2>儲存為範本</h2>
+        <h2 id="tplNameModalTitle">儲存為範本</h2>
         <button class="close-btn" id="closeTplNameBtn">✕</button>
       </div>
       <div class="form-group">
@@ -1437,6 +1462,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=4.1"></script>
+  <script type="module" src="app.js?v=5.2"></script>
 </body>
 </html>

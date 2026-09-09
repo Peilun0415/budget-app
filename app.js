@@ -542,6 +542,9 @@ const tplNameOverlay  = document.getElementById('tplNameOverlay');
 const closeTplNameBtn = document.getElementById('closeTplNameBtn');
 const tplNameInput    = document.getElementById('tplNameInput');
 const confirmSaveTplBtn = document.getElementById('confirmSaveTplBtn');
+const tplNameModalTitle = document.getElementById('tplNameModalTitle');
+/** 正在編輯的範本 docId；null 表示新增 */
+let tplEditingId = null;
 const accountSelect = document.getElementById('accountSelect');
 const recordList    = document.getElementById('recordList');
 const emptyState    = document.getElementById('emptyState');
@@ -680,6 +683,8 @@ const exportProjectReportCsvBtn = document.getElementById('exportProjectReportCs
 let currentReportRecs = [];
 const recordProjectSelect   = document.getElementById('recordProjectSelect');
 const recordProjectGroup    = document.getElementById('recordProjectGroup');
+const recordProjectToggle   = document.getElementById('recordProjectToggle');
+const recordProjectSelectWrap = document.getElementById('recordProjectSelectWrap');
 const rewardActivityGroup   = document.getElementById('rewardActivityGroup');
 const rewardActivityChecklist = document.getElementById('rewardActivityChecklist');
 const rewardActivityClearBtn = document.getElementById('rewardActivityClearBtn');
@@ -3035,23 +3040,62 @@ function ensureRecordProjectOption(projectId) {
   recordProjectSelect.appendChild(opt);
 }
 
+/** 僅在「加入專案」開啟時回傳目前選中的專案 id */
+function getSelectedRecordProjectId() {
+  if (!recordProjectToggle?.checked) return '';
+  return recordProjectSelect?.value || '';
+}
+
+function syncRecordProjectToggleUI() {
+  const on = !!recordProjectToggle?.checked;
+  if (recordProjectSelectWrap) {
+    recordProjectSelectWrap.style.display = on ? '' : 'none';
+  }
+  updateSplitGroupVisibility();
+  updateRewardActivitySelect();
+}
+
+function setRecordProjectEnabled(enabled, projectId = '') {
+  if (recordProjectToggle) recordProjectToggle.checked = !!enabled;
+  if (recordProjectSelect && enabled) {
+    if (projectId && [...recordProjectSelect.options].some(o => o.value === projectId)) {
+      recordProjectSelect.value = projectId;
+    } else if (recordProjectSelect.options.length) {
+      recordProjectSelect.selectedIndex = 0;
+    }
+  }
+  syncRecordProjectToggleUI();
+}
+
 function updateRecordProjectSelect() {
   const prev = recordProjectSelect.value;
-  recordProjectSelect.innerHTML = '<option value="">不屬於任何專案</option>';
+  const wasOn = !!recordProjectToggle?.checked;
+  recordProjectSelect.innerHTML = '';
   allProjects.filter(isProjectActive).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.docId;
     opt.textContent = p.name;
     recordProjectSelect.appendChild(opt);
   });
-  // 若先前選的是已結束專案，新增時清空；編輯時由 openModal 再補回
   if (prev && [...recordProjectSelect.options].some(o => o.value === prev)) {
     recordProjectSelect.value = prev;
-  } else {
-    recordProjectSelect.value = '';
+  } else if (recordProjectSelect.options.length) {
+    recordProjectSelect.selectedIndex = 0;
   }
-  updateSplitGroupVisibility();
+  // 開關為來源；若已無可用專案則關閉
+  if (recordProjectToggle) {
+    recordProjectToggle.checked = wasOn && recordProjectSelect.options.length > 0;
+  }
+  syncRecordProjectToggleUI();
 }
+
+recordProjectToggle?.addEventListener('change', () => {
+  if (recordProjectToggle.checked && recordProjectSelect && !recordProjectSelect.value
+      && recordProjectSelect.options.length) {
+    recordProjectSelect.selectedIndex = 0;
+  }
+  syncRecordProjectToggleUI();
+});
 
 recordProjectSelect.addEventListener('change', () => {
   updateSplitGroupVisibility();
@@ -3059,7 +3103,7 @@ recordProjectSelect.addEventListener('change', () => {
 });
 
 function updateRewardActivitySelect(savedIds = []) {
-  const projId = recordProjectSelect.value;
+  const projId = getSelectedRecordProjectId();
   const proj   = allProjects.find(p => p.docId === projId);
   const acts   = proj?.rewardActivities?.filter(a => a.name) || [];
   if (!projId || acts.length === 0) {
@@ -3093,7 +3137,7 @@ if (rewardActivityClearBtn) {
 }
 
 function updateSplitGroupVisibility(record = null) {
-  const projId = recordProjectSelect.value;
+  const projId = getSelectedRecordProjectId();
   const proj   = allProjects.find(p => p.docId === projId);
   if (!proj || getProjectMemberEntries(proj).length < 2) {
     splitGroup.style.display = 'none';
@@ -3243,7 +3287,7 @@ function getMemberShareTwd(r, memberUid, project = null) {
 }
 
 function getSplitData(amountToSplit) {
-  const projId = recordProjectSelect.value;
+  const projId = getSelectedRecordProjectId();
   const proj   = allProjects.find(p => p.docId === projId);
   if (!proj || splitGroup.style.display === 'none') return { splitPayer: null, splitPayerUid: null, splitData: null };
   if (splitEnableToggle && !splitEnableToggle.checked) return { splitPayer: null, splitPayerUid: null, splitData: null };
@@ -4213,14 +4257,60 @@ document.querySelectorAll('.tpl-tab').forEach(tab => {
 closeTplNameBtn.addEventListener('click', () => { tplNameOverlay.classList.remove('active'); });
 tplNameOverlay.addEventListener('click', (e) => { if (e.target === tplNameOverlay) tplNameOverlay.classList.remove('active'); });
 
-saveTplBtn.addEventListener('click', () => {
-  tplNameInput.value = '';
+function syncSaveTplBtnLabel() {
+  const editingTpl = !!tplEditingId;
+  if (saveTplBtn) {
+    saveTplBtn.textContent = editingTpl ? '更新範本' : '儲存為範本';
+    saveTplBtn.classList.toggle('submit-btn', editingTpl);
+    saveTplBtn.classList.toggle('save-tpl-btn', !editingTpl);
+  }
+  if (submitBtn) {
+    submitBtn.style.display = editingTpl ? 'none' : '';
+    if (submitBtn.parentElement) {
+      submitBtn.parentElement.style.display = editingTpl ? 'none' : '';
+    }
+  }
+  if (duplicateRecordBtn) duplicateRecordBtn.style.display = editingTpl ? 'none' : '';
+  if (openTplListBtn) openTplListBtn.style.display = editingTpl ? 'none' : '';
+  if (editingTpl && recordModalTitle) {
+    recordModalTitle.textContent = '更新範本';
+  }
+}
+
+function openTplNameModal({ editId = null, name = '' } = {}) {
+  tplEditingId = editId || null;
+  tplNameInput.value = name || '';
+  if (tplNameModalTitle) tplNameModalTitle.textContent = editId ? '編輯範本' : '儲存為範本';
+  if (confirmSaveTplBtn) confirmSaveTplBtn.textContent = editId ? '更新' : '儲存';
+  syncSaveTplBtnLabel();
   tplNameOverlay.classList.add('active');
+  setTimeout(() => tplNameInput.focus(), 50);
+}
+
+function clearTplEditing() {
+  const wasEditingTpl = !!tplEditingId;
+  tplEditingId = null;
+  if (tplNameModalTitle) tplNameModalTitle.textContent = '儲存為範本';
+  if (confirmSaveTplBtn) confirmSaveTplBtn.textContent = '儲存';
+  syncSaveTplBtnLabel();
+  // 離開範本編輯且非編輯既有記帳時，標題回到新增
+  if (wasEditingTpl && recordModalTitle && !recordEditId?.value) {
+    recordModalTitle.textContent = '新增記帳';
+  }
+}
+
+saveTplBtn.addEventListener('click', () => {
+  const editing = tplEditingId ? allTemplates.find(t => t.docId === tplEditingId) : null;
+  openTplNameModal({
+    editId: tplEditingId,
+    name: editing?.name || '',
+  });
 });
 
 /** 保留表單內容，改為新增一筆（清除編輯 id，送出時會新增而非更新） */
 function duplicateCurrentFormAsNewRecord() {
   recordEditId.value = '';
+  clearTplEditing();
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
   if (deleteRecordBtn) deleteRecordBtn.style.display = 'none';
@@ -4250,7 +4340,6 @@ async function saveCurrentAsTemplate() {
     type,
     amount:    amountVal,
     note:      noteVal,
-    createdAt: serverTimestamp(),
   };
 
   if (type === 'transfer') {
@@ -4267,14 +4356,19 @@ async function saveCurrentAsTemplate() {
     tplData.accountId       = accountSelect.value          || '';
   }
 
-  const existing = allTemplates.find(t => t.name === name && t.type === type);
-  if (existing) {
-    await updateDoc(doc(db, 'templates', existing.docId), tplData);
+  if (tplEditingId) {
+    await updateDoc(doc(db, 'templates', tplEditingId), tplData);
   } else {
-    await addDoc(collection(db, 'templates'), tplData);
+    const existing = allTemplates.find(t => t.name === name && t.type === type);
+    if (existing) {
+      await updateDoc(doc(db, 'templates', existing.docId), { ...tplData, createdAt: serverTimestamp() });
+    } else {
+      await addDoc(collection(db, 'templates'), { ...tplData, createdAt: serverTimestamp() });
+    }
   }
   tplNameOverlay.classList.remove('active');
   tplListOverlay.classList.remove('active');
+  clearTplEditing();
 }
 
 function renderTplList() {
@@ -4317,18 +4411,34 @@ function renderTplList() {
         <div class="tpl-item-desc">${descParts.join('・')}</div>
       </div>
       <div class="tpl-item-amount ${amountClass}">${amountDisplay}</div>
-      <button class="tpl-delete-btn" data-id="${tpl.docId}" title="刪除範本">🗑</button>
+      <div class="tpl-item-actions">
+        <button type="button" class="tpl-edit-btn" data-id="${tpl.docId}" title="編輯範本" aria-label="編輯範本">
+          <i class="bi bi-pencil" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="tpl-delete-btn" data-id="${tpl.docId}" title="刪除範本" aria-label="刪除範本">
+          <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+      </div>
     `;
+
+    item.querySelector('.tpl-edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      // 先回到記帳表單編輯內容，確認時再透過「更新範本」寫回
+      applyTemplate(tpl, { keepEditing: true });
+      tplEditingId = tpl.docId;
+      syncSaveTplBtnLabel();
+    });
 
     item.querySelector('.tpl-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (!confirm(`刪除範本「${tpl.name}」？`)) return;
       await deleteDoc(doc(db, 'templates', tpl.docId));
+      if (tplEditingId === tpl.docId) clearTplEditing();
       renderTplList();
     });
 
     item.addEventListener('click', (e) => {
-      if (e.target.closest('.tpl-delete-btn')) return;
+      if (e.target.closest('.tpl-edit-btn, .tpl-delete-btn, .tpl-item-actions')) return;
       applyTemplate(tpl);
     });
 
@@ -4336,8 +4446,9 @@ function renderTplList() {
   });
 }
 
-function applyTemplate(tpl) {
+function applyTemplate(tpl, { keepEditing = false } = {}) {
   tplListOverlay.classList.remove('active');
+  if (!keepEditing) clearTplEditing();
 
   // 切換類型
   switchType(tpl.type);
@@ -5321,7 +5432,7 @@ function openModal(record = null, newRecordOptions = null) {
     }
     // 還原專案與分攤
     ensureRecordProjectOption(formRecord.projectId);
-    recordProjectSelect.value = formRecord.projectId || '';
+    setRecordProjectEnabled(!!formRecord.projectId, formRecord.projectId || '');
     updateRewardActivitySelect(formRecord.rewardActivityIds || (formRecord.rewardActivityId ? [formRecord.rewardActivityId] : []));
     updateSplitGroupVisibility(formRecord);
   } else {
@@ -5344,6 +5455,7 @@ function openModal(record = null, newRecordOptions = null) {
         if (alt) transferTo.value = alt.docId;
       }
     }
+    setRecordProjectEnabled(false);
   }
   syncForeignAccountUI();
   void maybeAutoConvertForeignIncome();
@@ -5739,6 +5851,11 @@ function formatDateDisplay(dateStr) {
 // ===== 提交記帳（新增 / 編輯）=====
 recordForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  // 範本編輯模式：不建立記帳，改走更新範本
+  if (tplEditingId) {
+    saveTplBtn?.click();
+    return;
+  }
   // 若算式尚未按 =，擋住儲存
   if (/[+\-*/]/.test(calcRaw)) {
     calcExpressionEl.textContent = '請先按 = 完成計算';
@@ -5830,7 +5947,7 @@ recordForm.addEventListener('submit', async (e) => {
     let amount = inputAmount;
 
     if (isForeignPrimary) {
-      const projId = recordProjectSelect.value;
+      const projId = getSelectedRecordProjectId();
       const proj = projId ? (allProjects || []).find(p => p.docId === projId) : null;
       const useProjectRate = proj?.currency === accountCurrency && proj?.rateToTwd != null && proj.rateToTwd > 0;
       if (useProjectRate) {
@@ -5863,7 +5980,7 @@ recordForm.addEventListener('submit', async (e) => {
       note:             noteInput.value.trim(),
       foreignCurrency:  accountCurrency || manualForeignCurrency,
       foreignAmount:    primaryForeignAmount,
-      projectId:          recordProjectSelect.value || null,
+      projectId:          getSelectedRecordProjectId() || null,
       rewardActivityId:   null, // 舊欄位停用，保留相容讀取
       rewardActivityIds:  getSelectedRewardActivityIds(),
       splitPayer:         sp || null,
@@ -5902,7 +6019,10 @@ function resetForm() {
   setExchangeOn(false);
   recordModalTitle.textContent = '新增記帳';
   submitBtn.textContent = '記下來！';
-  recordProjectSelect.value = '';
+  if (recordProjectToggle) recordProjectToggle.checked = false;
+  if (recordProjectSelectWrap) recordProjectSelectWrap.style.display = 'none';
+  if (recordProjectSelect?.options.length) recordProjectSelect.selectedIndex = 0;
+  clearTplEditing();
   rewardActivityGroup.style.display = 'none';
   if (rewardActivityChecklist) rewardActivityChecklist.innerHTML = '';
   splitGroup.style.display = 'none';
@@ -8044,19 +8164,18 @@ function renderMainCategories(recs, total) {
     const hasSubs = allCategories.find(c => c.docId === cat.id)?.subs?.length > 0;
     const item = document.createElement('div');
     item.className = `report-cat-item ${reportType}${hasSubs ? '' : ' no-drill'}`;
-    item.style.borderLeftColor = color;
     item.innerHTML = `
-      <div class="report-cat-emoji">${cat.emoji}</div>
+      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${cat.emoji}</div>
       <div class="report-cat-info">
-        <div class="report-cat-name">${cat.name}</div>
+        <div class="report-cat-top">
+          <div class="report-cat-name">${cat.name}</div>
+          <div class="report-cat-amount ${reportType}">NT$ ${formatMoney(cat.amount)}</div>
+        </div>
         <div class="report-cat-bar-wrap">
           <div class="report-cat-bar" style="width:${pct}%;background:${color}"></div>
         </div>
-        <div class="report-cat-percent">${pct}%</div>
       </div>
-      <div>
-        <div class="report-cat-amount ${reportType}">$${formatMoney(cat.amount)}</div>
-      </div>
+      <div class="report-cat-percent">${pct}%</div>
       ${hasSubs || cat.id !== '__none__' ? '<div class="report-cat-arrow">›</div>' : ''}
     `;
     if (cat.id !== '__none__') {
@@ -8113,19 +8232,18 @@ function renderDrillDown(recs, totalAll) {
     const color = PIE_COLORS[idx % PIE_COLORS.length];
     const item  = document.createElement('div');
     item.className = `report-cat-item ${reportType}`;
-    item.style.borderLeftColor = color;
     item.innerHTML = `
-      <div class="report-cat-emoji">${sub.emoji || cat?.emoji || '📦'}</div>
+      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${sub.emoji || cat?.emoji || '📦'}</div>
       <div class="report-cat-info">
-        <div class="report-cat-name">${sub.name}</div>
+        <div class="report-cat-top">
+          <div class="report-cat-name">${sub.name}</div>
+          <div class="report-cat-amount ${reportType}">NT$ ${formatMoney(sub.amount)}</div>
+        </div>
         <div class="report-cat-bar-wrap">
           <div class="report-cat-bar" style="width:${pct}%;background:${color}"></div>
         </div>
-        <div class="report-cat-percent">${pct}%</div>
       </div>
-      <div>
-        <div class="report-cat-amount ${reportType}">$${formatMoney(sub.amount)}</div>
-      </div>
+      <div class="report-cat-percent">${pct}%</div>
       <div class="report-cat-arrow">›</div>
     `;
     item.addEventListener('click', () => {

@@ -328,12 +328,17 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  font-size: 20px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s;
+  line-height: 1;
+  padding: 0;
+}
+.month-btn .bi {
+  font-size: 1em;
   line-height: 1;
 }
 
@@ -1589,9 +1594,11 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   gap: 8px;
   margin-top: 8px;
 }
-.record-form-secondary-row .save-tpl-btn {
+.record-form-secondary-row .save-tpl-btn,
+.record-form-secondary-row .submit-btn {
   flex: 1;
   margin-top: 0;
+  width: 100%;
 }
 
 .save-tpl-btn {
@@ -1717,18 +1724,37 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .tpl-item-amount.transfer { color: var(--pink-main); }
 .tpl-item-amount.none { color: var(--text-light); font-size: 12px; }
 
+.tpl-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tpl-edit-btn,
 .tpl-delete-btn {
   background: none;
   border: none;
   font-size: 16px;
   cursor: pointer;
   color: var(--text-light);
-  padding: 4px;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
   flex-shrink: 0;
-  transition: color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
 }
-.tpl-delete-btn:hover { color: var(--red-main); }
+.tpl-edit-btn:hover {
+  color: var(--pink-main);
+  background: rgba(78, 143, 124, 0.12);
+}
+.tpl-delete-btn:hover {
+  color: var(--red-main);
+  background: rgba(196, 92, 92, 0.1);
+}
 
 /* ===== 轉帳 ===== */
 .date-account-row {
@@ -1875,15 +1901,15 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .fab-add-record-btn {
   position: fixed;
   right: 16px;
-  bottom: calc(80px + 48px + 12px);
+  bottom: calc(80px + 40px + 10px);
   z-index: 140;
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: var(--pink-main);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(78, 143, 124, 0.32);
+  box-shadow: 0 3px 12px rgba(78, 143, 124, 0.3);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1898,16 +1924,20 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 .fab-add-record-btn:hover {
   transform: scale(1.06);
-  box-shadow: 0 6px 22px rgba(78, 143, 124, 0.4);
+  box-shadow: 0 5px 16px rgba(78, 143, 124, 0.38);
 }
 .fab-add-record-btn:active {
   transform: scale(0.97);
 }
 .fab-add-record-icon {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 20px;
   line-height: 1;
-  margin-top: 0px;
+  font-weight: normal;
+}
+.back-to-top-icon {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: normal;
 }
 
 /* 回到頂部按鈕 */
@@ -1916,13 +1946,13 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   right: 16px;
   bottom: 80px;
   z-index: 140;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: var(--pink-main);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.14);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1940,11 +1970,6 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 .back-to-top-btn:active {
   transform: scale(0.98);
-}
-.back-to-top-icon {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .nav-btn {
@@ -2134,15 +2159,32 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   gap: 6px;
   flex-wrap: wrap;
 }
-.account-include-toggle {
+#recordProjectSelectWrap {
+  margin-top: 4px;
+}
+/* 蓋過 .form-group label { display:block }；帳戶 modal 的開關也不在 form-group 內 */
+label.account-include-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0;
+  width: 100%;
+  padding: 4px 0;
   margin-bottom: 18px;
   cursor: pointer;
   user-select: none;
+  box-sizing: border-box;
+}
+label.account-include-toggle .toggle-label-wrap {
+  flex: 1;
+  min-width: 0;
+}
+label.account-include-toggle .toggle-switch {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.form-group > label.account-include-toggle {
+  margin-bottom: 0;
 }
 .toggle-switch {
   position: relative;
@@ -4234,56 +4276,87 @@ input.form-input {
 .report-cat-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 12px 14px;
   background: #fff;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
   cursor: pointer;
   transition: background 0.15s;
-  border-left: 6px solid #e0e0e0;
 }
 .report-cat-item:hover { background: var(--pink-light); }
 .report-cat-item.no-drill { cursor: default; }
 .report-cat-item.no-drill:hover { background: #fff; }
 
-.report-cat-emoji { font-size: 22px; flex-shrink: 0; }
+.report-cat-emoji {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
 
-.report-cat-info { flex: 1; min-width: 0; }
+.report-cat-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-cat-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
 
 .report-cat-name {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-dark);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .report-cat-bar-wrap {
-  height: 5px;
-  background: var(--border);
-  border-radius: 3px;
-  margin-top: 5px;
+  height: 6px;
+  background: #eceae6;
+  border-radius: 99px;
   overflow: hidden;
 }
 .report-cat-bar {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 99px;
   transition: width 0.4s;
 }
 .expense .report-cat-bar { background: var(--red-main); }
 .income  .report-cat-bar { background: var(--green-main); }
 
 .report-cat-amount {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
+  color: var(--text-dark);
 }
-.report-cat-amount.expense { color: var(--red-main); }
-.report-cat-amount.income  { color: var(--green-main); }
+.report-cat-amount.expense { color: var(--text-dark); }
+.report-cat-amount.income  { color: var(--text-dark); }
 
 .report-cat-percent {
-  font-size: 11px;
-  color: var(--text-light);
-  margin-top: 2px;
+  flex-shrink: 0;
+  min-width: 2.6em;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  margin-top: 0;
+  align-self: center;
 }
 
 .report-cat-arrow {

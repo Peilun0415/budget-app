@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=2.9" />
+  <link rel="stylesheet" href="style.css?v=3.1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -301,6 +301,14 @@
     <!-- ===== 設定頁面 ===== -->
     <div id="pageSettings" style="display:none">
       <div class="settings-list">
+        <button class="settings-item" id="goDefaultDebitAccount" type="button">
+          <span class="settings-item-icon">💳</span>
+          <div class="settings-item-info">
+            <div class="settings-item-title">預設扣款帳戶</div>
+            <div class="settings-item-desc" id="defaultDebitAccountDesc">新增記帳時會自動選此帳戶</div>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
         <button class="settings-item" id="goBudget">
           <span class="settings-item-icon">🎯</span>
           <div class="settings-item-info">
@@ -423,6 +431,26 @@
         <div class="modal-actions">
           <button class="btn-save" id="saveCatBudgetBtn">儲存</button>
           <button class="btn-delete" id="deleteCatBudgetBtn" style="display:none">刪除預算</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 預設扣款帳戶設定 -->
+    <div class="modal-overlay" id="defaultDebitAccountOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>預設扣款帳戶</h2>
+          <button class="close-btn" id="closeDefaultDebitAccountBtn" type="button">✕</button>
+        </div>
+        <p class="settings-modal-hint">新增記帳時會自動選此帳戶</p>
+        <div class="form-group">
+          <label class="form-label" for="defaultDebitAccountSelect">選擇帳戶</label>
+          <select id="defaultDebitAccountSelect" class="form-select">
+            <option value="">不指定（使用第一個帳戶）</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-save" id="saveDefaultDebitAccountBtn" type="button">儲存</button>
         </div>
       </div>
     </div>
@@ -1315,18 +1343,6 @@
           </div>
         </label>
 
-        <!-- 預設扣款帳戶 -->
-        <label class="account-include-toggle">
-          <div class="toggle-label-wrap">
-            <span class="toggle-label-main">設為預設扣款帳戶</span>
-            <span class="toggle-label-sub">新增記帳時會自動選此帳戶</span>
-          </div>
-          <div class="toggle-switch">
-            <input type="checkbox" id="accountIsDefault" />
-            <span class="toggle-slider"></span>
-          </div>
-        </label>
-
         <!-- 備註 -->
         <div class="form-group">
           <label for="accountNote">備註（選填）</label>
@@ -1371,6 +1387,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.9"></script>
+  <script type="module" src="app.js?v=3.1"></script>
 </body>
 </html>

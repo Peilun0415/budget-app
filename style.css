@@ -3260,6 +3260,13 @@ input[type=number]::-webkit-outer-spin-button {
 .settings-item-danger .settings-item-title { color: var(--red-main); }
 .settings-item-danger .settings-item-desc  { color: #e57373; }
 
+.settings-modal-hint {
+  font-size: 13px;
+  color: var(--text-mid);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
 /* ===== 表單通用輸入框 ===== */
 .form-label {
   display: block;

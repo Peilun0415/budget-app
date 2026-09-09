@@ -567,7 +567,6 @@ const accountBalanceInput  = document.getElementById('accountBalance');
 const accountNoteInput     = document.getElementById('accountNote');
 const accountCurrencyInput      = document.getElementById('accountCurrency');
 const accountIncludeInTotal     = document.getElementById('accountIncludeInTotal');
-const accountIsDefault          = document.getElementById('accountIsDefault');
 const accountSubmitBtn     = document.getElementById('accountSubmitBtn');
 const accountEditId        = document.getElementById('accountEditId');
 const accountList          = document.getElementById('accountList');
@@ -688,6 +687,12 @@ const fabAddRecordBtn   = document.getElementById('fabAddRecordBtn');
 const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
+const goDefaultDebitAccountBtn = document.getElementById('goDefaultDebitAccount');
+const defaultDebitAccountOverlay = document.getElementById('defaultDebitAccountOverlay');
+const defaultDebitAccountSelect = document.getElementById('defaultDebitAccountSelect');
+const defaultDebitAccountDesc = document.getElementById('defaultDebitAccountDesc');
+const closeDefaultDebitAccountBtn = document.getElementById('closeDefaultDebitAccountBtn');
+const saveDefaultDebitAccountBtn = document.getElementById('saveDefaultDebitAccountBtn');
 // 主頁預算小卡 DOM
 const homeBudgetWidget     = document.getElementById('homeBudgetWidget');
 const homeBudgetContent    = document.getElementById('homeBudgetContent');
@@ -1310,6 +1315,7 @@ function switchPage(page) {
   }
   if (page === 'home')          renderHomeBudget();
   if (page === 'accounts' || page === 'accountDetail') scheduleAccountsRefresh();
+  if (page === 'settings')      renderDefaultDebitAccountSelect();
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
   if (page === 'budget')        renderBudgetPage();
@@ -3973,6 +3979,7 @@ function subscribeAccounts() {
     renderAccountList();
     scheduleAccountsRefresh();
     renderAccountSelect();
+    renderDefaultDebitAccountSelect();
     renderAll();
     // 若目前在帳戶明細頁，即時更新
     if (currentPage === 'accountDetail' && detailAccountId) {
@@ -5441,6 +5448,88 @@ function renderAccountSelect() {
   syncForeignAccountUI();
 }
 
+// ===== 設定頁：預設扣款帳戶 =====
+function getDefaultDebitAccountLabel() {
+  const defaultAcc = allAccounts.find(a => a.isDefault);
+  if (defaultAcc) return `${defaultAcc.emoji} ${defaultAcc.name}`;
+  return '不指定（使用第一個帳戶）';
+}
+
+function updateDefaultDebitAccountDesc() {
+  if (!defaultDebitAccountDesc) return;
+  defaultDebitAccountDesc.textContent = getDefaultDebitAccountLabel();
+}
+
+function renderDefaultDebitAccountSelect() {
+  updateDefaultDebitAccountDesc();
+  if (!defaultDebitAccountSelect) return;
+  const defaultAcc = allAccounts.find(a => a.isDefault);
+  const preferred = defaultAcc?.docId || '';
+
+  defaultDebitAccountSelect.innerHTML = '';
+  const optNone = document.createElement('option');
+  optNone.value = '';
+  optNone.textContent = '不指定（使用第一個帳戶）';
+  defaultDebitAccountSelect.appendChild(optNone);
+
+  const sortedAccounts = [...allAccounts].sort((a, b) => {
+    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
+    if (tDiff !== 0) return tDiff;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+  sortedAccounts.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.docId;
+    opt.textContent = `${a.emoji} ${a.name}`;
+    defaultDebitAccountSelect.appendChild(opt);
+  });
+
+  defaultDebitAccountSelect.value =
+    preferred && allAccounts.some(a => a.docId === preferred) ? preferred : '';
+}
+
+function openDefaultDebitAccountModal() {
+  renderDefaultDebitAccountSelect();
+  defaultDebitAccountOverlay?.classList.add('active');
+}
+
+function closeDefaultDebitAccountModal() {
+  defaultDebitAccountOverlay?.classList.remove('active');
+}
+
+async function setDefaultDebitAccount(accountId) {
+  if (!currentUser) return;
+  const updates = allAccounts
+    .filter(a => !!a.isDefault !== (!!accountId && a.docId === accountId))
+    .map(a => updateDoc(doc(db, 'accounts', a.docId), {
+      isDefault: (accountId && a.docId === accountId) ? true : null,
+    }));
+  if (!updates.length) return;
+  await Promise.all(updates);
+}
+
+goDefaultDebitAccountBtn?.addEventListener('click', openDefaultDebitAccountModal);
+closeDefaultDebitAccountBtn?.addEventListener('click', closeDefaultDebitAccountModal);
+defaultDebitAccountOverlay?.addEventListener('click', (e) => {
+  if (e.target === defaultDebitAccountOverlay) closeDefaultDebitAccountModal();
+});
+saveDefaultDebitAccountBtn?.addEventListener('click', async () => {
+  const nextId = defaultDebitAccountSelect?.value || '';
+  saveDefaultDebitAccountBtn.disabled = true;
+  saveDefaultDebitAccountBtn.textContent = '儲存中...';
+  try {
+    await setDefaultDebitAccount(nextId);
+    updateDefaultDebitAccountDesc();
+    closeDefaultDebitAccountModal();
+  } catch (err) {
+    console.error(err);
+    alert('更新預設扣款帳戶失敗');
+  } finally {
+    saveDefaultDebitAccountBtn.disabled = false;
+    saveDefaultDebitAccountBtn.textContent = '儲存';
+  }
+});
+
 accountSelect.addEventListener('change', () => {
   syncForeignAccountUI();
   void maybeAutoConvertForeignIncome();
@@ -5704,7 +5793,6 @@ function openAccountModal(account = null) {
   accountNoteInput.value     = account ? account.note     : '';
   accountCurrencyInput.value      = account?.currency ?? '';
   accountIncludeInTotal.checked   = account ? (account.includeInTotal !== false) : true;
-  accountIsDefault.checked        = account?.isDefault ?? false;
   accountBillingDay.value         = account?.billingDay ?? '';
   accountRewardPeriod.value       = account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
   selectedAccountType       = account ? account.typeId  : null;
@@ -5757,7 +5845,6 @@ accountForm.addEventListener('submit', async (e) => {
   const note            = accountNoteInput.value.trim();
   const currency        = accountCurrencyInput.value || null;
   const includeInTotal  = accountIncludeInTotal.checked;
-  const isDefault       = accountIsDefault.checked;
   const billingDay = selectedAccountType === 'credit' && accountBillingDay.value
     ? parseInt(accountBillingDay.value) : null;
   const rewardPeriodMode = selectedAccountType === 'credit'
@@ -5770,16 +5857,12 @@ accountForm.addEventListener('submit', async (e) => {
   accountSubmitBtn.textContent = '儲存中...';
 
   try {
-    if (isDefault) {
-      const others = allAccounts.filter(a => a.docId !== editId && a.isDefault);
-      await Promise.all(others.map(a => updateDoc(doc(db, 'accounts', a.docId), { isDefault: false })));
-    }
     if (editId) {
       await updateDoc(doc(db, 'accounts', editId), {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal, isDefault: isDefault || null,
+        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
       });
     } else {
       const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
@@ -5788,7 +5871,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal, isDefault: isDefault || null,
+        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
         order:    maxOrder + 1,
         createdAt: serverTimestamp(),
       });

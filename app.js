@@ -551,7 +551,6 @@ const searchBarWrap  = document.getElementById('searchBarWrap');
 const listTitle      = document.getElementById('listTitle');
 const homeMonthNav   = document.getElementById('homeMonthNav');
 const homeSummary    = document.getElementById('homeSummary');
-const homeSearchToggleBtn = document.getElementById('homeSearchToggleBtn');
 const homeFilterBtn  = document.getElementById('homeFilterBtn');
 const homeFilterOverlay = document.getElementById('homeFilterOverlay');
 const closeHomeFilterBtn = document.getElementById('closeHomeFilterBtn');
@@ -563,7 +562,6 @@ const homeFilterAccountList = document.getElementById('homeFilterAccountList');
 const homeFilterDateFromEl = document.getElementById('homeFilterDateFrom');
 const homeFilterDateToEl = document.getElementById('homeFilterDateTo');
 let   searchKeyword  = '';
-let   searchBarOpen  = false;
 let   homeFilter = {
   types: [],
   categoryIds: [],
@@ -1306,12 +1304,11 @@ function switchPage(page) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   resetFloatingBtns();
 
-  // 離開記帳頁時清除搜尋並收合搜尋列
-  if (page !== 'home' && (searchKeyword || searchBarOpen)) {
+  // 離開記帳頁時清除搜尋
+  if (page !== 'home' && searchKeyword) {
     searchInput.value = '';
     searchKeyword = '';
     searchClearBtn.style.display = 'none';
-    searchBarOpen = false;
     applySearchMode(false);
     updateHomeSearchFilterIcons();
   }
@@ -5079,32 +5076,15 @@ function hasActiveHomeFilter() {
 }
 
 function updateHomeSearchFilterIcons() {
-  homeSearchToggleBtn?.classList.toggle('active', searchBarOpen || !!searchKeyword.trim());
-  homeSearchToggleBtn?.setAttribute('aria-expanded', searchBarOpen ? 'true' : 'false');
   homeFilterBtn?.classList.toggle('active', hasActiveHomeFilter());
 }
 
 function applySearchMode(isSearching) {
-  // 月列保留；搜尋時隱藏摘要卡
-  if (searchBarWrap) searchBarWrap.style.display = searchBarOpen ? '' : 'none';
-  if (homeSummary) homeSummary.style.display = isSearching ? 'none' : '';
+  homeMonthNav.style.display = isSearching ? 'none' : '';
+  homeSummary.style.display  = isSearching ? 'none' : '';
   if (isSearching && homeBudgetWidget) homeBudgetWidget.style.display = 'none';
   updateHomeSearchFilterIcons();
 }
-
-function setSearchBarOpen(open) {
-  searchBarOpen = !!open;
-  if (searchBarWrap) searchBarWrap.style.display = searchBarOpen ? '' : 'none';
-  const isSearching = !!searchKeyword.trim();
-  applySearchMode(isSearching);
-  if (!isSearching) renderHomeBudget();
-  updateHomeSearchFilterIcons();
-  if (searchBarOpen) searchInput?.focus();
-}
-
-homeSearchToggleBtn?.addEventListener('click', () => {
-  setSearchBarOpen(!searchBarOpen);
-});
 
 searchInput.addEventListener('input', () => {
   searchKeyword = searchInput.value;
@@ -6673,35 +6653,40 @@ function renderHomeBudget() {
   const ym             = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`;
   const thisYear       = now.getFullYear();
 
-  // 水位卡片產生器
+  // 水平進度列產生器
   function makeTankCard(opts) {
-    const { icon, label, spent, limit, pct, over, wide } = opts;
-    const fillPct    = Math.min(pct, 100);
-    const remaining  = limit - spent;
-    const statusTxt  = over
-      ? `<span class="tank-status-over">超支 $${formatMoney(spent - limit)}</span>`
-      : `<span class="tank-status-pct">${pct}%</span>`;
-    const remainTxt  = over
-      ? `<div class="tank-remain over">超支 $${formatMoney(spent - limit)}</div>`
-      : `<div class="tank-remain">剩 $${formatMoney(remaining)}</div>`;
+    const { icon, label, spent, limit, pct, over } = opts;
+    const fillPct   = Math.min(Math.max(pct, 0), 100);
+    const remaining = limit - spent;
+    const barClass  = over ? 'over' : (pct >= 80 ? 'warn' : '');
+    const statusTxt = over
+      ? `超支 $${formatMoney(spent - limit)}`
+      : `${pct}%`;
+    const remainTxt = over
+      ? `已花 $${formatMoney(spent)}`
+      : `剩 $${formatMoney(remaining)}`;
     return `
-      <div class="hb-tank-card${wide ? ' hb-tank-wide' : ''}">
-        <div class="tank-status">${statusTxt}</div>
-        <div class="tank-fill-wrap">
-          <div class="tank-fill" style="height:${fillPct}%"></div>
-          <div class="tank-content">
-            <div class="tank-icon">${icon}</div>
-            <div class="tank-label">${label}</div>
-            ${remainTxt}
-            <div class="tank-limit">/ $${formatMoney(limit)}</div>
+      <div class="hb-row${over ? ' is-over' : ''}">
+        <div class="hb-row-head">
+          <div class="hb-row-title">
+            <span class="hb-row-icon">${icon}</span>
+            <span class="hb-row-label">${label}</span>
           </div>
+          <div class="hb-row-meta">
+            <span class="hb-row-remain${over ? ' over' : ''}">${remainTxt}</span>
+            <span class="hb-row-limit">/ $${formatMoney(limit)}</span>
+          </div>
+          <span class="hb-row-pct${over ? ' over' : ''}">${statusTxt}</span>
+        </div>
+        <div class="hb-bar-track">
+          <div class="hb-bar-fill ${barClass}" style="width:${fillPct}%"></div>
         </div>
       </div>`;
   }
 
-  let html = '<div class="hb-grid">';
+  let html = '<div class="hb-list">';
 
-  // ── 月預算（佔整列）──
+  // ── 月預算 ──
   if (monthBudget) {
     const excluded = monthBudget.excludedCategoryIds || [];
     const spent = allRecords
@@ -6717,10 +6702,10 @@ function renderHomeBudget() {
     const pct   = limit > 0 ? Math.min(Math.round(spent / limit * 100), 100) : 0;
     const over  = spent > limit;
     const monthLabel = isCurrentMonth ? '本月預算' : `${viewMonth + 1}月預算`;
-    html += makeTankCard({ icon: '💰', label: monthLabel, spent, limit, pct, over, wide: false });
+    html += makeTankCard({ icon: '💰', label: monthLabel, spent, limit, pct, over });
   }
 
-  // ── 類別預算（兩個一排，最多顯示 4 項）──
+  // ── 類別預算（最多顯示 4 項）──
   if (catBudgets.length > 0) {
     const yearPrefix = `${thisYear}-`;
     const spentMap = {};
@@ -6766,13 +6751,12 @@ function renderHomeBudget() {
         limit: b.amount,
         pct: Math.min(b.pct, 100),
         over: b.over,
-        wide: false,
       });
     });
 
     const extraCount = catBudgets.length - sorted.length;
     if (extraCount > 0) {
-      html += `<div class="hb-extra-card">還有 ${extraCount} 項…</div>`;
+      html += `<div class="hb-extra-row">還有 ${extraCount} 項…</div>`;
     }
   }
 

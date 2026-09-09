@@ -312,33 +312,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 16px;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-dark);
-  padding: 10px 12px;
+  padding: 14px 20px;
   background: var(--white);
   border-bottom: 1px solid var(--border);
-  min-height: 52px;
-}
-
-.month-nav-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  flex: 1;
-  min-width: 0;
-}
-
-.month-nav-actions {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .month-btn {
@@ -362,8 +342,10 @@ body {
 }
 
 .today-btn {
-  position: static;
-  transform: none;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   background: var(--pink-light);
   border: none;
   color: var(--pink-dark);
@@ -380,35 +362,6 @@ body {
 
 .today-btn:active {
   background: var(--pink-mid);
-}
-
-.month-action-btn {
-  width: 34px;
-  height: 34px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-mid);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.month-action-btn:hover {
-  background: var(--pink-light);
-  color: var(--primary);
-}
-
-.month-action-btn.active {
-  background: rgba(78, 143, 124, 0.14);
-  color: var(--primary);
-}
-
-.month-action-btn:active {
-  transform: scale(0.96);
 }
 
 /* ===== 統計卡片（本月結餘表） ===== */
@@ -508,7 +461,7 @@ body {
   color: var(--red-main);
 }
 
-/* ===== 主頁預算小卡（水位圖） ===== */
+/* ===== 主頁預算小卡（水平進度） ===== */
 #homeBudgetWidget {
   margin: 14px 16px 0;
   background: var(--white);
@@ -522,7 +475,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px 10px;
-  border-bottom: 1px solid var(--pink-light);
+  border-bottom: 1px solid var(--border);
 }
 
 .home-budget-title {
@@ -544,121 +497,109 @@ body {
 }
 .home-budget-more:hover { background: var(--pink-light); }
 
-/* Grid 容器：兩欄 */
-.hb-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 12px;
-}
-
-/* 水位卡片 */
-.hb-tank-card {
-  border-radius: 14px;
-  overflow: hidden;
-  background: #fce8f0;
+.hb-list {
   display: flex;
   flex-direction: column;
-  cursor: default;
+  gap: 14px;
+  padding: 14px 16px 16px;
 }
 
-/* 水位填充區 */
-.tank-fill-wrap {
-  position: relative;
-  height: 110px;
-  overflow: hidden;
-}
-
-/* 水位：從底部往上，深粉色 */
-.tank-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: linear-gradient(0deg, #e8638e 0%, #f4a0bf 100%);
-  transition: height 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
-}
-
-/* 水面波紋（偽元素） */
-.tank-fill::before {
-  content: '';
-  position: absolute;
-  top: -5px;
-  left: -50%;
-  width: 200%;
-  height: 12px;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.45) 0%, transparent 70%);
-  border-radius: 50%;
-  animation: wave 2.4s ease-in-out infinite;
-}
-@keyframes wave {
-  0%, 100% { transform: translateX(0); }
-  50%       { transform: translateX(18%); }
-}
-
-/* 文字層（疊在水位上） */
-.tank-content {
-  position: absolute;
-  inset: 0;
+.hb-row {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.hb-row-head {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
-  padding: 8px 6px;
-  pointer-events: none;
+  gap: 8px;
 }
 
-.tank-icon  { font-size: 20px; line-height: 1; }
-.tank-label {
-  font-size: 11px;
+.hb-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hb-row-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.hb-row-label {
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-dark);
-  text-align: center;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 90%;
+  white-space: nowrap;
 }
-.tank-remain {
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.2;
-  color: var(--text-dark);
-  text-shadow: 0 1px 3px rgba(255,255,255,0.6);
+
+.hb-row-pct {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid);
 }
-.tank-remain.over {
+
+.hb-row-pct.over {
   color: var(--red-main);
 }
-.tank-limit {
-  font-size: 10px;
-  color: var(--text-mid);
+
+.hb-bar-track {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--pink-light);
+  overflow: hidden;
+}
+
+.hb-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--primary);
+  transition: width 0.45s ease;
+}
+
+.hb-bar-fill.warn {
+  background: #e8830a;
+}
+
+.hb-bar-fill.over {
+  background: var(--red-main);
+}
+
+.hb-row-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.hb-row-remain {
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.hb-row-remain.over {
+  color: var(--red-main);
+}
+
+.hb-row-limit {
+  color: var(--text-light);
   font-weight: 500;
 }
 
-/* 頂部百分比列 */
-.tank-status {
-  padding: 6px 8px 5px;
+.hb-extra-row {
   text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  background: rgba(255,255,255,0.7);
-  letter-spacing: 0.5px;
-}
-.tank-status-pct  { color: var(--text-mid); }
-.tank-status-over { color: var(--text-mid); }
-
-/* 「還有 N 項」佔位卡 */
-.hb-extra-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: var(--pink-light);
   font-size: 12px;
-  color: var(--text-light);
   font-weight: 600;
-  min-height: 80px;
+  color: var(--text-light);
+  padding: 4px 0 0;
 }
 
 /* ===== 新增按鈕 ===== */
@@ -742,8 +683,13 @@ body {
 /* ===== 搜尋列 ===== */
 .search-bar-wrap {
   padding: 12px 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .search-input-wrap {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   background: var(--white);
@@ -762,6 +708,34 @@ body {
   flex-shrink: 0;
   color: var(--text-light);
   line-height: 1;
+}
+.search-filter-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--text-mid);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.search-filter-btn:hover {
+  background: var(--pink-light);
+  color: var(--primary);
+  border-color: var(--pink-mid);
+}
+.search-filter-btn.active {
+  background: rgba(78, 143, 124, 0.14);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.search-filter-btn:active {
+  transform: scale(0.97);
 }
 .search-input {
   flex: 1;

@@ -1,4 +1,4 @@
-/* ===== 基礎重置 ===== */
+﻿/* ===== 基礎重置 ===== */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -6,29 +6,34 @@
 }
 
 :root {
-  --pink-light: #f0f6ff;
-  --pink-mid: #c8deff;
-  --pink-main: #4a90e2;
-  --pink-dark: #2563c7;
-  --green-light: #e8f8f0;
-  --green-main: #34a87a;
-  --red-light: #fff0f0;
-  --red-main: #f05a5a;
-  --purple-light: #eef4ff;
-  --purple-main: #4a90e2;
-  --text-dark: #1a2a3a;
-  --text-mid: #5a7080;
-  --text-light: #9ab0c0;
+  --pink-light: #f3f6f4;
+  --pink-mid: #c5ddd4;
+  --pink-main: #4e8f7c;
+  --pink-dark: #3d7465;
+  --green-light: #e6f6f0;
+  --green-main: #38a884;
+  --red-light: #fef0ee;
+  --red-main: #f27d6d;
+  --purple-light: #ebf4fc;
+  --purple-main: #86b7e8;
+  --text-dark: #18212b;
+  --text-mid: #5a6570;
+  --text-light: #9aa3ad;
   --white: #ffffff;
-  --shadow: 0 4px 16px rgba(74, 144, 226, 0.14);
+  --shadow: 0 4px 16px rgba(78, 143, 124, 0.14);
   --radius: 18px;
-  --radius-sm: 10px;
-  --bg: #f0f6ff;
+  --radius-sm: 14px;
+  --bg: #faf9f7;
+  --primary: #4e8f7c;
+  --border: #e5e2dc;
+  --border-color: #e5e2dc;
+  --accent: #ffd5c7;
+  --surface: #ffffff;
 }
 
 body {
   font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-  background: linear-gradient(160deg, #f0f6ff 0%, #e8f0fb 50%, #f5f8ff 100%);
+  background: linear-gradient(160deg, #faf9f7 0%, #f5f4f0 50%, #f7f6f3 100%);
   min-height: 100vh;
   color: var(--text-dark);
   padding-bottom: 40px;
@@ -101,7 +106,7 @@ body {
   border-radius: 28px;
   padding: 40px 28px;
   text-align: center;
-  box-shadow: 0 8px 40px rgba(74, 144, 226, 0.18);
+  box-shadow: 0 8px 40px rgba(78, 143, 124, 0.18);
   width: 100%;
   max-width: 360px;
 }
@@ -132,15 +137,15 @@ body {
   gap: 10px;
   width: 100%;
   background: var(--white);
-  border: 2px solid var(--pink-mid);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--primary);
+  border-radius: 999px;
   padding: 14px 20px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-dark);
+  color: var(--primary);
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 10px rgba(74, 144, 226, 0.12);
+  box-shadow: none;
 }
 
 .google-login-btn:active {
@@ -192,7 +197,7 @@ body {
 .guest-mode-tab.active {
   background: var(--white);
   color: var(--pink-main);
-  box-shadow: 0 1px 4px rgba(74,144,226,0.15);
+  box-shadow: 0 1px 4px rgba(78, 143, 124,0.15);
 }
 /* 欄位群組 */
 .guest-fields {
@@ -202,31 +207,33 @@ body {
 }
 .guest-name-input {
   width: 100%;
-  border: 1.5px solid var(--pink-mid);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 11px 14px;
   font-size: 15px;
   color: var(--text-dark);
   background: var(--white);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .guest-name-input:focus {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 .guest-name-input::placeholder {
   color: var(--text-light);
 }
 .guest-login-btn {
   width: 100%;
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   padding: 13px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.28);
   transition: opacity 0.15s, transform 0.15s;
 }
 .guest-login-btn:active {
@@ -257,10 +264,10 @@ body {
 
 /* ===== 頂部標題 ===== */
 .app-header {
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   padding: 16px 20px;
-  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.3);
+  box-shadow: 0 4px 16px rgba(78, 143, 124, 0.22);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -341,7 +348,7 @@ body {
   color: var(--text-dark);
   padding: 14px 20px;
   background: var(--white);
-  border-bottom: 1px solid #ddeeff;
+  border-bottom: 1px solid var(--border);
 }
 
 .month-btn {
@@ -676,15 +683,15 @@ body {
   display: flex;
   align-items: center;
   background: var(--white);
-  border: 1.5px solid var(--pink-mid);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0 12px;
   gap: 8px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-input-wrap:focus-within {
-  border-color: var(--pink-main);
-  box-shadow: 0 0 0 3px rgba(74,144,226,0.12);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 .search-icon {
   font-size: 16px;
@@ -693,12 +700,17 @@ body {
 }
 .search-input {
   flex: 1;
+  min-width: 0;
+  width: 0;
   border: none;
   outline: none;
+  box-shadow: none;
+  border-radius: 0;
   background: transparent;
   font-size: 15px;
   color: var(--text-dark);
   padding: 11px 0;
+  box-sizing: border-box;
 }
 .search-input::placeholder {
   color: var(--text-light);
@@ -725,22 +737,22 @@ body {
 
 .add-btn {
   width: 100%;
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 999px;
   padding: 16px;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
+  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.28);
   transition: transform 0.15s, box-shadow 0.15s;
   letter-spacing: 1px;
 }
 
 .add-btn:active {
   transform: scale(0.97);
-  box-shadow: 0 3px 10px rgba(74, 144, 226, 0.25);
+  box-shadow: 0 2px 8px rgba(78, 143, 124, 0.22);
 }
 
 /* ===== 記帳列表 ===== */
@@ -904,7 +916,7 @@ body {
   background: none;
   border: 2px solid var(--red-main);
   color: var(--red-main);
-  border-radius: var(--radius);
+  border-radius: 999px;
   padding: 13px 16px;
   font-size: 15px;
   font-weight: 600;
@@ -991,9 +1003,9 @@ body {
   width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  background: var(--white);
   font-size: 15px;
   color: var(--text-dark);
   box-sizing: border-box;
@@ -1001,7 +1013,8 @@ body {
 }
 .foreign-amount-input:focus {
   outline: none;
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 .foreign-clear-btn {
   flex-shrink: 0;
@@ -1297,7 +1310,7 @@ body {
 .type-btn.active {
   background: var(--white);
   color: var(--pink-dark);
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
+  box-shadow: 0 2px 8px rgba(78, 143, 124, 0.2);
 }
 
 /* ===== 表單 ===== */
@@ -1318,6 +1331,8 @@ body {
   display: flex;
   align-items: stretch;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .cat-pick-btn {
@@ -1327,7 +1342,7 @@ body {
   justify-content: center;
   gap: 2px;
   min-width: 72px;
-  /* max-width: 72px; */
+  max-width: 88px;
   padding: 8px 6px;
   background: var(--pink-light);
   border: 2px solid transparent;
@@ -1374,53 +1389,63 @@ body {
 
 .amount-row .amount-input-wrap {
   flex: 1;
+  min-width: 0;
 }
 
 .amount-input-wrap {
   display: flex;
   align-items: center;
-  background: var(--pink-light);
+  background: var(--white);
   border-radius: var(--radius-sm);
   padding: 0 14px;
-  border: 2px solid transparent;
-  transition: border-color 0.2s;
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .amount-input-wrap:focus-within {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 
 .currency-sign {
   font-size: 18px;
   font-weight: 700;
-  color: var(--pink-main);
+  color: var(--primary);
   margin-right: 6px;
+  flex-shrink: 0;
 }
 
 .amount-input-wrap input {
   flex: 1;
+  min-width: 0;
+  width: 0;
   background: transparent;
   border: none;
   outline: none;
+  box-shadow: none;
+  border-radius: 0;
   font-size: 24px;
   font-weight: 700;
   color: var(--text-dark);
   padding: 12px 0;
+  box-sizing: border-box;
 }
 
 input[type="date"],
-input[type="text"] {
+input[type="text"]:not(#amount):not(#searchInput):not(#recAmount) {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  background: var(--pink-light);
-  border: 2px solid transparent;
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 15px;
   color: var(--text-dark);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   -webkit-appearance: none;
   appearance: none;
@@ -1428,38 +1453,41 @@ input[type="text"] {
 
 input[type="date"]:focus,
 input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 
 .form-textarea {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  background: var(--pink-light);
-  border: 2px solid transparent;
+  background: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 15px;
   color: var(--text-dark);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   resize: vertical;
   min-height: 2.5em;
   line-height: 1.4;
 }
 .form-textarea:focus {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 
 #amount:focus,
 .search-input:focus,
 #recAmount:focus {
   outline: none;
-  border-color: transparent !important;
+  border: none;
+  box-shadow: none;
 }
 
-.search-input {background: none !important;}
+.search-input { background: none !important; }
 
 /* ===== 類別格子 ===== */
 .category-grid {
@@ -1533,7 +1561,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   padding: 11px;
   background: none;
   border: 1.5px dashed var(--pink-mid);
-  border-radius: var(--radius);
+  border-radius: 999px;
   color: var(--text-mid);
   font-size: 14px;
   font-weight: 600;
@@ -1732,22 +1760,22 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 
 .record-cat-icon.transfer-icon {
-  background: #eef4ff;
-  color: var(--pink-main);
+  background: var(--purple-light);
+  color: var(--purple-main);
 }
 
 /* ===== 提交按鈕 ===== */
 .submit-btn {
   width: 100%;
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 999px;
   padding: 16px;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
+  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.28);
   transition: transform 0.15s;
   letter-spacing: 1px;
   margin-top: 6px;
@@ -1810,13 +1838,13 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   right: 16px;
   bottom: calc(80px + 48px + 12px);
   z-index: 140;
-  width: 48px;
-  height: 46px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: none;
   background: var(--pink-main);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(78, 143, 124, 0.32);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1831,7 +1859,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 .fab-add-record-btn:hover {
   transform: scale(1.06);
-  box-shadow: 0 6px 22px rgba(74, 144, 226, 0.45);
+  box-shadow: 0 6px 22px rgba(78, 143, 124, 0.4);
 }
 .fab-add-record-btn:active {
   transform: scale(0.97);
@@ -1886,7 +1914,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   left: 0;
   right: 0;
   background: var(--white);
-  border-top: 1px solid #ddeeff;
+  border-top: 1px solid var(--border);
   display: flex;
   z-index: 150;
   max-width: 480px;
@@ -1929,7 +1957,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 
 /* ===== 帳戶頁面頂部 ===== */
 .accounts-header-bar {
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   padding: 20px 24px 22px;
   display: flex;
@@ -2132,10 +2160,10 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   gap: 10px;
   padding: 12px 14px;
   margin-bottom: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #faf9f7 100%);
   border-radius: 14px;
-  border: 1px solid #dcecff;
-  box-shadow: 0 4px 14px rgba(74, 144, 226, 0.08);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.08);
   font-size: 13px;
 }
 .fx-summary-head {
@@ -2165,8 +2193,8 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   gap: 4px;
   min-width: 0;
   padding: 10px 12px;
-  background: #f4f8ff;
-  border: 1px solid #d9e8ff;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 12px;
 }
 .fx-summary-native {
@@ -2250,24 +2278,25 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 /* ===== 表單 select ===== */
 .form-select {
   width: 100%;
-  background: var(--pink-light);
-  border: 2px solid transparent;
+  background-color: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 15px;
   color: var(--text-dark);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b8a0ac' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa3ad' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 36px;
 }
 
 .form-select:focus {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 
 /* ===== 帳戶明細頁面 ===== */
@@ -2276,7 +2305,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 
 .account-detail-header {
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   padding: 16px 20px 20px;
 }
@@ -2582,7 +2611,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .detail-filter-bar {
   background: var(--white);
   padding: 12px 16px;
-  border-bottom: 1px solid #ddeeff;
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2612,7 +2641,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .detail-mode-btn.active {
   background: var(--white);
   color: var(--pink-dark);
-  box-shadow: 0 2px 6px rgba(74, 144, 226, 0.2);
+  box-shadow: 0 2px 6px rgba(78, 143, 124, 0.2);
 }
 
 .detail-month-nav {
@@ -2724,7 +2753,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   color: var(--text-dark);
   cursor: pointer;
   transition: background 0.12s, transform 0.1s;
-  box-shadow: 0 1px 3px rgba(74,144,226,0.08);
+  box-shadow: 0 1px 3px rgba(78, 143, 124,0.08);
 }
 
 .calc-btn:active {
@@ -2748,15 +2777,16 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 
 .calc-btn.calc-eq {
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   grid-column: span 2;
-  box-shadow: 0 3px 10px rgba(74,144,226,0.3);
+  box-shadow: 0 3px 10px rgba(78, 143, 124, 0.28);
+  border-radius: 999px;
 }
 
 .calc-btn.calc-eq:active {
   transform: scale(0.96);
-  background: linear-gradient(135deg, #2563c7 0%, #1a4fa0 100%);
+  background: var(--pink-dark);
 }
 
 /* ===== 帳戶拖曳排序 ===== */
@@ -3002,7 +3032,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .cat-mgmt-tab.active {
   background: var(--white);
   color: var(--pink-dark);
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.18);
+  box-shadow: 0 2px 8px rgba(78, 143, 124, 0.18);
 }
 
 /* ===== 分類管理頁面 ===== */
@@ -3241,19 +3271,19 @@ input[type=number]::-webkit-outer-spin-button {
 
 .form-input {
   width: 100%;
-  background: var(--pink-light);
-  border: 2px solid transparent;
+  background-color: var(--white);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 15px;
   color: var(--text-dark);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   box-sizing: border-box;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23b0a0b0' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa3ad' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
 }
@@ -3264,7 +3294,8 @@ input.form-input {
 }
 
 .form-input:focus {
-  border-color: var(--pink-main);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 
 /* ===== Modal 底部動作按鈕列 ===== */
@@ -3293,15 +3324,15 @@ input.form-input {
 
 .btn-save {
   width: 100%;
-  background: linear-gradient(135deg, #4a90e2 0%, #2563c7 100%);
+  background: var(--pink-main);
   color: white;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 999px;
   padding: 16px;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.35);
+  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.28);
   transition: transform 0.15s;
   letter-spacing: 1px;
   font-family: inherit;
@@ -3315,8 +3346,8 @@ input.form-input {
   width: 100%;
   background: var(--red-light);
   color: var(--red-main);
-  border: 1.5px solid #ffd0d0;
-  border-radius: var(--radius);
+  border: 1.5px solid #f5c4bc;
+  border-radius: 999px;
   padding: 13px;
   font-size: 15px;
   font-weight: 600;
@@ -3326,7 +3357,7 @@ input.form-input {
 }
 
 .btn-delete:active {
-  background: #ffd0d0;
+  background: #f5c4bc;
   transform: scale(0.97);
 }
 
@@ -3403,11 +3434,11 @@ input.form-input {
 .budget-progress-bar {
   height: 100%;
   border-radius: 99px;
-  background: linear-gradient(90deg, #4a90e2, #2563c7);
+  background: var(--pink-main);
   transition: width 0.4s ease;
 }
 .budget-progress-bar.warning { background: linear-gradient(90deg, #f5a623, #e8830a); }
-.budget-progress-bar.danger  { background: linear-gradient(90deg, #f05a5a, #c0392b); }
+.budget-progress-bar.danger  { background: var(--red-main); }
 .budget-month-pct {
   font-size: 12px;
   color: var(--text-mid);
@@ -3466,11 +3497,11 @@ input.form-input {
 .cat-budget-progress-bar {
   height: 100%;
   border-radius: 99px;
-  background: linear-gradient(90deg, #4a90e2, #2563c7);
+  background: var(--pink-main);
   transition: width 0.4s ease;
 }
 .cat-budget-progress-bar.warning { background: linear-gradient(90deg, #f5a623, #e8830a); }
-.cat-budget-progress-bar.danger  { background: linear-gradient(90deg, #f05a5a, #c0392b); }
+.cat-budget-progress-bar.danger  { background: var(--red-main); }
 .cat-budget-pct {
   font-size: 12px;
   color: var(--text-mid);
@@ -4827,8 +4858,8 @@ input.form-input {
 
 .project-reward-manage-btn:hover {
   background: #e0f2f1;
-  color: var(--primary, #00796b);
-  border-color: var(--primary, #00796b);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 .project-record-item {
@@ -5124,15 +5155,17 @@ input.form-input {
 .btn-secondary {
   padding: 10px 16px;
   border-radius: 999px;
-  border: 1px solid var(--border-color, #ddd);
-  background: #fff;
-  color: var(--text-mid);
+  border: none;
+  background: var(--bg);
+  color: var(--primary);
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
 .btn-secondary:hover {
-  border-color: var(--primary, #00796b);
-  color: var(--primary, #00796b);
+  background: var(--pink-light);
+  color: var(--pink-dark);
 }
 #rewardActivityGroup .form-group,
 #splitGroup .form-group {
@@ -5165,9 +5198,9 @@ input.form-input {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid #e9edf4;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f8fbff;
+  background: var(--bg);
 }
 
 .split-header {

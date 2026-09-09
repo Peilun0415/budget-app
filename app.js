@@ -7851,9 +7851,9 @@ function renderRecordItems(records) {
 
 // ===== 圓餅圖 =====
 const PIE_COLORS = [
-  '#5B9BD5','#ED7D31','#A9D18E','#FF6B6B','#FFC107',
-  '#9B59B6','#1ABC9C','#E74C3C','#3498DB','#F39C12',
-  '#2ECC71','#E67E22','#16A085','#8E44AD','#D35400',
+  '#4E8F7C','#38A884','#F27D6D','#86B7E8','#FFD5C7',
+  '#7BA89A','#5CB89A','#E8A090','#A8C8E8','#E8C4B0',
+  '#6B9E8C','#4DBA90','#D98B7C','#9BBFE0','#C9A090',
 ];
 
 // 圓餅圖：圖例點選會切換各筆資料的可見性；加總須排除已隱藏扇形（Chart.getDataVisibility）

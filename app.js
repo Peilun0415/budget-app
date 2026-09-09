@@ -547,10 +547,32 @@ const recordList    = document.getElementById('recordList');
 const emptyState    = document.getElementById('emptyState');
 const searchInput    = document.getElementById('searchInput');
 const searchClearBtn = document.getElementById('searchClearBtn');
+const searchBarWrap  = document.getElementById('searchBarWrap');
 const listTitle      = document.getElementById('listTitle');
 const homeMonthNav   = document.getElementById('homeMonthNav');
 const homeSummary    = document.getElementById('homeSummary');
+const homeSearchToggleBtn = document.getElementById('homeSearchToggleBtn');
+const homeFilterBtn  = document.getElementById('homeFilterBtn');
+const homeFilterOverlay = document.getElementById('homeFilterOverlay');
+const closeHomeFilterBtn = document.getElementById('closeHomeFilterBtn');
+const clearHomeFilterBtn = document.getElementById('clearHomeFilterBtn');
+const applyHomeFilterBtn = document.getElementById('applyHomeFilterBtn');
+const homeFilterTypeChips = document.getElementById('homeFilterTypeChips');
+const homeFilterCategoryList = document.getElementById('homeFilterCategoryList');
+const homeFilterAccountList = document.getElementById('homeFilterAccountList');
+const homeFilterDateFromEl = document.getElementById('homeFilterDateFrom');
+const homeFilterDateToEl = document.getElementById('homeFilterDateTo');
 let   searchKeyword  = '';
+let   searchBarOpen  = false;
+let   homeFilter = {
+  types: [],
+  categoryIds: [],
+  accountIds: [],
+  dateFrom: '',
+  dateTo: '',
+};
+let homeFilterDateFromPicker = null;
+let homeFilterDateToPicker = null;
 const totalIncome   = document.getElementById('totalIncome');
 const totalExpense  = document.getElementById('totalExpense');
 const totalBalance  = document.getElementById('totalBalance');
@@ -1284,12 +1306,14 @@ function switchPage(page) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   resetFloatingBtns();
 
-  // 離開記帳頁時清除搜尋
-  if (page !== 'home' && searchKeyword) {
+  // 離開記帳頁時清除搜尋並收合搜尋列
+  if (page !== 'home' && (searchKeyword || searchBarOpen)) {
     searchInput.value = '';
     searchKeyword = '';
     searchClearBtn.style.display = 'none';
+    searchBarOpen = false;
     applySearchMode(false);
+    updateHomeSearchFilterIcons();
   }
   currentPage = page;
   if (page === 'accounts') detailAccountId = null;
@@ -5046,15 +5070,48 @@ homeTodayBtn?.addEventListener('click', () => {
   renderAll();
 });
 
-function applySearchMode(isSearching) {
-  homeMonthNav.style.display = isSearching ? 'none' : '';
-  homeSummary.style.display  = isSearching ? 'none' : '';
+function hasActiveHomeFilter() {
+  return homeFilter.types.length > 0
+    || homeFilter.categoryIds.length > 0
+    || homeFilter.accountIds.length > 0
+    || !!homeFilter.dateFrom
+    || !!homeFilter.dateTo;
 }
+
+function updateHomeSearchFilterIcons() {
+  homeSearchToggleBtn?.classList.toggle('active', searchBarOpen || !!searchKeyword.trim());
+  homeSearchToggleBtn?.setAttribute('aria-expanded', searchBarOpen ? 'true' : 'false');
+  homeFilterBtn?.classList.toggle('active', hasActiveHomeFilter());
+}
+
+function applySearchMode(isSearching) {
+  // 月列保留；搜尋時隱藏摘要卡
+  if (searchBarWrap) searchBarWrap.style.display = searchBarOpen ? '' : 'none';
+  if (homeSummary) homeSummary.style.display = isSearching ? 'none' : '';
+  if (isSearching && homeBudgetWidget) homeBudgetWidget.style.display = 'none';
+  updateHomeSearchFilterIcons();
+}
+
+function setSearchBarOpen(open) {
+  searchBarOpen = !!open;
+  if (searchBarWrap) searchBarWrap.style.display = searchBarOpen ? '' : 'none';
+  const isSearching = !!searchKeyword.trim();
+  applySearchMode(isSearching);
+  if (!isSearching) renderHomeBudget();
+  updateHomeSearchFilterIcons();
+  if (searchBarOpen) searchInput?.focus();
+}
+
+homeSearchToggleBtn?.addEventListener('click', () => {
+  setSearchBarOpen(!searchBarOpen);
+});
 
 searchInput.addEventListener('input', () => {
   searchKeyword = searchInput.value;
   searchClearBtn.style.display = searchKeyword ? '' : 'none';
   applySearchMode(!!searchKeyword.trim());
+  if (!searchKeyword.trim()) renderHomeBudget();
+  updateHomeSearchFilterIcons();
   renderList();
 });
 searchClearBtn.addEventListener('click', () => {
@@ -5062,6 +5119,8 @@ searchClearBtn.addEventListener('click', () => {
   searchKeyword = '';
   searchClearBtn.style.display = 'none';
   applySearchMode(false);
+  renderHomeBudget();
+  updateHomeSearchFilterIcons();
   searchInput.focus();
   renderList();
 });
@@ -5072,6 +5131,130 @@ function changeMonth(delta) {
   if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
   renderAll();
 }
+
+function initHomeFilterDatePickers() {
+  if (typeof flatpickr !== 'function') return;
+  const locale = flatpickr.l10ns?.zh_tw ? 'zh_tw' : 'default';
+  const common = {
+    locale,
+    dateFormat: 'Y-m-d',
+    allowInput: false,
+    disableMobile: true,
+  };
+  if (!homeFilterDateFromPicker && homeFilterDateFromEl) {
+    homeFilterDateFromPicker = flatpickr(homeFilterDateFromEl, {
+      ...common,
+      onChange(selectedDates) {
+        if (homeFilterDateToPicker && selectedDates[0]) {
+          homeFilterDateToPicker.set('minDate', selectedDates[0]);
+        }
+      },
+    });
+  }
+  if (!homeFilterDateToPicker && homeFilterDateToEl) {
+    homeFilterDateToPicker = flatpickr(homeFilterDateToEl, {
+      ...common,
+      onChange(selectedDates) {
+        if (homeFilterDateFromPicker && selectedDates[0]) {
+          homeFilterDateFromPicker.set('maxDate', selectedDates[0]);
+        }
+      },
+    });
+  }
+}
+
+function populateHomeFilterLists() {
+  if (homeFilterCategoryList) {
+    const cats = [...allCategories].sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'expense' ? -1 : 1;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+    if (!cats.length) {
+      homeFilterCategoryList.innerHTML = '<div class="home-filter-check-empty">尚無分類</div>';
+    } else {
+      homeFilterCategoryList.innerHTML = cats.map(c => `
+        <label class="home-filter-check-item">
+          <input type="checkbox" value="${c.docId}" ${homeFilter.categoryIds.includes(c.docId) ? 'checked' : ''} />
+          <span>${c.emoji || ''} ${c.name}</span>
+        </label>
+      `).join('');
+    }
+  }
+  if (homeFilterAccountList) {
+    const accs = [...allAccounts].sort((a, b) => {
+      const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
+      if (tDiff !== 0) return tDiff;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+    if (!accs.length) {
+      homeFilterAccountList.innerHTML = '<div class="home-filter-check-empty">尚無帳戶</div>';
+    } else {
+      homeFilterAccountList.innerHTML = accs.map(a => `
+        <label class="home-filter-check-item">
+          <input type="checkbox" value="${a.docId}" ${homeFilter.accountIds.includes(a.docId) ? 'checked' : ''} />
+          <span>${a.emoji || ''} ${a.name}</span>
+        </label>
+      `).join('');
+    }
+  }
+  homeFilterTypeChips?.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = homeFilter.types.includes(cb.value);
+  });
+  initHomeFilterDatePickers();
+  homeFilterDateFromPicker?.setDate(homeFilter.dateFrom || null, false);
+  homeFilterDateToPicker?.setDate(homeFilter.dateTo || null, false);
+  if (homeFilter.dateFrom) homeFilterDateToPicker?.set('minDate', homeFilter.dateFrom);
+  else homeFilterDateToPicker?.set('minDate', null);
+  if (homeFilter.dateTo) homeFilterDateFromPicker?.set('maxDate', homeFilter.dateTo);
+  else homeFilterDateFromPicker?.set('maxDate', null);
+}
+
+function openHomeFilterModal() {
+  populateHomeFilterLists();
+  homeFilterOverlay?.classList.add('active');
+}
+
+function closeHomeFilterModal() {
+  homeFilterOverlay?.classList.remove('active');
+}
+
+function readHomeFilterDraftFromModal() {
+  const types = [...(homeFilterTypeChips?.querySelectorAll('input:checked') || [])].map(el => el.value);
+  const categoryIds = [...(homeFilterCategoryList?.querySelectorAll('input:checked') || [])].map(el => el.value);
+  const accountIds = [...(homeFilterAccountList?.querySelectorAll('input:checked') || [])].map(el => el.value);
+  const dateFrom = homeFilterDateFromEl?.value || '';
+  const dateTo = homeFilterDateToEl?.value || '';
+  return { types, categoryIds, accountIds, dateFrom, dateTo };
+}
+
+function clearHomeFilterDraftInModal() {
+  homeFilterTypeChips?.querySelectorAll('input').forEach(cb => { cb.checked = false; });
+  homeFilterCategoryList?.querySelectorAll('input').forEach(cb => { cb.checked = false; });
+  homeFilterAccountList?.querySelectorAll('input').forEach(cb => { cb.checked = false; });
+  homeFilterDateFromPicker?.clear();
+  homeFilterDateToPicker?.clear();
+  homeFilterDateFromPicker?.set('maxDate', null);
+  homeFilterDateToPicker?.set('minDate', null);
+}
+
+homeFilterBtn?.addEventListener('click', openHomeFilterModal);
+closeHomeFilterBtn?.addEventListener('click', closeHomeFilterModal);
+homeFilterOverlay?.addEventListener('click', (e) => {
+  if (e.target === homeFilterOverlay) closeHomeFilterModal();
+});
+clearHomeFilterBtn?.addEventListener('click', () => {
+  clearHomeFilterDraftInModal();
+  homeFilter = { types: [], categoryIds: [], accountIds: [], dateFrom: '', dateTo: '' };
+  updateHomeSearchFilterIcons();
+  closeHomeFilterModal();
+  renderList();
+});
+applyHomeFilterBtn?.addEventListener('click', () => {
+  homeFilter = readHomeFilterDraftFromModal();
+  updateHomeSearchFilterIcons();
+  closeHomeFilterModal();
+  renderList();
+});
 
 // ===== 記帳彈窗 =====
 openFormBtn.addEventListener('click', () => openModal());
@@ -6410,6 +6593,8 @@ function renderAll() {
   renderSummary();
   renderHomeBudget();
   renderList();
+  applySearchMode(!!searchKeyword.trim());
+  updateHomeSearchFilterIcons();
 }
 
 function renderMonthLabel() {
@@ -6471,6 +6656,10 @@ function renderSummary() {
 }
 
 function renderHomeBudget() {
+  if (searchKeyword.trim()) {
+    homeBudgetWidget.style.display = 'none';
+    return;
+  }
   const monthBudget = allBudgets.find(b => b.type === 'month');
   const catBudgets  = allBudgets.filter(b => b.type === 'category');
   if (!monthBudget && catBudgets.length === 0) {
@@ -6593,7 +6782,7 @@ function renderHomeBudget() {
 
 function matchesSearch(r, kw) {
   if (!kw) return true;
-  const q = kw.toLowerCase();
+  const q = kw.toLowerCase().trim();
   const fromAccObj = allAccounts.find(a => a.docId === r.transferFromId);
   const toAccObj   = allAccounts.find(a => a.docId === r.transferToId);
   const fields = [
@@ -6605,17 +6794,67 @@ function matchesSearch(r, kw) {
     fromAccObj?.name,
     toAccObj?.name,
   ];
-  return fields.some(f => f && f.toLowerCase().includes(q));
+  if (fields.some(f => f && f.toLowerCase().includes(q))) return true;
+
+  // 金額搜尋：去掉千分位／貨幣符號後做數字字串 includes
+  const qDigits = q.replace(/[^\d.]/g, '');
+  if (qDigits) {
+    const amountStrs = [
+      String(r.amount ?? ''),
+      r.foreignAmount != null ? String(r.foreignAmount) : '',
+    ].filter(Boolean);
+    if (amountStrs.some(s => s.replace(/[^\d.]/g, '').includes(qDigits))) return true;
+  }
+  return false;
+}
+
+function matchesHomeFilter(r) {
+  if (homeFilter.types.length && !homeFilter.types.includes(r.type)) return false;
+
+  if (homeFilter.categoryIds.length) {
+    if (r.type === 'transfer') {
+      // 有選分類時，轉帳僅在類型有勾選「轉帳」時保留
+      if (!homeFilter.types.includes('transfer')) return false;
+    } else {
+      const catOk = homeFilter.categoryIds.includes(r.categoryId)
+        || homeFilter.categoryIds.includes(r.subCategoryId);
+      if (!catOk) return false;
+    }
+  }
+
+  if (homeFilter.accountIds.length) {
+    const accIds = [r.accountId, r.transferFromId, r.transferToId].filter(Boolean);
+    if (!accIds.some(id => homeFilter.accountIds.includes(id))) return false;
+  }
+
+  if (homeFilter.dateFrom || homeFilter.dateTo) {
+    if (!r.date) return false;
+    if (homeFilter.dateFrom && r.date < homeFilter.dateFrom) return false;
+    if (homeFilter.dateTo && r.date > homeFilter.dateTo) return false;
+  }
+  return true;
 }
 
 function renderList() {
   const kw = searchKeyword.trim();
-  // 搜尋模式：全部記錄；否則只取當月
-  let recs = kw ? allRecords : getMonthRecords();
+  const hasDateRange = !!(homeFilter.dateFrom || homeFilter.dateTo);
+
+  // 有自訂時間範圍：全資料再依區間；有關鍵字且無日期：跨月；否則當月
+  let recs;
+  if (hasDateRange) {
+    recs = allRecords;
+  } else if (kw) {
+    recs = allRecords;
+  } else {
+    recs = getMonthRecords();
+  }
 
   // 更新標題
-  if (kw) {
-    listTitle.textContent = `搜尋「${kw}」的結果`;
+  if (kw || hasActiveHomeFilter()) {
+    const parts = [];
+    if (kw) parts.push(`搜尋「${kw}」`);
+    if (hasActiveHomeFilter()) parts.push('已篩選');
+    listTitle.textContent = `${parts.join('・')}的結果`;
     listTitle.classList.add('searching');
   } else {
     listTitle.textContent = '本月明細';
@@ -6627,20 +6866,20 @@ function renderList() {
   // 轉帳只保留「轉出」那筆，避免重複顯示
   // 分攤記錄：若付款人不是「我」則不顯示在主頁（屬於別人代墊，在專案頁查看）
   let displayRecs = recs.filter(r => {
-    if (r.isSettlement) return true; // 結算記錄正常顯示在主頁
+    if (r.isSettlement) return true;
     if (r.type === 'transfer') return r.accountId === r.transferFromId;
     if (r.splitPayer && !isCurrentUserSplitPayer(r)) return false;
     return true;
   });
 
-  // 套用關鍵字篩選
+  displayRecs = displayRecs.filter(matchesHomeFilter);
   if (kw) displayRecs = displayRecs.filter(r => matchesSearch(r, kw));
 
   if (displayRecs.length === 0) {
     recordList.appendChild(emptyState);
     emptyState.style.display = '';
-    emptyState.querySelector('p').innerHTML = kw
-      ? `找不到「${kw}」的相關記錄`
+    emptyState.querySelector('p').innerHTML = (kw || hasActiveHomeFilter())
+      ? (kw ? `找不到「${kw}」的相關記錄` : '沒有符合篩選條件的記錄')
       : '還沒有記帳喔！<br>點上方按鈕開始記帳吧～';
     return;
   }
@@ -6653,7 +6892,6 @@ function renderList() {
   });
 
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    // 搜尋模式下日期標頭的每日小計只算篩選後的那幾筆
     recordList.appendChild(buildDateHeader(date, groups[date]));
     groups[date].forEach(r => {
       recordList.appendChild(buildRecordItem(r));

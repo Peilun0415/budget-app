@@ -22,7 +22,8 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=3.6" />
+  <link rel="stylesheet" href="style.css?v=3.7" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -88,10 +89,29 @@
     <div id="pageHome">
       <!-- 月份導覽 -->
       <div class="month-nav-bar" id="homeMonthNav">
-        <button class="month-btn" id="prevMonth">‹</button>
-        <span id="currentMonthLabel"></span>
-        <button class="month-btn" id="nextMonth">›</button>
-        <button type="button" class="today-btn" id="homeTodayBtn" style="display:none">今天</button>
+        <div class="month-nav-center">
+          <button class="month-btn" id="prevMonth">‹</button>
+          <span id="currentMonthLabel"></span>
+          <button class="month-btn" id="nextMonth">›</button>
+        </div>
+        <div class="month-nav-actions">
+          <button type="button" class="today-btn" id="homeTodayBtn" style="display:none">今天</button>
+          <button type="button" class="month-action-btn" id="homeSearchToggleBtn" aria-label="搜尋" aria-expanded="false">
+            <i class="bi bi-search" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="month-action-btn" id="homeFilterBtn" aria-label="條件篩選">
+            <i class="bi bi-funnel" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 搜尋列（預設收合） -->
+      <div class="search-bar-wrap" id="searchBarWrap" style="display:none">
+        <div class="search-input-wrap">
+          <i class="bi bi-search search-icon" aria-hidden="true"></i>
+          <input type="text" id="searchInput" class="search-input" placeholder="搜尋備註、分類、帳戶、金額…" />
+          <button class="search-clear-btn" id="searchClearBtn" style="display:none" type="button" aria-label="清除搜尋">✕</button>
+        </div>
       </div>
 
       <!-- 統計卡片 -->
@@ -137,15 +157,6 @@
         <div class="voice-toast-inner">
           <span class="voice-toast-dot"></span>
           <span id="voiceToastText">聆聽中…</span>
-        </div>
-      </div>
-
-      <!-- 搜尋列 -->
-      <div class="search-bar-wrap" id="searchBarWrap">
-        <div class="search-input-wrap">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="searchInput" class="search-input" placeholder="搜尋備註、分類、帳戶…" />
-          <button class="search-clear-btn" id="searchClearBtn" style="display:none">✕</button>
         </div>
       </div>
 
@@ -434,6 +445,49 @@
         <div class="modal-actions">
           <button class="btn-save" id="saveCatBudgetBtn">儲存</button>
           <button class="btn-delete" id="deleteCatBudgetBtn" style="display:none">刪除預算</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 首頁條件篩選 -->
+    <div class="modal-overlay" id="homeFilterOverlay">
+      <div class="modal home-filter-modal">
+        <div class="modal-header">
+          <h2>條件篩選</h2>
+          <button class="close-btn" id="closeHomeFilterBtn" type="button">✕</button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">類型</label>
+          <div class="home-filter-chips" id="homeFilterTypeChips">
+            <label class="home-filter-chip"><input type="checkbox" value="income" /> 收入</label>
+            <label class="home-filter-chip"><input type="checkbox" value="expense" /> 支出</label>
+            <label class="home-filter-chip"><input type="checkbox" value="transfer" /> 轉帳</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">時間範圍</label>
+          <div class="home-filter-date-row">
+            <input type="text" id="homeFilterDateFrom" class="form-input" placeholder="開始日期" readonly />
+            <span class="home-filter-date-sep">～</span>
+            <input type="text" id="homeFilterDateTo" class="form-input" placeholder="結束日期" readonly />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">分類</label>
+          <div class="home-filter-check-list" id="homeFilterCategoryList"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">帳戶</label>
+          <div class="home-filter-check-list" id="homeFilterAccountList"></div>
+        </div>
+
+        <div class="modal-actions modal-actions--row">
+          <button type="button" class="btn-secondary" id="clearHomeFilterBtn">清除條件</button>
+          <button type="button" class="btn-save" id="applyHomeFilterBtn">套用</button>
         </div>
       </div>
     </div>
@@ -1390,6 +1444,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=3.6"></script>
+  <script type="module" src="app.js?v=3.7"></script>
 </body>
 </html>

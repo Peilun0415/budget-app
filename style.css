@@ -312,13 +312,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 8px;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-dark);
-  padding: 14px 20px;
+  padding: 10px 12px;
   background: var(--white);
   border-bottom: 1px solid var(--border);
+  min-height: 52px;
+}
+
+.month-nav-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.month-nav-actions {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .month-btn {
@@ -342,10 +362,8 @@ body {
 }
 
 .today-btn {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  transform: none;
   background: var(--pink-light);
   border: none;
   color: var(--pink-dark);
@@ -362,6 +380,35 @@ body {
 
 .today-btn:active {
   background: var(--pink-mid);
+}
+
+.month-action-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-mid);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.month-action-btn:hover {
+  background: var(--pink-light);
+  color: var(--primary);
+}
+
+.month-action-btn.active {
+  background: rgba(78, 143, 124, 0.14);
+  color: var(--primary);
+}
+
+.month-action-btn:active {
+  transform: scale(0.96);
 }
 
 /* ===== 統計卡片（本月結餘表） ===== */
@@ -711,9 +758,10 @@ body {
   box-shadow: 0 0 0 3px rgba(78, 143, 124, 0.12);
 }
 .search-icon {
-  font-size: 16px;
+  font-size: 15px;
   flex-shrink: 0;
-  opacity: 0.6;
+  color: var(--text-light);
+  line-height: 1;
 }
 .search-input {
   flex: 1;
@@ -2702,7 +2750,10 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 }
 
 .detail-month-nav .today-btn {
+  position: absolute;
   right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .detail-range-nav {
@@ -3385,6 +3436,89 @@ input[type=number]::-webkit-outer-spin-button {
   line-height: 1.5;
 }
 
+/* ===== 首頁條件篩選 ===== */
+.home-filter-modal {
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
+}
+.home-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.home-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-mid);
+  cursor: pointer;
+  user-select: none;
+}
+.home-filter-chip:has(input:checked) {
+  border-color: var(--primary);
+  background: rgba(78, 143, 124, 0.12);
+  color: var(--primary);
+}
+.home-filter-chip input {
+  margin: 0;
+}
+.home-filter-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-filter-date-row .form-input {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.home-filter-date-sep {
+  color: var(--text-light);
+  flex-shrink: 0;
+}
+.home-filter-check-list {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  padding: 4px 0;
+}
+.home-filter-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-dark);
+  cursor: pointer;
+}
+.home-filter-check-item:hover {
+  background: var(--pink-light);
+}
+.home-filter-check-item input {
+  margin: 0;
+  flex-shrink: 0;
+}
+.home-filter-check-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-light);
+  text-align: center;
+}
+.home-filter-modal .modal-actions--row .btn-secondary {
+  flex: 1;
+}
+.home-filter-modal .modal-actions--row .btn-save {
+  flex: 1.4;
+}
+
 /* ===== 表單通用輸入框 ===== */
 .form-label {
   display: block;
@@ -3885,7 +4019,10 @@ input.form-input {
 }
 
 .report-period-bar .today-btn {
+  position: absolute;
   right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .report-period-bar span {

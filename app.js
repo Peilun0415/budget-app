@@ -712,7 +712,6 @@ const pageRecurring     = document.getElementById('pageRecurring');
 const pageBudget        = document.getElementById('pageBudget');
 const navSettingsBtn    = document.getElementById('navSettings');
 const backToTopBtn      = document.getElementById('backToTopBtn');
-const fabAddRecordBtn   = document.getElementById('fabAddRecordBtn');
 const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
@@ -1228,7 +1227,7 @@ window.addEventListener('popstate', (e) => {
   }
 });
 
-// 回到頂部 / 新增記帳浮動按鈕：捲動超過閾值時顯示，停止捲動 2 秒後隱藏
+// 回到頂部按鈕：捲動超過閾值時顯示，停止捲動 2 秒後隱藏
 const BACK_TO_TOP_THRESHOLD = 300;
 const FLOATING_BTN_IDLE_HIDE_MS = 2000;
 let floatingBtnScrollActive = false;
@@ -1238,16 +1237,9 @@ function shouldShowBackToTop() {
   return window.scrollY > BACK_TO_TOP_THRESHOLD;
 }
 
-function shouldShowFabAddRecord() {
-  return shouldShowBackToTop() && (currentPage === 'home' || currentPage === 'accountDetail');
-}
-
 function applyFloatingBtnVisibility() {
   if (backToTopBtn) {
     backToTopBtn.classList.toggle('visible', floatingBtnScrollActive && shouldShowBackToTop());
-  }
-  if (fabAddRecordBtn) {
-    fabAddRecordBtn.classList.toggle('visible', floatingBtnScrollActive && shouldShowFabAddRecord());
   }
 }
 
@@ -1284,22 +1276,12 @@ function resetFloatingBtns() {
   clearFloatingBtnHideTimer();
   floatingBtnScrollActive = false;
   if (backToTopBtn) backToTopBtn.classList.remove('visible');
-  if (fabAddRecordBtn) fabAddRecordBtn.classList.remove('visible');
 }
 
 window.addEventListener('scroll', onFloatingBtnScroll, { passive: true });
 if (backToTopBtn) {
   backToTopBtn.addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-}
-if (fabAddRecordBtn) {
-  fabAddRecordBtn.addEventListener('click', () => {
-    if (currentPage === 'accountDetail' && detailAccountId) {
-      openModal(null, { presetAccountId: detailAccountId });
-    } else {
-      openModal();
-    }
   });
 }
 onFloatingBtnScroll();
@@ -5348,7 +5330,7 @@ applyHomeFilterBtn?.addEventListener('click', () => {
 });
 
 // ===== 記帳彈窗 =====
-openFormBtn.addEventListener('click', () => openModal());
+openFormBtn?.addEventListener('click', () => openModal());
 closeFormBtn.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
@@ -6730,10 +6712,10 @@ function calcMonthIncomeExpense(recs) {
 
 function renderSummary() {
   const { income, expense, balance } = calcMonthIncomeExpense(getMonthRecords());
-  totalIncome.textContent  = `NT$ ${formatMoney(income)}`;
-  totalExpense.textContent = `NT$ ${formatMoney(expense)}`;
-  totalBalance.textContent = `NT$ ${formatMoney(balance)}`;
-  totalBalance.style.color = '';
+  totalIncome.textContent  = `$${formatMoney(income)}`;
+  totalExpense.textContent = `$${formatMoney(expense)}`;
+  totalBalance.textContent = `$${formatMoney(balance)}`;
+  totalBalance.style.color = balance >= 0 ? 'var(--pink-main)' : 'var(--red-main)';
 
   if (!summaryTrendBadge) return;
   let prevYear = viewYear;
@@ -6984,7 +6966,7 @@ function renderList() {
     emptyState.style.display = '';
     emptyState.querySelector('p').innerHTML = (kw || hasActiveHomeFilter())
       ? (kw ? `找不到「${kw}」的相關記錄` : '沒有符合篩選條件的記錄')
-      : '還沒有記帳喔！<br>點上方按鈕開始記帳吧～';
+      : '還沒有記帳喔！<br>點下方中央按鈕開始記帳吧～';
     return;
   }
   emptyState.style.display = 'none';
@@ -8798,7 +8780,8 @@ function renderReportWealth() {
 (function initVoice() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    voiceBtn.style.display = 'none';
+    if (voiceBtn) voiceBtn.style.display = 'none';
+    document.querySelector('.nav-center-actions')?.classList.add('voice-unavailable');
     return;
   }
 

@@ -631,7 +631,6 @@ const detailRangeStartEl = document.getElementById('detailRangeStart');
 const detailRangeEndEl   = document.getElementById('detailRangeEnd');
 const billingCycleBar    = document.getElementById('billingCycleBar');
 const billingCycleBtn    = document.getElementById('billingCycleBtn');
-const accountDetailAddRecordBtn = document.getElementById('accountDetailAddRecordBtn');
 
 // ===== DOM — 專案 =====
 const pageProjects          = document.getElementById('pageProjects');
@@ -3967,13 +3966,6 @@ billingCycleBtn.addEventListener('click', () => {
   renderAccountDetail(acc);
 });
 
-if (accountDetailAddRecordBtn) {
-  accountDetailAddRecordBtn.addEventListener('click', () => {
-    if (!detailAccountId) return;
-    openModal(null, { presetAccountId: detailAccountId });
-  });
-}
-
 detailPrevMonth.addEventListener('click', () => {
   detailViewMonth--;
   if (detailViewMonth < 0) { detailViewMonth = 11; detailViewYear--; }
@@ -5343,7 +5335,13 @@ applyHomeFilterBtn?.addEventListener('click', () => {
 });
 
 // ===== 記帳彈窗 =====
-openFormBtn?.addEventListener('click', () => openModal());
+openFormBtn?.addEventListener('click', () => {
+  if (currentPage === 'accountDetail' && detailAccountId) {
+    openModal(null, { presetAccountId: detailAccountId });
+  } else {
+    openModal();
+  }
+});
 closeFormBtn.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 

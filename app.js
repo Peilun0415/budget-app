@@ -605,6 +605,8 @@ const accountsTotalLiability = document.getElementById('accountsTotalLiability')
 // ===== DOM — 帳戶明細 =====
 const pageAccountDetail  = document.getElementById('pageAccountDetail');
 const backToAccountsBtn  = document.getElementById('backToAccountsBtn');
+const editAccountDetailBtn = document.getElementById('editAccountDetailBtn');
+const deleteAccountDetailBtn = document.getElementById('deleteAccountDetailBtn');
 const detailIcon         = document.getElementById('detailIcon');
 const detailName         = document.getElementById('detailName');
 const detailType         = document.getElementById('detailType');
@@ -1164,6 +1166,17 @@ navSettingsBtn.addEventListener('click', () => {
   navigateToPage('settings');
 });
 backToAccountsBtn.addEventListener('click', () => goToAccountsList());
+
+editAccountDetailBtn?.addEventListener('click', () => {
+  const acc = allAccounts.find(a => a.docId === detailAccountId);
+  if (acc) openAccountModal(acc);
+});
+
+deleteAccountDetailBtn?.addEventListener('click', () => {
+  const acc = allAccounts.find(a => a.docId === detailAccountId);
+  if (!acc) return;
+  if (confirm(`確定要刪除「${acc.name}」嗎？`)) deleteAccount(acc.docId);
+});
 
 window.addEventListener('popstate', (e) => {
   if (_histNavPending) {
@@ -6163,6 +6176,7 @@ accountForm.addEventListener('submit', async (e) => {
 async function deleteAccount(docId) {
   try {
     await deleteDoc(doc(db, 'accounts', docId));
+    if (detailAccountId === docId) goToAccountsList();
   } catch (err) { console.error(err); alert('刪除失敗'); }
 }
 
@@ -6643,22 +6657,11 @@ function renderAccountList() {
         </div>
         <div class="account-right">
           <span class="account-balance" style="color:${balColor}">${balText}</span>
-          <div class="account-actions">
-            <button class="edit-btn" title="編輯">✏️</button>
-            <button class="delete-btn" title="刪除">🗑</button>
-          </div>
+          <span class="account-chevron" aria-hidden="true">›</span>
         </div>
       `;
       item.addEventListener('click', (e) => {
-        if (!e.target.closest('.account-actions') && !e.target.closest('.drag-handle')) openAccountDetail(a);
-      });
-      item.querySelector('.edit-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        openAccountModal(a);
-      });
-      item.querySelector('.delete-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (confirm(`確定要刪除「${a.name}」嗎？`)) deleteAccount(a.docId);
+        if (!e.target.closest('.drag-handle')) openAccountDetail(a);
       });
       initItemDragHandle(item, item.querySelector('.item-drag-handle'), groupWrap);
       groupWrap.appendChild(item);

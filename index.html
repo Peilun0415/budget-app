@@ -22,7 +22,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=6.0" />
+  <link rel="stylesheet" href="style.css?v=6.3" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -201,7 +201,17 @@
     <div id="pageAccountDetail" style="display:none">
       <!-- 帳戶資訊卡 -->
       <div class="account-detail-header">
-        <button class="back-btn" id="backToAccountsBtn">‹ 返回</button>
+        <div class="account-detail-toolbar">
+          <button type="button" class="back-btn" id="backToAccountsBtn">‹ 返回</button>
+          <div class="account-detail-actions">
+            <button type="button" class="account-detail-action-btn" id="editAccountDetailBtn" title="編輯帳戶" aria-label="編輯帳戶">
+              <i class="bi bi-pencil" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="account-detail-action-btn danger" id="deleteAccountDetailBtn" title="刪除帳戶" aria-label="刪除帳戶">
+              <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
         <div class="account-detail-info">
           <div class="account-detail-icon" id="detailIcon"></div>
           <div>
@@ -1467,6 +1477,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=6.0"></script>
+  <script type="module" src="app.js?v=6.3"></script>
 </body>
 </html>

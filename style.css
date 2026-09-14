@@ -266,8 +266,8 @@ body {
 .app-header {
   background: var(--pink-main);
   color: white;
-  padding: 16px 20px;
-  box-shadow: 0 4px 16px rgba(78, 143, 124, 0.22);
+  padding: 10px 16px;
+  box-shadow: 0 3px 12px rgba(78, 143, 124, 0.2);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -278,26 +278,27 @@ body {
 .header-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .header-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   object-fit: contain;
   flex-shrink: 0;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
 .header-title h1 {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.1);
   margin: 0;
   min-width: 0;
+  line-height: 1.2;
 }
 
 .header-right,
@@ -752,8 +753,16 @@ body {
   color: var(--text-mid);
   background: var(--pink-light);
 }
-/* 搜尋模式下列表標題 */
+/* 搜尋／篩選時才顯示列表標題；平常不顯示「本月明細」 */
+.list-title {
+  display: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-mid);
+  margin-bottom: 12px;
+}
 .list-title.searching {
+  display: block;
   color: var(--pink-main);
 }
 
@@ -779,15 +788,7 @@ body {
 
 /* ===== 記帳列表 ===== */
 .list-section {
-  padding: 20px 16px 0;
-}
-
-.list-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-mid);
-  margin-bottom: 12px;
-  padding-left: 4px;
+  padding: 14px 16px 0;
 }
 
 .record-list {
@@ -1866,7 +1867,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   }
 
   .app-header {
-    border-radius: 0 0 28px 28px;
+    border-radius: 0 0 18px 18px;
   }
 
   .modal-overlay {
@@ -2093,30 +2094,31 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
 .accounts-header-bar {
   background: var(--pink-main);
   color: white;
-  padding: 20px 24px 22px;
+  padding: 12px 16px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 }
 
 .accounts-net-worth {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
 }
 
 .accounts-net-label {
-  font-size: 13px;
+  font-size: 11px;
   opacity: 0.8;
   font-weight: 500;
 }
 
 .accounts-net-amount {
-  font-size: 36px;
+  font-size: 26px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
 }
 
 .accounts-sub-stats {
@@ -2124,8 +2126,8 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   align-items: center;
   gap: 0;
   background: rgba(255,255,255,0.15);
-  border-radius: 14px;
-  padding: 10px 0;
+  border-radius: 10px;
+  padding: 6px 0;
   width: 100%;
 }
 
@@ -2134,23 +2136,23 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
 }
 
 .accounts-sub-divider {
   width: 1px;
-  height: 32px;
+  height: 24px;
   background: rgba(255,255,255,0.3);
 }
 
 .accounts-sub-label {
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0.8;
   font-weight: 500;
 }
 
 .accounts-sub-value {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -2173,6 +2175,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#recAmount):focus {
   gap: 14px;
   box-shadow: 0 2px 10px rgba(200, 150, 180, 0.12);
   animation: slideIn 0.25s ease;
+  cursor: pointer;
 }
 
 .account-type-icon {
@@ -2381,7 +2384,7 @@ label.account-include-toggle .toggle-switch {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -2391,9 +2394,11 @@ label.account-include-toggle .toggle-switch {
   color: var(--pink-main);
 }
 
-.account-actions {
-  display: flex;
-  gap: 4px;
+.account-chevron {
+  font-size: 18px;
+  color: var(--text-light);
+  font-weight: 300;
+  line-height: 1;
 }
 
 .edit-btn,
@@ -2458,7 +2463,15 @@ label.account-include-toggle .toggle-switch {
 .account-detail-header {
   background: var(--pink-main);
   color: white;
-  padding: 16px 20px 20px;
+  padding: 12px 16px 16px;
+}
+
+.account-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .back-btn {
@@ -2470,13 +2483,44 @@ label.account-include-toggle .toggle-switch {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   display: inline-block;
   transition: background 0.2s;
 }
 
 .back-btn:active {
   background: rgba(255,255,255,0.35);
+}
+
+.account-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.account-detail-action-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  padding: 0;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.account-detail-action-btn:active {
+  transform: scale(0.94);
+  background: rgba(255,255,255,0.32);
+}
+
+.account-detail-action-btn.danger:active {
+  background: rgba(255, 120, 120, 0.35);
 }
 
 .account-detail-info {

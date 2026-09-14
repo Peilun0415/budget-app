@@ -1039,6 +1039,32 @@ body {
   background: var(--red-light);
 }
 
+.delete-record-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: none;
+  background: var(--red-main);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.28);
+  transition: transform 0.15s, filter 0.15s;
+}
+
+.delete-record-icon-btn .bi {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.delete-record-icon-btn:active {
+  background: var(--red-main);
+  filter: brightness(0.92);
+  transform: scale(0.97);
+}
+
 .record-amount-wrap {
   display: flex;
   flex-direction: column;

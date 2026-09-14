@@ -5457,7 +5457,7 @@ function openModal(record = null, newRecordOptions = null) {
     const transferRecord = isTransferRecord(record);
     recordModalTitle.textContent = transferRecord ? '編輯轉帳' : '編輯記帳';
     submitBtn.textContent = '儲存修改';
-    deleteRecordBtn.style.display = 'block';
+    deleteRecordBtn.style.display = 'inline-flex';
     switchType(transferRecord ? 'transfer' : record.type);
     let formRecord = record;
     if (transferRecord) {

@@ -23,6 +23,7 @@ import {
   onSnapshot,
   serverTimestamp,
   getDocs,
+  getDoc,
   limit,
   runTransaction,
   writeBatch
@@ -717,6 +718,91 @@ const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
 const goDefaultDebitAccountBtn = document.getElementById('goDefaultDebitAccount');
+const themeSwatchGrid = document.getElementById('themeSwatchGrid');
+const metaThemeColor = document.getElementById('metaThemeColor')
+  || document.querySelector('meta[name="theme-color"]');
+
+const THEME_OPTIONS = [
+  { id: 'sage',  name: '鼠尾草綠', color: '#4E8F7C' },
+  { id: 'sky',   name: '天空藍',   color: '#4A90E2' },
+  { id: 'coral', name: '珊瑚橘',   color: '#E07050' },
+  { id: 'ocean', name: '海洋藍',   color: '#3D7EA6' },
+  { id: 'plum',  name: '紫藤',     color: '#7B6BA8' },
+  { id: 'amber', name: '琥珀金',   color: '#C98A2E' },
+];
+const THEME_STORAGE_KEY = 'nekomemo-theme';
+
+function isValidThemeId(id) {
+  return THEME_OPTIONS.some(t => t.id === id);
+}
+
+function getCachedThemeId() {
+  try {
+    const id = localStorage.getItem(THEME_STORAGE_KEY);
+    if (isValidThemeId(id)) return id;
+  } catch { /* ignore */ }
+  return 'sage';
+}
+
+function cacheThemeId(themeId) {
+  try { localStorage.setItem(THEME_STORAGE_KEY, themeId); } catch { /* ignore */ }
+}
+
+async function saveThemeToCloud(themeId) {
+  if (!currentUser || !isValidThemeId(themeId)) return;
+  try {
+    await setDoc(doc(db, 'users', currentUser.uid), { themeId }, { merge: true });
+  } catch (err) {
+    console.warn('theme cloud save failed', err);
+  }
+}
+
+async function loadThemeFromCloud(uid) {
+  if (!uid) return;
+  try {
+    const snap = await getDoc(doc(db, 'users', uid));
+    const cloudId = snap.exists() ? snap.data()?.themeId : null;
+    if (isValidThemeId(cloudId)) {
+      applyTheme(cloudId, { persist: true, syncCloud: false });
+      return;
+    }
+    // 雲端尚無設定：把本機偏好寫上雲端（首次遷移）
+    const localId = getCachedThemeId();
+    applyTheme(localId, { persist: true, syncCloud: true });
+  } catch (err) {
+    console.warn('theme cloud load failed', err);
+  }
+}
+
+function applyTheme(themeId, { persist = true, syncCloud = true } = {}) {
+  const theme = THEME_OPTIONS.find(t => t.id === themeId) || THEME_OPTIONS[0];
+  document.documentElement.setAttribute('data-theme', theme.id);
+  if (metaThemeColor) metaThemeColor.setAttribute('content', theme.color);
+  if (persist) cacheThemeId(theme.id);
+  themeSwatchGrid?.querySelectorAll('.theme-swatch-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme.id);
+  });
+  if (syncCloud) void saveThemeToCloud(theme.id);
+}
+
+function renderThemeSwatches() {
+  if (!themeSwatchGrid) return;
+  const current = getCachedThemeId();
+  themeSwatchGrid.innerHTML = THEME_OPTIONS.map(t => `
+    <button type="button" class="theme-swatch-btn${t.id === current ? ' active' : ''}" data-theme="${t.id}" aria-label="${t.name}">
+      <span class="theme-swatch-color" style="background:${t.color}" aria-hidden="true"></span>
+      <span class="theme-swatch-name">${t.name}</span>
+    </button>
+  `).join('');
+  themeSwatchGrid.querySelectorAll('.theme-swatch-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+  });
+}
+
+// 先套用本機快取（加速首屏），登入後再以雲端設定覆寫
+applyTheme(getCachedThemeId(), { persist: false, syncCloud: false });
+renderThemeSwatches();
+
 const defaultDebitAccountOverlay = document.getElementById('defaultDebitAccountOverlay');
 const defaultDebitAccountSelect = document.getElementById('defaultDebitAccountSelect');
 const defaultDebitAccountDesc = document.getElementById('defaultDebitAccountDesc');
@@ -894,6 +980,7 @@ onAuthStateChanged(auth, (user) => {
     if (email) {
       setDoc(doc(db, 'users', user.uid), { uid: user.uid, email, displayName }, { merge: true }).catch(() => {});
     }
+    void loadThemeFromCloud(user.uid);
     showApp(user);
     subscribeRecords();
     subscribeAccounts();

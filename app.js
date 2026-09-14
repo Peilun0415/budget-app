@@ -1258,10 +1258,43 @@ editAccountDetailBtn?.addEventListener('click', () => {
   if (acc) openAccountModal(acc);
 });
 
+const deleteAccountConfirmOverlay = document.getElementById('deleteAccountConfirmOverlay');
+const deleteAccountConfirmMsg = document.getElementById('deleteAccountConfirmMsg');
+const closeDeleteAccountConfirmBtn = document.getElementById('closeDeleteAccountConfirmBtn');
+const cancelDeleteAccountBtn = document.getElementById('cancelDeleteAccountBtn');
+const confirmDeleteAccountBtn = document.getElementById('confirmDeleteAccountBtn');
+let pendingDeleteAccountId = null;
+
+function openDeleteAccountConfirm(acc) {
+  if (!acc || !deleteAccountConfirmOverlay) return;
+  pendingDeleteAccountId = acc.docId;
+  if (deleteAccountConfirmMsg) {
+    deleteAccountConfirmMsg.textContent = `確定要刪除「${acc.name}」嗎？刪除後無法復原。`;
+  }
+  deleteAccountConfirmOverlay.classList.add('active');
+}
+
+function closeDeleteAccountConfirm() {
+  pendingDeleteAccountId = null;
+  deleteAccountConfirmOverlay?.classList.remove('active');
+}
+
 deleteAccountDetailBtn?.addEventListener('click', () => {
   const acc = allAccounts.find(a => a.docId === detailAccountId);
   if (!acc) return;
-  if (confirm(`確定要刪除「${acc.name}」嗎？`)) deleteAccount(acc.docId);
+  openDeleteAccountConfirm(acc);
+});
+
+closeDeleteAccountConfirmBtn?.addEventListener('click', closeDeleteAccountConfirm);
+cancelDeleteAccountBtn?.addEventListener('click', closeDeleteAccountConfirm);
+deleteAccountConfirmOverlay?.addEventListener('click', (e) => {
+  if (e.target === deleteAccountConfirmOverlay) closeDeleteAccountConfirm();
+});
+confirmDeleteAccountBtn?.addEventListener('click', async () => {
+  const docId = pendingDeleteAccountId;
+  if (!docId) return;
+  closeDeleteAccountConfirm();
+  await deleteAccount(docId);
 });
 
 window.addEventListener('popstate', (e) => {

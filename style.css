@@ -1447,7 +1447,7 @@ body {
 }
 
 .type-btn.active {
-  background: var(--white);
+  background: var(--pink-mid);
   color: var(--pink-dark);
   box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.2);
 }
@@ -4017,6 +4017,25 @@ input.form-input {
 .cat-budget-amount span {
   color: var(--text-dark);
   font-weight: 600;
+}
+
+.delete-account-confirm-modal {
+  max-width: 360px;
+}
+.delete-account-confirm-msg {
+  font-size: 14px;
+  color: var(--text-mid);
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+.delete-account-confirm-modal .modal-actions--row .btn-secondary {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 8px;
+}
+.delete-account-confirm-modal .modal-actions--row .btn-delete {
+  flex: 1;
+  min-width: 0;
 }
 
 .clear-data-modal {

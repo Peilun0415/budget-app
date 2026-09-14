@@ -1322,6 +1322,9 @@ body {
 .account-name-header-input:focus {
   border-bottom-color: var(--pink-main);
 }
+.account-name-header-input.invalid {
+  border-bottom-color: var(--red-main);
+}
 
 .close-btn {
   background: var(--pink-light);
@@ -2344,62 +2347,6 @@ label.account-include-toggle .toggle-switch {
   border-radius: 4px;
   padding: 1px 5px;
 }
-.fx-summary-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #faf9f7 100%);
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 14px rgba(78, 143, 124, 0.08);
-  font-size: 13px;
-}
-.fx-summary-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.fx-summary-label {
-  color: var(--text-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-.fx-summary-meta {
-  color: var(--text-light);
-  font-size: 11px;
-}
-.fx-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
-}
-.fx-summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.fx-summary-native {
-  font-weight: 700;
-  color: var(--text-dark);
-}
-.fx-summary-twd {
-  font-size: 12px;
-  color: var(--pink-main);
-  font-weight: 600;
-}
-.fx-summary-pending {
-  font-size: 12px;
-  color: var(--text-light);
-}
 
 .account-type-label {
   font-size: 12px;
@@ -2418,16 +2365,37 @@ label.account-include-toggle .toggle-switch {
 
 .account-right {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.account-balance-stack {
+  display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 2px;
+  min-width: 0;
 }
 
 .account-balance {
   font-size: 16px;
   font-weight: 700;
   color: var(--pink-main);
+  line-height: 1.2;
+}
+
+.account-balance-twd {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  line-height: 1.2;
+}
+
+.account-balance-twd.pending {
+  color: var(--text-light);
+  font-weight: 500;
 }
 
 .account-chevron {

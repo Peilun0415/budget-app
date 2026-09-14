@@ -6053,6 +6053,9 @@ async function deleteRecord(docId) {
 
 // ===== 帳戶彈窗 =====
 openAccountFormBtn.addEventListener('click', () => openAccountModal());
+accountNameInput?.addEventListener('input', () => {
+  if (accountNameInput.value.trim()) accountNameInput.classList.remove('invalid');
+});
 closeAccountFormBtn.addEventListener('click', closeAccountModal);
 accountModalOverlay.addEventListener('click', (e) => {
   if (e.target === accountModalOverlay) closeAccountModal();
@@ -6074,6 +6077,7 @@ for (let d = 1; d <= 31; d++) {
 function openAccountModal(account = null) {
   accountEditId.value = account ? account.docId : '';
   accountNameInput.value     = account ? account.name     : '';
+  accountNameInput.classList.remove('invalid');
   accountBalanceInput.value  = account ? account.balance  : '';
   accountNoteInput.value     = account ? account.note     : '';
   accountCurrencyInput.value      = account?.currency ?? '';
@@ -6123,9 +6127,16 @@ function renderAccountTypeGrid() {
 // ===== 提交帳戶 =====
 accountForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const name = accountNameInput.value.trim();
+  if (!name) {
+    accountNameInput.classList.add('invalid');
+    shakeEl(accountNameInput);
+    accountNameInput.focus();
+    return;
+  }
+  accountNameInput.classList.remove('invalid');
   if (!selectedAccountType) { shakeEl(accountTypeGrid); return; }
 
-  const name            = accountNameInput.value.trim();
   const balance         = parseFloat(accountBalanceInput.value) || 0;
   const note            = accountNoteInput.value.trim();
   const currency        = accountCurrencyInput.value || null;
@@ -6516,8 +6527,7 @@ function calcAccountBalance(account) {
 // ===== 渲染帳戶列表 =====
 function renderAccountList() {
   while (accountList.firstChild) accountList.removeChild(accountList.firstChild);
-  const existingFxBar = document.getElementById('fxSummaryBar');
-  if (existingFxBar) existingFxBar.remove();
+  document.getElementById('fxSummaryBar')?.remove();
 
   if (allAccounts.length === 0) {
     accountList.appendChild(accountEmptyState);
@@ -6534,7 +6544,6 @@ function renderAccountList() {
   const LIABILITY_TYPES = ['credit', 'loan'];
   let totalAsset     = 0;
   let totalLiability = 0;
-  const fxSummary = {}; // { USD: { net, twdNet, rate }, ... }
   allAccounts.forEach(a => {
     const bal = calcAccountBalance(a);
     const included = a.includeInTotal !== false;
@@ -6543,10 +6552,7 @@ function renderAccountList() {
     if (a.currency) {
       const signedNet = (LIABILITY_TYPES.includes(a.typeId) && bal < 0) ? -Math.abs(bal) : bal;
       const rateToTwd = getLatestFxRate(a.currency);
-      if (!fxSummary[a.currency]) fxSummary[a.currency] = { net: 0, twdNet: 0, rate: rateToTwd };
-      fxSummary[a.currency].net += signedNet;
       if (rateToTwd) {
-        fxSummary[a.currency].twdNet += signedNet * rateToTwd;
         if (signedNet < 0) totalLiability += Math.abs(signedNet * rateToTwd);
         else totalAsset += signedNet * rateToTwd;
       }
@@ -6566,42 +6572,6 @@ function renderAccountList() {
   accountsNetWorth.style.color       = netWorth < 0 ? '#ffb3b3' : 'white';
   accountsTotalAsset.textContent     = `$${formatMoney(totalAsset)}`;
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
-
-  // 外幣帳戶參考列（插入在總覽卡片下方）
-  const fxEntries = Object.entries(fxSummary);
-  if (fxEntries.length > 0) {
-    const updatedText = getFxUpdatedText();
-    const bar = document.createElement('div');
-    bar.id = 'fxSummaryBar';
-    bar.className = 'fx-summary-bar';
-    bar.innerHTML = `
-      <div class="fx-summary-head">
-        <div class="fx-summary-label">外幣帳戶換算</div>
-        <div class="fx-summary-meta">${updatedText ? `匯率更新 ${updatedText}` : '依最新匯率換算'}</div>
-      </div>
-      <div class="fx-summary-grid">
-        ${fxEntries.map(([cur, { net, twdNet, rate }]) => {
-        const nativeText = `${cur} ${net < 0 ? '-' : ''}${formatMoneyByCurrency(Math.abs(net), cur)}`;
-        if (rate) {
-          return `
-            <div class="fx-summary-item">
-              <div class="fx-summary-native">${nativeText}</div>
-              <div class="fx-summary-twd">≈ ${twdNet < 0 ? '-' : ''}$${formatMoney(Math.abs(twdNet))}</div>
-            </div>
-          `;
-        }
-        return `
-          <div class="fx-summary-item">
-            <div class="fx-summary-native">${nativeText}</div>
-            <div class="fx-summary-pending">待匯率</div>
-          </div>
-        `;
-      }).join('')}
-      </div>
-    `;
-    // 插在 accountList 前
-    accountList.parentNode.insertBefore(bar, accountList);
-  }
 
   // 依 typeOrder → typeName 分組，組內依 order 排序
   const groupMap = {};
@@ -6639,6 +6609,20 @@ function renderAccountList() {
         ? `-${balPrefix}${a.currency ? formatMoneyByCurrency(Math.abs(curBal), a.currency) : formatMoney(Math.abs(curBal))}`
         : `${balPrefix}${a.currency ? formatMoneyByCurrency(curBal, a.currency) : formatMoney(curBal)}`;
 
+      let twdHintHtml = '';
+      if (a.currency) {
+        const rateToTwd = getLatestFxRate(a.currency);
+        if (rateToTwd) {
+          const twdAmt = Math.round(curBal * rateToTwd);
+          const twdText = twdAmt < 0
+            ? `-$${formatMoney(Math.abs(twdAmt))}`
+            : `$${formatMoney(twdAmt)}`;
+          twdHintHtml = `<span class="account-balance-twd">≈ ${twdText}</span>`;
+        } else {
+          twdHintHtml = `<span class="account-balance-twd pending">待匯率</span>`;
+        }
+      }
+
       const item = document.createElement('div');
       item.className = 'account-item';
       item.dataset.docId = a.docId;
@@ -6654,7 +6638,10 @@ function renderAccountList() {
           ${a.note ? `<div class="account-note">${a.note}</div>` : ''}
         </div>
         <div class="account-right">
-          <span class="account-balance" style="color:${balColor}">${balText}</span>
+          <div class="account-balance-stack">
+            <span class="account-balance" style="color:${balColor}">${balText}</span>
+            ${twdHintHtml}
+          </div>
           <span class="account-chevron" aria-hidden="true">›</span>
         </div>
       `;

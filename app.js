@@ -4033,7 +4033,7 @@ function renderAccountDetail(account) {
     accountDetailList.appendChild(buildDateHeader(date, groups[date], account));
 
     groups[date].forEach(r => {
-      accountDetailList.appendChild(buildRecordItem(r));
+      accountDetailList.appendChild(buildRecordItem(r, { showAccountCurrencyFirst: true }));
     });
   });
 }
@@ -7413,8 +7413,24 @@ function foreignHint(r) {
   return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}）</span>`;
 }
 
+function recordAmountMarkup(r, showAccountCurrencyFirst = false) {
+  const sign = r.type === 'income' ? '+' : '-';
+  const accountCurrency = getRecordAccountCurrency(r);
+  if (showAccountCurrencyFirst && accountCurrency) {
+    const foreignAmt = typeof r.foreignAmount === 'number' ? r.foreignAmount : r.amount;
+    return `
+      <span class="record-amount ${r.type}">${sign}${accountCurrency} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}</span>
+      <span class="foreign-hint">≈ ${sign}$${formatMoney(r.amount)}</span>
+    `;
+  }
+  return `
+    <span class="record-amount ${r.type}">${sign}$${formatMoney(r.amount)}</span>
+    ${foreignHint(r)}
+  `;
+}
+
 // ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
-function buildRecordItem(r) {
+function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
   const item = document.createElement('div');
   item.className = 'record-item-wrapper';
 
@@ -7431,6 +7447,7 @@ function buildRecordItem(r) {
     const fromName = fromAccObj?.name || (r.accountId === r.transferFromId ? r.accountName : parsedFrom) || '?';
     const toName   = toAccObj?.name   || (r.accountId === r.transferToId   ? r.accountName : parsedTo)   || '?';
     const metaText = r.note || '無備註';
+    const transferCurrency = getRecordAccountCurrency(r) || 'TWD';
     content.innerHTML = `
       <div class="record-cat-icon transfer-icon">🔄</div>
       <div class="record-info">
@@ -7438,7 +7455,7 @@ function buildRecordItem(r) {
         <div class="record-meta">${metaText}</div>
       </div>
       <div class="record-right">
-        <span class="record-amount transfer">$${formatMoney(r.amount)}</span>
+        <span class="record-amount transfer">$${formatMoneyByCurrency(r.amount, transferCurrency)}</span>
         <span class="record-edit-hint">›</span>
       </div>
     `;
@@ -7455,8 +7472,7 @@ function buildRecordItem(r) {
       </div>
       <div class="record-right">
         <div class="record-amount-wrap">
-          <span class="record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(r.amount)}</span>
-          ${foreignHint(r)}
+          ${recordAmountMarkup(r, showAccountCurrencyFirst)}
         </div>
         <span class="record-edit-hint">›</span>
       </div>

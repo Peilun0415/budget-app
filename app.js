@@ -666,11 +666,10 @@ const projectRecordList     = document.getElementById('projectRecordList');
 const projectRecordSectionTitle = document.getElementById('projectRecordSectionTitle');
 const projectSearchInput    = document.getElementById('projectSearchInput');
 const projectSearchClearBtn = document.getElementById('projectSearchClearBtn');
-const projectActiveBar      = document.getElementById('projectActiveBar');
-const projectActiveTitle    = document.getElementById('projectActiveTitle');
 const projectActiveHint     = document.getElementById('projectActiveHint');
 const projectActiveToggle   = document.getElementById('projectActiveToggle');
 const projectActiveToggleWrap = document.getElementById('projectActiveToggleWrap');
+const projectActiveSettingWrap = document.getElementById('projectActiveSettingWrap');
 const projectEditBtn        = document.getElementById('projectEditBtn');
 const projectReportBtn      = document.getElementById('projectReportBtn');
 const projectReportModalOverlay = document.getElementById('projectReportModalOverlay');
@@ -2158,6 +2157,15 @@ function openProjectModal(proj = null) {
   projectEndInput.value        = proj?.endDate   || '';
   if (projectCurrencySelect) projectCurrencySelect.value = proj?.currency || '';
   if (projectRateToTwdInput) projectRateToTwdInput.value = proj?.rateToTwd != null ? String(proj.rateToTwd) : '';
+  if (projectActiveSettingWrap) {
+    projectActiveSettingWrap.style.display = proj && proj.uid === currentUser?.uid ? '' : 'none';
+  }
+  if (projectActiveToggle) projectActiveToggle.checked = proj ? isProjectActive(proj) : true;
+  if (projectActiveHint && proj) {
+    projectActiveHint.textContent = isProjectActive(proj)
+      ? '關閉後，新增記帳時不會出現此專案'
+      : '重新開啟後，即可再次選入新增記帳';
+  }
   tempEditorUids = proj ? [...(proj.editorUids || [])] : [];
   tempEditorEmails = proj ? [...(proj.editorEmails || [])] : [];
   tempEditorDisplayNames = proj ? [...(proj.editorDisplayNames || [])] : [];
@@ -2398,7 +2406,15 @@ projectForm.addEventListener('submit', async e => {
   const rewardActivities = editId ? (allProjects.find(p => p.docId === editId)?.rewardActivities || []) : [];
   projectSubmitBtn.disabled = true;
   try {
-    const payload = { name, members, startDate, endDate, rewardActivities, ownerDisplayName };
+    const payload = {
+      name,
+      members,
+      startDate,
+      endDate,
+      rewardActivities,
+      ownerDisplayName,
+      active: editId ? !!projectActiveToggle?.checked : true,
+    };
     if (currency && rateToTwd != null && rateToTwd > 0) {
       payload.currency = currency;
       payload.rateToTwd = rateToTwd;
@@ -2490,18 +2506,13 @@ function isProjectDetailContentUnchanged(prev, next) {
 }
 
 function updateProjectActiveUI(proj) {
-  if (!projectActiveBar || !proj) return;
+  if (!proj) return;
   const active = isProjectActive(proj);
   const isOwner = proj.uid === currentUser?.uid;
-  projectActiveBar.classList.toggle('is-closed', !active);
-  if (projectActiveTitle) {
-    projectActiveTitle.textContent = active ? '專案進行中' : '專案已結束';
-  }
   const hintText = isOwner
     ? (active ? '關閉後，新增記帳時不會出現此專案' : '重新開啟後，即可再次選入新增記帳')
     : (active ? '進行中的專案' : '已結束的專案不會出現在新增記帳選單');
   if (projectActiveHint) projectActiveHint.textContent = hintText;
-  if (projectActiveBar) projectActiveBar.title = hintText;
   if (projectActiveToggle) {
     projectActiveToggle.checked = active;
     projectActiveToggle.disabled = !isOwner;
@@ -2538,9 +2549,10 @@ function renderProjectDetail() {
   const dateStr = proj.startDate && proj.endDate
     ? `${proj.startDate} ～ ${proj.endDate}`
     : proj.startDate || '未設定日期';
-  projectDetailDates.textContent = `📅 ${dateStr}`;
+  projectDetailDates.textContent = dateStr;
   projectDetailMembers.textContent = proj.members?.length
-    ? `👥 ${proj.members.map(m => getMemberLabel(m, proj)).join('、')}` : '';
+    ? proj.members.map(m => getMemberLabel(m, proj)).join('、')
+    : '尚無成員';
 
   updateProjectActiveUI(proj);
 
@@ -2903,27 +2915,11 @@ projectSearchClearBtn?.addEventListener('click', () => {
   projectSearchInput?.focus();
 });
 
-projectActiveToggle?.addEventListener('change', async () => {
-  const proj = allProjects.find(p => p.docId === currentProjectId);
-  if (!proj || proj.uid !== currentUser?.uid) {
-    if (projectActiveToggle) projectActiveToggle.checked = isProjectActive(proj);
-    return;
-  }
-  const nextActive = !!projectActiveToggle.checked;
-  projectActiveToggle.disabled = true;
-  try {
-    await updateDoc(doc(db, 'projects', proj.docId), { active: nextActive });
-    // onSnapshot 會刷新列表／詳情；此處先樂觀更新 UI
-    proj.active = nextActive;
-    updateProjectActiveUI(proj);
-    updateRecordProjectSelect();
-  } catch (err) {
-    console.error(err);
-    alert('更新專案狀態失敗');
-    projectActiveToggle.checked = isProjectActive(proj);
-  } finally {
-    projectActiveToggle.disabled = false;
-  }
+projectActiveToggle?.addEventListener('change', () => {
+  if (!projectActiveHint) return;
+  projectActiveHint.textContent = projectActiveToggle.checked
+    ? '關閉後，新增記帳時不會出現此專案'
+    : '重新開啟後，即可再次選入新增記帳';
 });
 
 if (projectRewardManageBtn) {

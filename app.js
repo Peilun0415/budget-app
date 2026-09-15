@@ -6644,6 +6644,34 @@ function calcAccountBalance(account) {
   return (account.balance || 0) + inc - exp + transferIn - transferOut;
 }
 
+function calcAccountBalanceFromRecords(account, records) {
+  const recs = records.filter(r => r.accountId === account.docId);
+  const inc = recs.filter(r => r.type === 'income')
+    .reduce((sum, r) => sum + getAccountRecordAmount(account, r), 0);
+  const exp = recs.filter(r => r.type === 'expense')
+    .reduce((sum, r) => sum + getAccountRecordAmount(account, r), 0);
+  const transferIn = recs
+    .filter(r => r.type === 'transfer' && r.transferToId === account.docId)
+    .reduce((sum, r) => sum + r.amount, 0);
+  const transferOut = recs
+    .filter(r => r.type === 'transfer' && r.transferFromId === account.docId)
+    .reduce((sum, r) => sum + r.amount, 0);
+  return (account.balance || 0) + inc - exp + transferIn - transferOut;
+}
+
+function calcIncludedNetWorth(records = allRecords) {
+  return allAccounts
+    .filter(account => account.includeInTotal !== false)
+    .reduce((sum, account) => {
+      const balance = records === allRecords
+        ? calcAccountBalance(account)
+        : calcAccountBalanceFromRecords(account, records);
+      if (!account.currency) return sum + balance;
+      const rateToTwd = getLatestFxRate(account.currency);
+      return rateToTwd ? sum + balance * rateToTwd : sum;
+    }, 0);
+}
+
 // ===== 渲染帳戶列表 =====
 function renderAccountList() {
   while (accountList.firstChild) accountList.removeChild(accountList.firstChild);
@@ -6686,7 +6714,7 @@ function renderAccountList() {
     }
   });
   // 淨資產 = 資產 - 負債（台幣 + 依最新匯率換算之外幣）
-  const netWorth = totalAsset - totalLiability;
+  const netWorth = calcIncludedNetWorth();
 
   accountsNetWorth.textContent       = `$${formatMoney(netWorth)}`;
   accountsNetWorth.style.color       = netWorth < 0 ? '#ffb3b3' : 'white';
@@ -8700,31 +8728,22 @@ const reportTabWealth   = document.getElementById('reportTabWealth');
 
 /**
  * 計算每個月底的淨資產快照。
- * 淨資產 = Σ 帳戶初始餘額 + 截至該月底所有收入 - 所有支出
- * 轉帳不影響總資產，信用卡/貸款負餘額算負債。
+ * 與帳戶頁一致：只計入已啟用「計入總資產」的帳戶，
+ * 並將外幣帳戶餘額按目前匯率換算為台幣。
  */
 function calcWealthSnapshots() {
-  if (!allRecords.length && !allAccounts.length) return [];
+  const includedAccounts = allAccounts.filter(account => account.includeInTotal !== false);
+  if (includedAccounts.length === 0) return [];
 
-  const LIABILITY_TYPES = ['credit', 'loan'];
-
-  // 所有帳戶初始餘額加總（視帳戶類型決定正負）
-  const initialTotal = allAccounts.reduce((sum, a) => {
-    if (a.currency) return sum;
-    const init = a.balance || 0;
-    if (LIABILITY_TYPES.includes(a.typeId)) {
-      return sum + (init < 0 ? init : init); // 信用卡初始餘額直接加（通常為0）
-    }
-    return sum + init;
-  }, 0);
-
-  // 找出最早和最晚的記錄日期
-  const nonTransfer = allRecords.filter(r => r.type !== 'transfer' && r.date && !isForeignAccountRecord(r));
-  if (nonTransfer.length === 0) return [];
-
-  const sortedDates = nonTransfer.map(r => r.date).sort();
-  const firstDate = new Date(sortedDates[0]);
+  const includedAccountIds = new Set(includedAccounts.map(account => account.docId));
+  const includedAccountsById = new Map(includedAccounts.map(account => [account.docId, account]));
+  const datedRecords = allRecords.filter(record =>
+    record.date && includedAccountIds.has(record.accountId)
+  );
   const now = new Date();
+  const firstDate = datedRecords.length
+    ? new Date(datedRecords.map(record => record.date).sort()[0])
+    : new Date(now.getFullYear(), now.getMonth(), 1);
 
   // 產生月份序列（從第一筆記錄的月份到當前月份）
   const months = [];
@@ -8735,22 +8754,34 @@ function calcWealthSnapshots() {
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
 
-  // 計算每月底累積收支
+  // 逐月以各帳戶當月底餘額重算淨資產。
   const snapshots = months.map(({ year, month }) => {
     const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-31`;
-    const recs = nonTransfer.filter(r => r.date <= monthEnd);
-    const totalInc = recs.filter(r => r.type === 'income').reduce((s, r) => s + getReportAmount(r), 0);
-    const totalExp = recs.filter(r => r.type === 'expense').reduce((s, r) => s + getReportAmount(r), 0);
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+    const recordsToDate = isCurrentMonth
+      ? allRecords
+      : allRecords.filter(record => record.date && record.date <= monthEnd);
 
     // 當月收支
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-    const monthRecs = nonTransfer.filter(r => r.date?.startsWith(prefix));
-    const monthInc = monthRecs.filter(r => r.type === 'income').reduce((s, r) => s + getReportAmount(r), 0);
-    const monthExp = monthRecs.filter(r => r.type === 'expense').reduce((s, r) => s + getReportAmount(r), 0);
+    const monthRecs = allRecords.filter(record =>
+      record.date?.startsWith(prefix)
+      && record.type !== 'transfer'
+      && includedAccountIds.has(record.accountId)
+    );
+    const toTwd = record => {
+      const account = includedAccountsById.get(record.accountId);
+      const amount = getAccountRecordAmount(account, record);
+      if (!account?.currency) return amount;
+      const rateToTwd = getLatestFxRate(account.currency);
+      return rateToTwd ? amount * rateToTwd : 0;
+    };
+    const monthInc = monthRecs.filter(r => r.type === 'income').reduce((sum, r) => sum + toTwd(r), 0);
+    const monthExp = monthRecs.filter(r => r.type === 'expense').reduce((sum, r) => sum + toTwd(r), 0);
 
     return {
       year, month,
-      wealth: initialTotal + totalInc - totalExp,
+      wealth: calcIncludedNetWorth(recordsToDate),
       monthInc, monthExp,
       monthBalance: monthInc - monthExp,
     };

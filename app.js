@@ -5845,8 +5845,8 @@ function renderAccountSelect() {
 // ===== 設定頁：預設扣款帳戶 =====
 function getDefaultDebitAccountLabel() {
   const defaultAcc = allAccounts.find(a => a.isDefault);
-  if (defaultAcc) return `${defaultAcc.emoji} ${defaultAcc.name}`;
-  return '不指定（使用第一個帳戶）';
+  if (defaultAcc) return defaultAcc.name;
+  return '不指定';
 }
 
 function updateDefaultDebitAccountDesc() {

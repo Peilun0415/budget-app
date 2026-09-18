@@ -3499,22 +3499,32 @@ input[type=number]::-webkit-outer-spin-button {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+}
+
+.settings-group {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .settings-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
-  padding: 16px;
-  background: var(--white);
+  padding: 15px 16px;
+  background: transparent;
   border: none;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border-radius: 0;
+  box-shadow: none;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s;
+}
+.settings-group .settings-item + .settings-item {
+  border-top: 1px solid var(--border);
 }
 .settings-item:hover { background: var(--pink-light); }
 
@@ -3526,9 +3536,6 @@ input[type=number]::-webkit-outer-spin-button {
   box-shadow: var(--shadow);
 }
 .settings-theme-card .settings-item-title {
-  margin-bottom: 2px;
-}
-.settings-theme-card .settings-item-desc {
   margin-bottom: 12px;
 }
 .theme-swatch-grid {
@@ -3573,36 +3580,49 @@ input[type=number]::-webkit-outer-spin-button {
 }
 
 .settings-item-icon {
-  font-size: 26px;
   flex-shrink: 0;
+  width: 22px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-mid);
+  text-align: center;
 }
 
-.settings-item-info { flex: 1; }
+.settings-item-info { flex: 1; min-width: 0; }
 
 .settings-item-title {
+  flex: 1;
+  min-width: 0;
   font-size: var(--fs-base);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-dark);
 }
 
-.settings-item-desc {
-  font-size: var(--fs-md);
-  color: var(--text-mid);
-  margin-top: 2px;
+.settings-item-value {
+  flex-shrink: 1;
+  max-width: 42%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-light);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-item-arrow {
-  font-size: var(--fs-xl);
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
   color: var(--text-light);
 }
 
-.settings-item-danger {
-  border: 1.5px solid #ffd0d0;
-  background: #fff5f5;
+.settings-item-danger .settings-item-title,
+.settings-item-danger .settings-item-icon {
+  color: var(--red-main);
 }
-.settings-item-danger:hover { background: #ffe0e0; }
-.settings-item-danger .settings-item-title { color: var(--red-main); }
-.settings-item-danger .settings-item-desc  { color: #e57373; }
+.settings-item-danger:hover { background: #fff5f5; }
 
 .settings-account {
   display: flex;

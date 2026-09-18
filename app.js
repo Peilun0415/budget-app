@@ -722,12 +722,12 @@ const metaThemeColor = document.getElementById('metaThemeColor')
   || document.querySelector('meta[name="theme-color"]');
 
 const THEME_OPTIONS = [
-  { id: 'sage',  name: '鼠尾草綠', color: '#4E8F7C' },
-  { id: 'sky',   name: '天空藍',   color: '#4A90E2' },
-  { id: 'coral', name: '珊瑚橘',   color: '#E07050' },
-  { id: 'ocean', name: '海洋藍',   color: '#3D7EA6' },
-  { id: 'plum',  name: '紫藤',     color: '#7B6BA8' },
-  { id: 'amber', name: '琥珀金',   color: '#C98A2E' },
+  { id: 'sage',  name: '鼠尾草綠', color: '#4E8F7C', light: '#f3f6f4' },
+  { id: 'sky',   name: '天空藍',   color: '#4A90E2', light: '#eef5fc' },
+  { id: 'coral', name: '珊瑚橘',   color: '#E07050', light: '#fdf3f0' },
+  { id: 'ocean', name: '海洋藍',   color: '#3D7EA6', light: '#eef5f7' },
+  { id: 'plum',  name: '紫藤',     color: '#7B6BA8', light: '#f5f2f8' },
+  { id: 'amber', name: '琥珀金',   color: '#C98A2E', light: '#fbf6ee' },
 ];
 const THEME_STORAGE_KEY = 'nekomemo-theme';
 
@@ -776,6 +776,7 @@ async function loadThemeFromCloud(uid) {
 function applyTheme(themeId, { persist = true, syncCloud = true } = {}) {
   const theme = THEME_OPTIONS.find(t => t.id === themeId) || THEME_OPTIONS[0];
   document.documentElement.setAttribute('data-theme', theme.id);
+  document.documentElement.style.setProperty('--splash-bg', theme.light);
   if (metaThemeColor) metaThemeColor.setAttribute('content', theme.color);
   if (persist) cacheThemeId(theme.id);
   themeSwatchGrid?.querySelectorAll('.theme-swatch-btn').forEach(btn => {

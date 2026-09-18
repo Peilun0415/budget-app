@@ -14,13 +14,17 @@
         var id = localStorage.getItem('nekomemo-theme') || 'sage';
         document.documentElement.setAttribute('data-theme', id);
         var map = {
-          sage: '#4E8F7C', sky: '#4A90E2', coral: '#E07050',
-          ocean: '#3D7EA6', plum: '#7B6BA8', amber: '#C98A2E'
+          sage:  { main: '#4E8F7C', light: '#f3f6f4' },
+          sky:   { main: '#4A90E2', light: '#eef5fc' },
+          coral: { main: '#E07050', light: '#fdf3f0' },
+          ocean: { main: '#3D7EA6', light: '#eef5f7' },
+          plum:  { main: '#7B6BA8', light: '#f5f2f8' },
+          amber: { main: '#C98A2E', light: '#fbf6ee' }
         };
-        if (map[id]) {
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', map[id]);
-        }
+        var theme = map[id] || map.sage;
+        document.documentElement.style.setProperty('--splash-bg', theme.light);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme.main);
       } catch (e) {}
     })();
   </script>
@@ -29,7 +33,7 @@
     #splashScreen {
       position: fixed;
       inset: 0;
-      background: #f0f6ff;
+      background: var(--splash-bg, #f3f6f4);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -38,7 +42,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=8.2" />
+  <link rel="stylesheet" href="style.css?v=8.3" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -1525,6 +1529,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=8.2"></script>
+  <script type="module" src="app.js?v=8.3"></script>
 </body>
 </html>

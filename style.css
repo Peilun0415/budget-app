@@ -99,7 +99,7 @@ body {
 .splash-screen {
   position: fixed;
   inset: 0;
-  background: var(--bg);
+  background: var(--pink-light);
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -1663,6 +1663,147 @@ if (exportDataBtn) {
     URL.revokeObjectURL(url);
   };
 
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  const crc32 = (data) => {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < data.length; i++) c = CRC_TABLE[(c ^ data[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  };
+
+  const concatBytes = (parts) => {
+    const len = parts.reduce((n, part) => n + part.length, 0);
+    const out = new Uint8Array(len);
+    let offset = 0;
+    parts.forEach((part) => {
+      out.set(part, offset);
+      offset += part.length;
+    });
+    return out;
+  };
+
+  const u16le = (n) => Uint8Array.of(n & 0xff, (n >> 8) & 0xff);
+  const u32le = (n) => Uint8Array.of(n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff);
+  const utf8Bytes = (text) => new TextEncoder().encode(text);
+
+  const zipStore = (files) => {
+    const locals = [];
+    const centrals = [];
+    let offset = 0;
+    files.forEach((file) => {
+      const name = utf8Bytes(file.name);
+      const data = file.data;
+      const crc = crc32(data);
+      const local = concatBytes([
+        u32le(0x04034b50), u16le(20), u16le(0), u16le(0), u16le(0), u16le(0),
+        u32le(crc), u32le(data.length), u32le(data.length),
+        u16le(name.length), u16le(0), name, data,
+      ]);
+      const central = concatBytes([
+        u32le(0x02014b50), u16le(20), u16le(20), u16le(0), u16le(0), u16le(0), u16le(0),
+        u32le(crc), u32le(data.length), u32le(data.length),
+        u16le(name.length), u16le(0), u16le(0), u16le(0), u16le(0), u32le(0),
+        u32le(offset), name,
+      ]);
+      locals.push(local);
+      centrals.push(central);
+      offset += local.length;
+    });
+    const centralDir = concatBytes(centrals);
+    const eocd = concatBytes([
+      u32le(0x06054b50), u16le(0), u16le(0),
+      u16le(files.length), u16le(files.length),
+      u32le(centralDir.length), u32le(offset), u16le(0),
+    ]);
+    return concatBytes([...locals, centralDir, eocd]);
+  };
+
+  const xmlText = (value) => String(value)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const excelCol = (index) => {
+    let n = index + 1;
+    let name = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      name = String.fromCharCode(65 + rem) + name;
+      n = Math.floor((n - 1) / 26);
+    }
+    return name;
+  };
+
+  const cellXml = (ref, value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return `<c r="${ref}"><v>${value}</v></c>`;
+    }
+    const text = value == null ? '' : String(value);
+    const preserve = /^\s|\s$|\n/.test(text) ? ' xml:space="preserve"' : '';
+    return `<c r="${ref}" t="inlineStr"><is><t${preserve}>${xmlText(text)}</t></is></c>`;
+  };
+
+  const buildExportXlsx = (rows, headers) => {
+    const sheetRows = [
+      `<row r="1">${headers.map((header, col) => cellXml(`${excelCol(col)}1`, header)).join('')}</row>`,
+      ...rows.map((row, rowIndex) => {
+        const r = rowIndex + 2;
+        const cells = headers.map((header, col) => {
+          const value = row[header];
+          const cellValue = value != null && typeof value === 'object' ? JSON.stringify(value) : value;
+          return cellXml(`${excelCol(col)}${r}`, cellValue);
+        }).join('');
+        return `<row r="${r}">${cells}</row>`;
+      }),
+    ];
+    const files = [
+      ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`],
+      ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`],
+      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="記帳" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`],
+      ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`],
+      ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`],
+      ['xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetData>${sheetRows.join('')}</sheetData>
+</worksheet>`],
+    ];
+    return zipStore(files.map(([name, text]) => ({ name, data: utf8Bytes(text) })));
+  };
+
   const normalizeForExport = (r) => {
     const proj = r.projectId ? allProjects.find(p => p.docId === r.projectId) : null;
     return {
@@ -1732,18 +1873,12 @@ if (exportDataBtn) {
     ];
     const idHeaders = ['id','accountId','categoryId','subCategoryId','projectId','settlementProjectId','createdAtSeconds'];
     const headers = includeIds ? [...idHeaders, ...baseHeaders] : baseHeaders;
-    const escapeCell = (v) => {
-      if (v == null) return '';
-      const s = typeof v === 'string' ? v : JSON.stringify(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-    const lines = [
-      headers.join(','),
-      ...rows.map(row => headers.map(h => escapeCell(row[h])).join(',')),
-    ];
-    const csv = lines.join('\r\n');
-    downloadFile(exportFilename('csv'), 'text/csv;charset=utf-8', csv);
+    const xlsx = buildExportXlsx(rows, headers);
+    downloadFile(
+      exportFilename('xlsx'),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      xlsx
+    );
   });
 }
 

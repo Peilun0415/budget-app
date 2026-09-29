@@ -5278,10 +5278,7 @@ recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(btn => {
 
 function renderRecAccountSelect() {
   recAccountSel.innerHTML = '';
-  const sorted = [...allAccounts].sort((a, b) => {
-    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
-    return tDiff !== 0 ? tDiff : (a.order ?? 0) - (b.order ?? 0);
-  });
+  const sorted = sortAccountsLikeList(allAccounts);
   sorted.forEach(acc => {
     const opt = document.createElement('option');
     opt.value = acc.docId;
@@ -5291,10 +5288,7 @@ function renderRecAccountSelect() {
 }
 
 function renderRecTransferSelects() {
-  const sorted = [...allAccounts].sort((a, b) => {
-    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
-    return tDiff !== 0 ? tDiff : (a.order ?? 0) - (b.order ?? 0);
-  });
+  const sorted = sortAccountsLikeList(allAccounts);
   const prevFrom = recTransferFrom.value;
   const prevTo   = recTransferTo.value;
   [recTransferFrom, recTransferTo].forEach(sel => {
@@ -5649,11 +5643,7 @@ function populateHomeFilterLists() {
     }
   }
   if (homeFilterAccountList) {
-    const accs = [...allAccounts].sort((a, b) => {
-      const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
-      if (tDiff !== 0) return tDiff;
-      return (a.order ?? 0) - (b.order ?? 0);
-    });
+    const accs = sortAccountsLikeList(allAccounts);
     if (!accs.length) {
       homeFilterAccountList.innerHTML = '<div class="home-filter-check-empty">尚無帳戶</div>';
     } else {
@@ -6062,6 +6052,36 @@ function renderCategoryGrid() {
   }
 }
 
+function accountTypeKey(account) {
+  return account.typeName || '其他';
+}
+
+/** 與帳戶管理列表相同：先依類型分組（組序取該組第一筆的 typeOrder），組內再依 order */
+function sortAccountsLikeList(accounts) {
+  const ordered = [...accounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const groupMap = new Map();
+  ordered.forEach(a => {
+    const key = accountTypeKey(a);
+    if (!groupMap.has(key)) groupMap.set(key, { typeOrder: a.typeOrder ?? 999, accounts: [] });
+    groupMap.get(key).accounts.push(a);
+  });
+  return [...groupMap.values()]
+    .sort((a, b) => a.typeOrder - b.typeOrder)
+    .flatMap(g => g.accounts);
+}
+
+function typeOrderForNewAccount(typeName) {
+  const same = allAccounts.filter(a => accountTypeKey(a) === typeName && a.typeOrder != null);
+  if (same.length) return Math.min(...same.map(a => a.typeOrder));
+  const known = allAccounts.map(a => a.typeOrder).filter(n => n != null);
+  return known.length ? Math.max(...known) + 1 : 0;
+}
+
+function nextOrderInType(typeName) {
+  const same = allAccounts.filter(a => accountTypeKey(a) === typeName);
+  return same.reduce((m, a) => Math.max(m, a.order ?? -1), -1) + 1;
+}
+
 // ===== 帳戶下拉選單（記帳表單用）=====
 function renderAccountSelect() {
   const prev     = accountSelect.value;
@@ -6079,11 +6099,7 @@ function renderAccountSelect() {
   optNone.textContent = '無';
   accountSelect.appendChild(optNone);
 
-  const sortedAccounts = [...allAccounts].sort((a, b) => {
-    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
-    if (tDiff !== 0) return tDiff;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
+  const sortedAccounts = sortAccountsLikeList(allAccounts);
 
   sortedAccounts.forEach(a => {
     const makeOpt = () => {
@@ -6100,17 +6116,17 @@ function renderAccountSelect() {
   // 還原選擇；選過「無」時保留，否則預設扣款帳戶或第一個
   if (prev === '') accountSelect.value = '';
   else if (prev) accountSelect.value = prev;
-  else if (allAccounts.length > 0) {
+  else if (sortedAccounts.length > 0) {
     const defaultAcc = allAccounts.find(a => a.isDefault);
-    accountSelect.value = defaultAcc ? defaultAcc.docId : allAccounts[0].docId;
+    accountSelect.value = defaultAcc ? defaultAcc.docId : sortedAccounts[0].docId;
   }
 
   if (prevFrom) transferFrom.value = prevFrom;
-  else if (allAccounts.length > 0) transferFrom.value = allAccounts[0].docId;
+  else if (sortedAccounts.length > 0) transferFrom.value = sortedAccounts[0].docId;
 
   if (prevTo)   transferTo.value = prevTo;
-  else if (allAccounts.length > 1) transferTo.value = allAccounts[1].docId;
-  else if (allAccounts.length > 0) transferTo.value = allAccounts[0].docId;
+  else if (sortedAccounts.length > 1) transferTo.value = sortedAccounts[1].docId;
+  else if (sortedAccounts.length > 0) transferTo.value = sortedAccounts[0].docId;
 
   syncForeignAccountUI();
 }
@@ -6139,11 +6155,7 @@ function renderDefaultDebitAccountSelect() {
   optNone.textContent = '不指定（使用第一個帳戶）';
   defaultDebitAccountSelect.appendChild(optNone);
 
-  const sortedAccounts = [...allAccounts].sort((a, b) => {
-    const tDiff = (a.typeOrder ?? 999) - (b.typeOrder ?? 999);
-    if (tDiff !== 0) return tDiff;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
+  const sortedAccounts = sortAccountsLikeList(allAccounts);
   sortedAccounts.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.docId;
@@ -6544,21 +6556,27 @@ accountForm.addEventListener('submit', async (e) => {
 
   try {
     if (editId) {
-      await updateDoc(doc(db, 'accounts', editId), {
+      const patch = {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
         name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
-      });
+      };
+      const existing = allAccounts.find(a => a.docId === editId);
+      if (existing && accountTypeKey(existing) !== typeObj.name) {
+        patch.typeOrder = typeOrderForNewAccount(typeObj.name);
+        patch.order = nextOrderInType(typeObj.name);
+      }
+      await updateDoc(doc(db, 'accounts', editId), patch);
     } else {
-      const maxOrder = allAccounts.reduce((m, a) => Math.max(m, a.order ?? 0), 0);
       await addDoc(collection(db, 'accounts'), {
         uid:      currentUser.uid,
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
         name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
-        order:    maxOrder + 1,
+        order:    nextOrderInType(typeObj.name),
+        typeOrder: typeOrderForNewAccount(typeObj.name),
         createdAt: serverTimestamp(),
       });
     }
@@ -6991,18 +7009,16 @@ function renderAccountList() {
   accountsTotalAsset.textContent     = `$${formatMoney(totalAsset)}`;
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
 
-  // 依 typeOrder → typeName 分組，組內依 order 排序
-  const groupMap = {};
-  allAccounts.forEach(a => {
-    const key = a.typeName || '其他';
-    if (!groupMap[key]) groupMap[key] = { typeOrder: a.typeOrder ?? 999, accounts: [] };
-    groupMap[key].accounts.push(a);
+  // 與記帳下拉選單相同：依類型分組（組序取該組第一筆的 typeOrder），組內依 order
+  const sortedGroups = [];
+  sortAccountsLikeList(allAccounts).forEach(a => {
+    const typeName = accountTypeKey(a);
+    const last = sortedGroups[sortedGroups.length - 1];
+    if (!last || last.typeName !== typeName) sortedGroups.push({ typeName, accounts: [a] });
+    else last.accounts.push(a);
   });
-  // 類別依 typeOrder 排序
-  const sortedGroups = Object.entries(groupMap)
-    .sort((a, b) => a[1].typeOrder - b[1].typeOrder);
 
-  sortedGroups.forEach(([typeName, { accounts }]) => {
+  sortedGroups.forEach(({ typeName, accounts }) => {
     // 類別標頭（可拖曳整個類別）
     const header = document.createElement('div');
     header.className = 'account-group-header';
@@ -7018,8 +7034,7 @@ function renderAccountList() {
     groupWrap.className = 'account-group-wrap';
     groupWrap.dataset.typeName = typeName;
 
-    // 組內依 order 排序
-    accounts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach(a => {
+    accounts.forEach(a => {
       const curBal   = calcAccountBalance(a);
       const balColor = curBal < 0 ? 'var(--red-main)' : 'var(--purple-main)';
       const balPrefix = a.currency ? a.currency + ' ' : '$';

@@ -847,6 +847,10 @@ const closeExportModalBtn  = document.getElementById('closeExportModalBtn');
 const exportCsvBtn         = document.getElementById('exportCsvBtn');
 const exportJsonBtn        = document.getElementById('exportJsonBtn');
 const exportIncludeIds     = document.getElementById('exportIncludeIds');
+const exportDateFromEl     = document.getElementById('exportDateFrom');
+const exportDateToEl       = document.getElementById('exportDateTo');
+const clearExportRangeBtn  = document.getElementById('clearExportRangeBtn');
+const exportRangeHint      = document.getElementById('exportRangeHint');
 const clearDataOverlay     = document.getElementById('clearDataOverlay');
 const closeClearDataBtn    = document.getElementById('closeClearDataBtn');
 const clearDataConfirmInput = document.getElementById('clearDataConfirmInput');
@@ -1523,10 +1527,90 @@ goCategoriesBtn.addEventListener('click', () => {
 });
 
 if (exportDataBtn) {
-  const openExportModal = () => exportModalOverlay?.classList.add('active');
+  let exportDateFromPicker = null;
+  let exportDateToPicker = null;
+
+  const getExportDateRange = () => ({
+    from: exportDateFromEl?.value || '',
+    to: exportDateToEl?.value || '',
+  });
+
+  const filterRecordsForExport = () => {
+    const { from, to } = getExportDateRange();
+    return allRecords.filter(r => {
+      if (!from && !to) return true;
+      if (!r.date) return false;
+      if (from && r.date < from) return false;
+      if (to && r.date > to) return false;
+      return true;
+    });
+  };
+
+  const updateExportRangeHint = () => {
+    if (!exportRangeHint) return;
+    const { from, to } = getExportDateRange();
+    const count = filterRecordsForExport().length;
+    let rangeText = '未選日期，將匯出全部紀錄';
+    if (from && to) rangeText = `${from} ～ ${to}`;
+    else if (from) rangeText = `${from} 起`;
+    else if (to) rangeText = `至 ${to}`;
+    exportRangeHint.textContent = `${rangeText}，共 ${count} 筆。`;
+  };
+
+  const syncExportDateBounds = () => {
+    const { from, to } = getExportDateRange();
+    if (from && to && from > to) {
+      exportDateToPicker?.clear();
+      exportDateFromPicker?.set('maxDate', null);
+    }
+    const next = getExportDateRange();
+    exportDateToPicker?.set('minDate', next.from || null);
+    exportDateFromPicker?.set('maxDate', next.to || null);
+    updateExportRangeHint();
+  };
+
+  const initExportDatePickers = () => {
+    if (typeof flatpickr !== 'function') return;
+    const locale = flatpickr.l10ns?.zh_tw ? 'zh_tw' : 'default';
+    const common = {
+      locale,
+      dateFormat: 'Y-m-d',
+      allowInput: false,
+      disableMobile: true,
+    };
+    if (!exportDateFromPicker && exportDateFromEl) {
+      exportDateFromPicker = flatpickr(exportDateFromEl, {
+        ...common,
+        onChange: syncExportDateBounds,
+      });
+    }
+    if (!exportDateToPicker && exportDateToEl) {
+      exportDateToPicker = flatpickr(exportDateToEl, {
+        ...common,
+        onChange: syncExportDateBounds,
+      });
+    }
+  };
+
+  const clearExportDateRange = () => {
+    exportDateFromPicker?.clear();
+    exportDateToPicker?.clear();
+    exportDateFromPicker?.set('maxDate', null);
+    exportDateToPicker?.set('minDate', null);
+    exportDateFromPicker?.close();
+    exportDateToPicker?.close();
+    updateExportRangeHint();
+  };
+
+  const openExportModal = () => {
+    initExportDatePickers();
+    updateExportRangeHint();
+    exportModalOverlay?.classList.add('active');
+  };
   const closeExportModal = () => exportModalOverlay?.classList.remove('active');
   exportDataBtn.addEventListener('click', openExportModal);
   closeExportModalBtn?.addEventListener('click', closeExportModal);
+  clearExportRangeBtn?.addEventListener('click', clearExportDateRange);
   exportModalOverlay?.addEventListener('click', (e) => { if (e.target === exportModalOverlay) closeExportModal(); });
 
   const downloadFile = (filename, mime, content) => {
@@ -1568,23 +1652,40 @@ if (exportDataBtn) {
     };
   };
 
-  exportJsonBtn?.addEventListener('click', () => {
+  const buildExportRows = () => {
     const includeIds = !!exportIncludeIds?.checked;
-    const fullRows = allRecords.map(normalizeForExport);
-    const rows = includeIds
+    const fullRows = filterRecordsForExport().map(normalizeForExport);
+    return includeIds
       ? fullRows
       : fullRows.map(({ id, accountId, categoryId, subCategoryId, projectId, settlementProjectId, createdAtSeconds, ...rest }) => rest);
-    const json = JSON.stringify(rows, null, 2);
+  };
+
+  const exportFilename = (ext) => {
+    const { from, to } = getExportDateRange();
+    if (from || to) return `records-${from || 'start'}_${to || 'end'}.${ext}`;
     const ts = new Date().toISOString().slice(0, 10);
-    downloadFile(`records-${ts}.json`, 'application/json;charset=utf-8', json);
+    return `records-${ts}.${ext}`;
+  };
+
+  const ensureExportRows = () => {
+    const rows = buildExportRows();
+    if (rows.length) return rows;
+    const { from, to } = getExportDateRange();
+    alert(from || to ? '此時間範圍沒有可匯出的記帳紀錄' : '目前沒有可匯出的記帳紀錄');
+    return null;
+  };
+
+  exportJsonBtn?.addEventListener('click', () => {
+    const rows = ensureExportRows();
+    if (!rows) return;
+    const json = JSON.stringify(rows, null, 2);
+    downloadFile(exportFilename('json'), 'application/json;charset=utf-8', json);
   });
 
   exportCsvBtn?.addEventListener('click', () => {
+    const rows = ensureExportRows();
+    if (!rows) return;
     const includeIds = !!exportIncludeIds?.checked;
-    const fullRows = allRecords.map(normalizeForExport);
-    const rows = includeIds
-      ? fullRows
-      : fullRows.map(({ id, accountId, categoryId, subCategoryId, projectId, settlementProjectId, createdAtSeconds, ...rest }) => rest);
     const baseHeaders = [
       'date','type','amount','accountName',
       'categoryName','subCategoryName',
@@ -1604,8 +1705,7 @@ if (exportDataBtn) {
       ...rows.map(row => headers.map(h => escapeCell(row[h])).join(',')),
     ];
     const csv = lines.join('\r\n');
-    const ts = new Date().toISOString().slice(0, 10);
-    downloadFile(`records-${ts}.csv`, 'text/csv;charset=utf-8', csv);
+    downloadFile(exportFilename('csv'), 'text/csv;charset=utf-8', csv);
   });
 }
 

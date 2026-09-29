@@ -5653,6 +5653,32 @@ input.form-input {
 
 /* 分帳 UI */
 
+.export-range-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.export-range-label-row .form-label {
+  margin-bottom: 0;
+}
+
+.export-range-clear {
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.export-range-clear:hover {
+  color: var(--pink-dark);
+}
+
 .export-btn-group {
   display: flex;
   flex-direction: column;

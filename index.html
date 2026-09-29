@@ -42,7 +42,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=8.6" />
+  <link rel="stylesheet" href="style.css?v=8.7" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -1175,8 +1175,20 @@
         <button type="button" class="close-btn" id="closeExportModalBtn">✕</button>
       </div>
       <div class="modal-body">
-        <p class="billing-day-hint">會匯出目前帳號底下的所有記帳紀錄，不含已刪除資料。</p>
-        <div class="form-group" style="margin-top:8px">
+        <p class="billing-day-hint">匯出目前帳號的記帳紀錄，不含已刪除資料。未選時間範圍時匯出全部。</p>
+        <div class="form-group" style="margin-top:14px">
+          <div class="export-range-label-row">
+            <label class="form-label" for="exportDateFrom">時間範圍</label>
+            <button type="button" class="export-range-clear" id="clearExportRangeBtn">清除</button>
+          </div>
+          <div class="home-filter-date-row">
+            <input type="text" id="exportDateFrom" class="form-input" placeholder="開始日期" readonly />
+            <span class="home-filter-date-sep">～</span>
+            <input type="text" id="exportDateTo" class="form-input" placeholder="結束日期" readonly />
+          </div>
+          <p class="billing-day-hint" id="exportRangeHint">未選日期，將匯出全部紀錄。</p>
+        </div>
+        <div class="form-group">
           <label class="form-checkbox">
             <input type="checkbox" id="exportIncludeIds" checked />
             <span>包含技術欄位（id、projectId、createdAtSeconds 等）</span>
@@ -1522,6 +1534,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=8.6"></script>
+  <script type="module" src="app.js?v=8.7"></script>
 </body>
 </html>

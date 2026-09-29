@@ -1569,6 +1569,36 @@ if (exportDataBtn) {
     updateExportRangeHint();
   };
 
+  const positionExportCalendar = (instance) => {
+    const el = instance?.calendarContainer;
+    const input = instance?.input;
+    if (!el || !input) return;
+    const rect = input.getBoundingClientRect();
+    const margin = 4;
+    const calWidth = el.offsetWidth || 0;
+    let left = rect.left;
+    if (calWidth) {
+      const maxLeft = window.innerWidth - calWidth - 8;
+      if (left > maxLeft) left = Math.max(8, maxLeft);
+    }
+    el.style.position = 'fixed';
+    el.style.left = `${left}px`;
+    el.style.top = `${rect.bottom + margin}px`;
+    el.style.right = 'auto';
+  };
+
+  let exportCalendarTrack = 0;
+  const stopExportCalendarTrack = () => cancelAnimationFrame(exportCalendarTrack);
+  const trackExportCalendar = (instance) => {
+    stopExportCalendarTrack();
+    const tick = () => {
+      if (!instance?.isOpen) return;
+      positionExportCalendar(instance);
+      exportCalendarTrack = requestAnimationFrame(tick);
+    };
+    tick();
+  };
+
   const initExportDatePickers = () => {
     if (typeof flatpickr !== 'function') return;
     const locale = flatpickr.l10ns?.zh_tw ? 'zh_tw' : 'default';
@@ -1577,6 +1607,14 @@ if (exportDataBtn) {
       dateFormat: 'Y-m-d',
       allowInput: false,
       disableMobile: true,
+      appendTo: document.body,
+      position: 'below',
+      onOpen(_selectedDates, _dateStr, instance) {
+        const other = instance.input === exportDateFromEl ? exportDateToPicker : exportDateFromPicker;
+        if (other?.isOpen) other.close();
+        trackExportCalendar(instance);
+      },
+      onClose: stopExportCalendarTrack,
     };
     if (!exportDateFromPicker && exportDateFromEl) {
       exportDateFromPicker = flatpickr(exportDateFromEl, {

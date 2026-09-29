@@ -1427,6 +1427,10 @@ function switchPage(page) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   resetFloatingBtns();
 
+  // #region agent log
+  fetch('http://127.0.0.1:7773/ingest/3c392b2f-83e9-420f-8107-38ba72a08db1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1bae2'},body:JSON.stringify({sessionId:'d1bae2',runId:'pre-fix',hypothesisId:'A',location:'app.js:switchPage:entry',message:'switchPage entry',data:{from:currentPage,to:page,searchKeyword,inputValue:searchInput?.value??null,listTitle:document.getElementById('listTitle')?.textContent??null,listCount:document.getElementById('recordList')?.children?.length??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   // 離開記帳頁時清除搜尋
   if (page !== 'home' && searchKeyword) {
     searchInput.value = '';
@@ -1434,6 +1438,11 @@ function switchPage(page) {
     searchClearBtn.style.display = 'none';
     applySearchMode(false);
     updateHomeSearchFilterIcons();
+    renderList();
+    renderHomeBudget();
+    // #region agent log
+    fetch('http://127.0.0.1:7773/ingest/3c392b2f-83e9-420f-8107-38ba72a08db1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1bae2'},body:JSON.stringify({sessionId:'d1bae2',runId:'pre-fix',hypothesisId:'A',location:'app.js:switchPage:cleared',message:'cleared search without renderList',data:{to:page,searchKeyword,inputValue:searchInput?.value??null,listTitle:document.getElementById('listTitle')?.textContent??null,monthNavDisplay:homeMonthNav?.style?.display??null,summaryDisplay:homeSummary?.style?.display??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   }
   currentPage = page;
   if (page === 'accounts') detailAccountId = null;
@@ -1467,6 +1476,9 @@ function switchPage(page) {
     pageTitle.textContent = proj ? proj.name : '專案詳情';
   }
   if (page === 'home')          renderHomeBudget();
+  // #region agent log
+  if (page === 'home') fetch('http://127.0.0.1:7773/ingest/3c392b2f-83e9-420f-8107-38ba72a08db1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1bae2'},body:JSON.stringify({sessionId:'d1bae2',runId:'pre-fix',hypothesisId:'B',location:'app.js:switchPage:returnHome',message:'returned home without renderList',data:{searchKeyword,inputValue:searchInput?.value??null,listTitle:document.getElementById('listTitle')?.textContent??null,listCount:document.getElementById('recordList')?.children?.length??null,monthNavDisplay:homeMonthNav?.style?.display??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (page === 'accounts' || page === 'accountDetail') scheduleAccountsRefresh();
   if (page === 'settings')      renderDefaultDebitAccountSelect();
   if (page === 'categories')    renderCategoryMgmtList();
@@ -7092,6 +7104,9 @@ function renderAccountList() {
 
 // ===== 渲染記帳 =====
 function renderAll() {
+  // #region agent log
+  fetch('http://127.0.0.1:7773/ingest/3c392b2f-83e9-420f-8107-38ba72a08db1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1bae2'},body:JSON.stringify({sessionId:'d1bae2',runId:'pre-fix',hypothesisId:'C',location:'app.js:renderAll',message:'renderAll',data:{currentPage,searchKeyword,inputValue:searchInput?.value??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   renderMonthLabel();
   renderSummary();
   renderHomeBudget();
@@ -7344,6 +7359,9 @@ function matchesHomeFilter(r) {
 
 function renderList() {
   const kw = searchKeyword.trim();
+  // #region agent log
+  fetch('http://127.0.0.1:7773/ingest/3c392b2f-83e9-420f-8107-38ba72a08db1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1bae2'},body:JSON.stringify({sessionId:'d1bae2',runId:'pre-fix',hypothesisId:'D',location:'app.js:renderList',message:'renderList',data:{currentPage,kw,listTitleBefore:listTitle?.textContent??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   const hasDateRange = !!(homeFilter.dateFrom || homeFilter.dateTo);
 
   // 有自訂時間範圍：全資料再依區間；有關鍵字且無日期：跨月；否則當月

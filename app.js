@@ -160,6 +160,8 @@ let allAccounts    = [];
 let allCategories  = [];
 let allTemplates   = [];
 let allRecurring   = [];
+let recurringProcessPromise = null;
+let recurringProcessAgain = false;
 let allBudgets     = []; // { docId, type:'month'|'category', amount, categoryId?, categoryName?, categoryEmoji? }
 let unsubBudgets   = null;
 let editingCatBudgetId = null; // 目前編輯的類別預算 docId
@@ -2176,6 +2178,8 @@ async function commitTransferPair({
   transferIdHint = null,
   displayNameBase = null,
   recurringId = null,
+  outDocId = null,
+  inDocId = null,
 }) {
   const transferId = transferIdHint
     || (editId ? (findRecordById(editId)?.transferId || null) : null)
@@ -2226,7 +2230,7 @@ async function commitTransferPair({
   if (outRec?.docId) {
     batch.update(doc(db, 'records', outRec.docId), outPayload);
   } else {
-    const outRef = doc(collection(db, 'records'));
+    const outRef = outDocId ? doc(db, 'records', outDocId) : doc(collection(db, 'records'));
     batch.set(outRef, { ...outPayload, createdAt: serverTimestamp() });
   }
 
@@ -2234,7 +2238,7 @@ async function commitTransferPair({
     batch.update(doc(db, 'records', inRec.docId), inPayload);
   } else {
     // 缺轉入側（歷史半斷資料）→ 補建，否則目標帳戶餘額不會對
-    const inRef = doc(collection(db, 'records'));
+    const inRef = inDocId ? doc(db, 'records', inDocId) : doc(collection(db, 'records'));
     batch.set(inRef, { ...inPayload, createdAt: serverTimestamp() });
   }
 
@@ -4887,8 +4891,8 @@ function subscribeRecurring() {
       .map(d => ({ docId: d.id, ...d.data() }))
       .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
     if (currentPage === 'recurring') renderRecurringList();
-    // 登入後自動觸發到期項目
-    processRecurringItems();
+    // 登入後自動觸發到期項目。更新 nextDate 會再打一次 snapshot，必須併成同一輪。
+    scheduleProcessRecurring();
     
     if (!initialLoadStatus.recurring) {
       initialLoadStatus.recurring = true;
@@ -5008,9 +5012,29 @@ function todayStr() {
 }
 
 // ===== 固定收支：自動觸發 =====
+// 同一天有多筆到期時，寫入 nextDate 會立刻再開一次 snapshot。
+// 若不等前一輪結束就再跑，後面的項目會被建兩次。
+function scheduleProcessRecurring() {
+  if (recurringProcessPromise) {
+    recurringProcessAgain = true;
+    return;
+  }
+  const run = async () => {
+    do {
+      recurringProcessAgain = false;
+      await processRecurringItems();
+    } while (recurringProcessAgain);
+  };
+  recurringProcessPromise = run().finally(() => {
+    recurringProcessPromise = null;
+    if (recurringProcessAgain) scheduleProcessRecurring();
+  });
+}
+
 async function processRecurringItems() {
   const today = todayStr();
-  for (const item of allRecurring) {
+  const items = allRecurring.slice();
+  for (const item of items) {
     if (!item.enabled) continue;
     let nextDate = item.nextDate || item.startDate;
     if (!nextDate || nextDate > today) continue;
@@ -5023,7 +5047,7 @@ async function processRecurringItems() {
     // 連續補齊所有到期的執行次數
     while (nextDate <= today) {
       if (item.type === 'transfer') {
-        // 轉帳：原子寫入兩筆（轉出 + 轉入）
+        // 轉帳：固定文件 ID，重入時覆寫同一組，不會再多一筆
         const transferId = `rec_${item.docId}_${nextDate}`;
         await commitTransferPair({
           fromId: item.transferFromId || null,
@@ -5036,9 +5060,11 @@ async function processRecurringItems() {
           note: item.note || '',
           transferIdHint: transferId,
           recurringId: item.docId,
+          outDocId: `${transferId}_out`,
+          inDocId: `${transferId}_in`,
         });
       } else {
-        await addDoc(collection(db, 'records'), {
+        await setDoc(doc(db, 'records', `rec_${item.docId}_${nextDate}`), {
           uid:          currentUser.uid,
           type:         item.type,
           amount:       item.amount,

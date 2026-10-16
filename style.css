@@ -2290,29 +2290,29 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 .account-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .account-item {
   background: var(--white);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--radius-sm, 12px);
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  box-shadow: 0 2px 10px rgba(200, 150, 180, 0.12);
+  gap: 10px;
+  box-shadow: 0 1px 6px rgba(200, 150, 180, 0.1);
   animation: slideIn 0.25s ease;
   cursor: pointer;
 }
 
 .account-type-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   flex-shrink: 0;
   background: var(--pink-light);
 }
@@ -2468,14 +2468,14 @@ label.account-include-toggle .toggle-switch {
 }
 
 .account-balance {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--pink-main);
   line-height: 1.2;
 }
 
 .account-balance-twd {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-mid);
   line-height: 1.2;
@@ -3081,10 +3081,10 @@ label.account-include-toggle .toggle-switch {
 
 /* ===== 帳戶拖曳排序 ===== */
 .account-item .drag-handle {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   color: var(--text-light);
   cursor: grab;
-  padding: 0 6px 0 0;
+  padding: 0 2px 0 0;
   flex-shrink: 0;
   touch-action: none;
   user-select: none;
@@ -3108,9 +3108,9 @@ label.account-include-toggle .toggle-switch {
 .account-group-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 4px 6px;
-  font-size: var(--fs-md);
+  gap: 6px;
+  padding: 6px 4px 2px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--text-mid);
   letter-spacing: 0.5px;
@@ -3142,8 +3142,8 @@ label.account-include-toggle .toggle-switch {
 .account-group-wrap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 
 .account-group-header.dragging,

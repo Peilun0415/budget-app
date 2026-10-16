@@ -3814,7 +3814,7 @@ function renderCatBudgetList() {
       </div>
       <div class="cat-budget-amount">
         <span style="color:${over ? 'var(--red-main)' : warn ? '#e8830a' : 'var(--text-dark)'}">$${formatMoney(spent)}</span>
-        <div style="font-size:11px;color:var(--text-light);margin-top:2px">/ $${formatMoney(limit)}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-light);margin-top:2px">/ $${formatMoney(limit)}</div>
       </div>
     `;
     item.addEventListener('click', () => openCatBudgetModal(b));

@@ -35,7 +35,7 @@ button, a, [role="button"], input, select, textarea, label {
   --border-color: #e5e2dc;
   --accent: #ffd5c7;
   --surface: #ffffff;
-  /* 字級系統（繁中行動記帳） */
+  /* 字級系統（繁中行動記帳）— 見 .cursor/rules/typography.mdc */
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
@@ -44,6 +44,10 @@ button, a, [role="button"], input, select, textarea, label {
   --fs-xl: 18px;
   --fs-2xl: 22px;
   --fs-display: 24px;
+  --fs-icon: 20px;
+  --fs-hero: 32px;
+  --fs-empty: 48px;
+  --fs-splash: 56px;
 }
 
 /* ===== 主題色 ===== */
@@ -126,7 +130,7 @@ body {
 }
 
 .splash-logo {
-  font-size: 56px;
+  font-size: var(--fs-splash);
   line-height: 1;
   animation: splash-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -178,7 +182,7 @@ body {
 }
 
 .login-logo {
-  font-size: 56px;
+  font-size: var(--fs-splash);
   /* margin-bottom: 16px; */
 }
 
@@ -853,7 +857,7 @@ body {
 /* 搜尋／篩選時才顯示列表標題；平常不顯示「本月明細」 */
 .list-title {
   display: none;
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-mid);
   margin-bottom: 12px;
@@ -901,7 +905,7 @@ body {
 }
 
 .empty-state span {
-  font-size: 48px;
+  font-size: var(--fs-empty);
   display: block;
   margin-bottom: 12px;
   opacity: 0.5;
@@ -957,13 +961,13 @@ body {
 }
 
 .record-cat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: var(--fs-icon);
   flex-shrink: 0;
 }
 
@@ -1065,7 +1069,7 @@ body {
 }
 
 .delete-record-icon-btn .bi {
-  font-size: 1.25rem;
+  font-size: var(--fs-xl);
   line-height: 1;
 }
 
@@ -1082,7 +1086,7 @@ body {
   gap: 2px;
 }
 .record-amount {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-base);
   font-weight: 700;
 }
 .record-amount.income { color: var(--green-main); }
@@ -1509,7 +1513,7 @@ body {
 }
 
 .cat-pick-btn span:first-child {
-  font-size: 22px;
+  font-size: var(--fs-icon);
   line-height: 1;
 }
 
@@ -1662,7 +1666,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 }
 
 .cat-item .cat-emoji {
-  font-size: 22px;
+  font-size: var(--fs-icon);
 }
 
 .cat-item:active,
@@ -1795,7 +1799,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 .tpl-item:hover { background: var(--pink-mid); border-color: var(--pink-main); }
 
 .tpl-item-icon {
-  font-size: 22px;
+  font-size: var(--fs-icon);
   flex-shrink: 0;
 }
 
@@ -2133,7 +2137,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 }
 
 .nav-icon {
-  font-size: 22px;
+  font-size: var(--fs-2xl);
   line-height: 1;
   height: 26px;
   display: inline-flex;
@@ -2183,7 +2187,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
   transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
   padding: 0;
   line-height: 1;
-  font-size: 19px;
+  font-size: var(--fs-xl);
 }
 
 .nav-voice-btn {
@@ -2312,7 +2316,7 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: var(--fs-icon);
   flex-shrink: 0;
   background: var(--pink-light);
 }
@@ -2623,7 +2627,7 @@ label.account-include-toggle .toggle-switch {
 }
 
 .account-detail-icon {
-  font-size: 32px;
+  font-size: var(--fs-hero);
   width: 52px;
   height: 52px;
   background: rgba(255,255,255,0.2);
@@ -2827,7 +2831,7 @@ label.account-include-toggle .toggle-switch {
   user-select: none;
 }
 
-.exclude-group-emoji { font-size: var(--fs-lg); }
+.exclude-group-emoji { font-size: var(--fs-icon); }
 
 .exclude-group-name { flex: 1; }
 
@@ -3582,7 +3586,7 @@ input[type=number]::-webkit-outer-spin-button {
 .settings-item-icon {
   flex-shrink: 0;
   width: 22px;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   line-height: 1;
   color: var(--text-mid);
   text-align: center;
@@ -3613,7 +3617,7 @@ input[type=number]::-webkit-outer-spin-button {
 
 .settings-item-arrow {
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
   color: var(--text-light);
 }
@@ -3655,7 +3659,7 @@ input[type=number]::-webkit-outer-spin-button {
   align-items: center;
   justify-content: center;
   background: var(--pink-light);
-  font-size: 22px;
+  font-size: var(--fs-2xl);
 }
 .settings-account-avatar-fallback.hidden {
   display: none;
@@ -3904,7 +3908,7 @@ input.form-input {
   border-bottom: 1px solid var(--pink-light);
 }
 .budget-section-title {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-dark);
 }
@@ -3994,7 +3998,7 @@ input.form-input {
 }
 .cat-budget-item:hover { background: var(--pink-light); }
 .cat-budget-emoji {
-  font-size: 22px;
+  font-size: var(--fs-icon);
   flex-shrink: 0;
   width: 32px;
   text-align: center;
@@ -4117,7 +4121,7 @@ input.form-input {
 }
 
 .recurring-item-icon {
-  font-size: 24px;
+  font-size: var(--fs-icon);
   flex-shrink: 0;
 }
 
@@ -5020,7 +5024,7 @@ input.form-input {
 }
 
 .project-card-amount {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--pink-dark);
   white-space: nowrap;
@@ -5412,7 +5416,7 @@ input.form-input {
   min-width: 0;
 }
 
-.project-rec-emoji { font-size: 24px; flex-shrink: 0; }
+.project-rec-emoji { font-size: var(--fs-icon); flex-shrink: 0; }
 .project-rec-info { min-width: 0; }
 
 .project-rec-name {
@@ -5465,13 +5469,13 @@ input.form-input {
   line-height: 1.25;
 }
 .project-rec-amount {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-base);
   font-weight: 700;
   color: #e53935;
   white-space: nowrap;
 }
 .project-rec-foreign {
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   color: var(--text-mid);
   white-space: nowrap;
 }

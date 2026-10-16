@@ -604,6 +604,31 @@ const accountEmptyState    = document.getElementById('accountEmptyState');
 const accountsNetWorth      = document.getElementById('accountsNetWorth');
 const accountsTotalAsset    = document.getElementById('accountsTotalAsset');
 const accountsTotalLiability = document.getElementById('accountsTotalLiability');
+const accountsPrivacyBtn    = document.getElementById('accountsPrivacyBtn');
+const HIDE_ACCOUNT_AMOUNTS_KEY = 'nekomemo-hide-account-amounts';
+
+function areAccountAmountsHidden() {
+  return localStorage.getItem(HIDE_ACCOUNT_AMOUNTS_KEY) === '1';
+}
+
+function applyAccountAmountsHidden(hidden) {
+  document.querySelector('.accounts-header-bar')?.classList.toggle('amounts-hidden', hidden);
+  if (!accountsPrivacyBtn) return;
+  const icon = accountsPrivacyBtn.querySelector('i');
+  if (icon) icon.className = hidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+  const label = hidden ? '顯示金額' : '隱藏金額';
+  accountsPrivacyBtn.setAttribute('aria-label', label);
+  accountsPrivacyBtn.title = label;
+}
+
+function toggleAccountAmountsHidden() {
+  const next = !areAccountAmountsHidden();
+  localStorage.setItem(HIDE_ACCOUNT_AMOUNTS_KEY, next ? '1' : '0');
+  applyAccountAmountsHidden(next);
+}
+
+accountsPrivacyBtn?.addEventListener('click', toggleAccountAmountsHidden);
+applyAccountAmountsHidden(areAccountAmountsHidden());
 
 // ===== DOM — 帳戶明細 =====
 const pageAccountDetail  = document.getElementById('pageAccountDetail');
@@ -713,7 +738,9 @@ const pageCategories    = document.getElementById('pageCategories');
 const pageSettings      = document.getElementById('pageSettings');
 const pageRecurring     = document.getElementById('pageRecurring');
 const pageBudget        = document.getElementById('pageBudget');
+const pageBudgetStatus  = document.getElementById('pageBudgetStatus');
 const navSettingsBtn    = document.getElementById('navSettings');
+const navBudgetStatusBtn = document.getElementById('navBudgetStatus');
 const backToTopBtn      = document.getElementById('backToTopBtn');
 const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
@@ -1135,7 +1162,7 @@ function showApp(user) {
 const HIST_STATE_ACCOUNT_DETAIL  = 'accountDetail';
 const HIST_STATE_PROJECT_DETAIL  = 'projectDetail';
 const HIST_STATE_SETTINGS_SUB   = 'settingsSub';
-const HIST_STATE_BUDGET_FROM_HOME = 'budgetFromHome';
+const HIST_STATE_BUDGET_FROM_HOME = 'budgetFromHome'; // 從預算狀況頁進管理，上一頁回狀況頁
 
 let _histNavPending = null;
 let pushedFromSettings = false;
@@ -1172,7 +1199,7 @@ function goToHomeFromBudget() {
     history.back();
     return;
   }
-  switchPage('home');
+  switchPage('budgetStatus');
 }
 
 function navigateToPage(page) {
@@ -1229,7 +1256,7 @@ function navigateToPage(page) {
     return;
   }
   if (st && st._page === HIST_STATE_BUDGET_FROM_HOME) {
-    if (page === 'home' && currentPage === 'budget') {
+    if (page === 'budgetStatus' && currentPage === 'budget') {
       goToHomeFromBudget();
       return;
     }
@@ -1360,7 +1387,7 @@ window.addEventListener('popstate', (e) => {
   }
   if (currentPage === 'budget' && pushedBudgetFromHome) {
     pushedBudgetFromHome = false;
-    switchPage('home');
+    switchPage('budgetStatus');
     return;
   }
 });
@@ -1437,7 +1464,6 @@ function switchPage(page) {
     applySearchMode(false);
     updateHomeSearchFilterIcons();
     renderList();
-    renderHomeBudget();
   }
   currentPage = page;
   if (page === 'accounts') detailAccountId = null;
@@ -1449,6 +1475,7 @@ function switchPage(page) {
   pageSettings.style.display      = page === 'settings'      ? 'block' : 'none';
   pageRecurring.style.display     = page === 'recurring'     ? 'block' : 'none';
   pageBudget.style.display        = page === 'budget'        ? 'block' : 'none';
+  pageBudgetStatus.style.display  = page === 'budgetStatus'  ? 'block' : 'none';
   pageReport.style.display        = page === 'report'        ? 'block' : 'none';
   pageProjects.style.display      = page === 'projects'      ? 'block' : 'none';
   pageProjectDetail.style.display = page === 'projectDetail' ? 'block' : 'none';
@@ -1456,7 +1483,8 @@ function switchPage(page) {
   navAccountsBtn.classList.toggle('active', page === 'accounts' || page === 'accountDetail');
   navProjectsBtn.classList.toggle('active', page === 'projects' || page === 'projectDetail');
   navReportBtn.classList.toggle('active',   page === 'report');
-  navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring' || page === 'budget');
+  navSettingsBtn.classList.toggle('active', page === 'settings' || page === 'categories' || page === 'recurring' || (page === 'budget' && pushedFromSettings));
+  navBudgetStatusBtn?.classList.toggle('active', page === 'budgetStatus' || (page === 'budget' && !pushedFromSettings));
   if (page === 'home')          pageTitle.textContent = '貓貓記帳';
   if (page === 'accounts')      pageTitle.textContent = '帳戶管理';
   if (page === 'accountDetail') pageTitle.textContent = '帳戶明細';
@@ -1464,13 +1492,14 @@ function switchPage(page) {
   if (page === 'settings')      pageTitle.textContent = '設定';
   if (page === 'recurring')     pageTitle.textContent = '固定收支';
   if (page === 'budget')        pageTitle.textContent = '預算管理';
+  if (page === 'budgetStatus')  pageTitle.textContent = '預算狀況';
   if (page === 'report')        pageTitle.textContent = '報表';
   if (page === 'projects')      pageTitle.textContent = '專案';
   if (page === 'projectDetail') {
     const proj = allProjects.find(p => p.docId === currentProjectId);
     pageTitle.textContent = proj ? proj.name : '專案詳情';
   }
-  if (page === 'home')          renderHomeBudget();
+  if (page === 'budgetStatus')  renderHomeBudget();
   if (page === 'accounts' || page === 'accountDetail') scheduleAccountsRefresh();
   if (page === 'settings')      renderDefaultDebitAccountSelect();
   if (page === 'categories')    renderCategoryMgmtList();
@@ -1481,10 +1510,18 @@ function switchPage(page) {
   if (page === 'projectDetail') renderProjectDetail();
 }
 
-// ===== 主頁預算小卡（從主頁進預算時 push 一層，上一頁可回主頁）=====
+navBudgetStatusBtn?.addEventListener('click', () => {
+  if (currentPage === 'budget' && pushedBudgetFromHome) {
+    goToHomeFromBudget();
+    return;
+  }
+  navigateToPage('budgetStatus');
+});
+
+// ===== 預算狀況頁進管理時 push 一層，上一頁可回狀況頁 =====
 homeBudgetMoreBtn.addEventListener('click', () => {
   if (currentPage !== 'settings') pushedFromSettings = false;
-  if (currentPage === 'home') {
+  if (currentPage === 'budgetStatus') {
     switchPage('budget');
     try {
       history.pushState({ _page: HIST_STATE_BUDGET_FROM_HOME }, '', location.href);
@@ -1941,7 +1978,7 @@ function subscribeBudgets() {
   unsubBudgets = onSnapshot(q, snap => {
     allBudgets = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
     if (currentPage === 'budget') renderBudgetPage();
-    if (currentPage === 'home')   renderHomeBudget();
+    if (currentPage === 'budgetStatus') renderHomeBudget();
     
     if (!initialLoadStatus.budgets) {
       initialLoadStatus.budgets = true;
@@ -4305,13 +4342,7 @@ function renderAccountDetail(account) {
     groups[r.date].push(r);
   });
 
-  Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    accountDetailList.appendChild(buildDateHeader(date, groups[date], account));
-
-    groups[date].forEach(r => {
-      accountDetailList.appendChild(buildRecordItem(r, { showAccountCurrencyFirst: true }));
-    });
-  });
+  appendRecordDayGroups(accountDetailList, groups, account, { showAccountCurrencyFirst: true });
 }
 
 // ===== 帳戶明細頁事件 =====
@@ -5592,7 +5623,6 @@ function updateHomeSearchFilterIcons() {
 function applySearchMode(isSearching) {
   homeMonthNav.style.display = isSearching ? 'none' : '';
   homeSummary.style.display  = isSearching ? 'none' : '';
-  if (isSearching && homeBudgetWidget) homeBudgetWidget.style.display = 'none';
   updateHomeSearchFilterIcons();
 }
 
@@ -5600,7 +5630,6 @@ searchInput.addEventListener('input', () => {
   searchKeyword = searchInput.value;
   searchClearBtn.style.display = searchKeyword ? '' : 'none';
   applySearchMode(!!searchKeyword.trim());
-  if (!searchKeyword.trim()) renderHomeBudget();
   updateHomeSearchFilterIcons();
   renderList();
 });
@@ -5609,7 +5638,6 @@ searchClearBtn.addEventListener('click', () => {
   searchKeyword = '';
   searchClearBtn.style.display = 'none';
   applySearchMode(false);
-  renderHomeBudget();
   updateHomeSearchFilterIcons();
   searchInput.focus();
   renderList();
@@ -7122,7 +7150,7 @@ function renderAccountList() {
 function renderAll() {
   renderMonthLabel();
   renderSummary();
-  renderHomeBudget();
+  if (currentPage === 'budgetStatus') renderHomeBudget();
   renderList();
   applySearchMode(!!searchKeyword.trim());
   updateHomeSearchFilterIcons();
@@ -7187,17 +7215,13 @@ function renderSummary() {
 }
 
 function renderHomeBudget() {
-  if (searchKeyword.trim()) {
-    homeBudgetWidget.style.display = 'none';
-    return;
-  }
+  if (!homeBudgetWidget || !homeBudgetContent) return;
   const monthBudget = allBudgets.find(b => b.type === 'month');
   const catBudgets  = allBudgets.filter(b => b.type === 'category');
   if (!monthBudget && catBudgets.length === 0) {
-    homeBudgetWidget.style.display = 'none';
+    homeBudgetContent.innerHTML = '<div class="hb-empty">尚未設定預算<br>點右上「管理」開始設定</div>';
     return;
   }
-  homeBudgetWidget.style.display = '';
 
   const now            = new Date();
   const isCurrentMonth = (viewYear === now.getFullYear() && viewMonth === now.getMonth());
@@ -7287,8 +7311,7 @@ function renderHomeBudget() {
         const pct = b.amount > 0 ? Math.round(spent / b.amount * 100) : 0;
         return { ...b, spent, pct, over: spent > b.amount, _items: items };
       })
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 4);
+      .sort((a, b) => b.pct - a.pct);
 
     sorted.forEach(b => {
       const displayIcon  = b._items[0]?.emoji || '📦';
@@ -7304,11 +7327,6 @@ function renderHomeBudget() {
         over: b.over,
       });
     });
-
-    const extraCount = catBudgets.length - sorted.length;
-    if (extraCount > 0) {
-      html += `<div class="hb-extra-row">還有 ${extraCount} 項…</div>`;
-    }
   }
 
   html += '</div>';
@@ -7426,12 +7444,7 @@ function renderList() {
     groups[r.date].push(r);
   });
 
-  Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    recordList.appendChild(buildDateHeader(date, groups[date]));
-    groups[date].forEach(r => {
-      recordList.appendChild(buildRecordItem(r));
-    });
-  });
+  appendRecordDayGroups(recordList, groups);
 }
 
 function formatMoney(n) {
@@ -7953,6 +7966,16 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
   });
 
   return item;
+}
+
+function appendRecordDayGroups(container, groups, account = null, itemOpts = {}) {
+  Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
+    const card = document.createElement('div');
+    card.className = 'record-day-card';
+    card.appendChild(buildDateHeader(date, groups[date], account));
+    groups[date].forEach(r => card.appendChild(buildRecordItem(r, itemOpts)));
+    container.appendChild(card);
+  });
 }
 
 // ===== 建立日期分組標題（含當日小計）=====

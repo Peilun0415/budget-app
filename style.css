@@ -377,6 +377,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .header-settings-btn {
   flex-shrink: 0;
   width: 36px;
@@ -544,13 +551,21 @@ body {
   display: none;
 }
 
-/* ===== 主頁預算小卡（水平進度） ===== */
+/* ===== 預算狀況頁（水平進度） ===== */
 #homeBudgetWidget {
   margin: 14px 16px 0;
   background: var(--white);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.hb-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+  padding: 36px 16px;
 }
 
 .home-budget-header {
@@ -895,7 +910,46 @@ body {
 .record-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+}
+
+.record-day-card {
+  background: var(--white);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.record-day-card .date-group-header {
+  margin: 0;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--pink-main) 22%, var(--white));
+  color: var(--pink-dark);
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.record-day-card .record-item-wrapper {
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.record-day-card .record-item {
+  border-radius: 0;
+  padding: 12px 14px;
+}
+
+.record-day-card .record-item-wrapper + .record-item-wrapper .record-item {
+  border-top: 1px solid #f0eeea;
+}
+
+.record-day-card .record-item-clickable:active {
+  transform: none;
+}
+
+.record-day-card .record-edit-hint {
+  display: none;
 }
 
 .empty-state {
@@ -2217,38 +2271,64 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 
 /* 讓頁面內容不被底部導覽列遮住 */
 #pageHome,
-#pageAccounts {
+#pageAccounts,
+#pageBudgetStatus {
   padding-bottom: 88px;
 }
 
 /* ===== 帳戶頁面頂部 ===== */
 .accounts-header-bar {
+  position: relative;
   background: var(--pink-main);
   color: white;
-  padding: 12px 16px 14px;
+  padding: 12px 48px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
 
+.accounts-privacy-btn {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xl);
+  padding: 0;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.accounts-privacy-btn:active {
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.28);
+}
+
 .accounts-net-worth {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 
 .accounts-net-label {
-  font-size: var(--fs-xs);
-  opacity: 0.8;
+  font-size: var(--fs-sm);
+  opacity: 0.85;
   font-weight: 500;
 }
 
 .accounts-net-amount {
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  letter-spacing: 0.4px;
   line-height: 1.15;
 }
 
@@ -2290,23 +2370,49 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 .accounts-sub-value.asset     { color: #a8ffd4; }
 .accounts-sub-value.liability { color: #ffb3b3; }
 
+.accounts-header-bar.amounts-hidden .accounts-net-amount,
+.accounts-header-bar.amounts-hidden .accounts-sub-value {
+  font-size: 0;
+  user-select: none;
+}
+
+.accounts-header-bar.amounts-hidden .accounts-net-amount::after,
+.accounts-header-bar.amounts-hidden .accounts-sub-value::after {
+  content: '*****';
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.accounts-header-bar.amounts-hidden .accounts-net-amount::after {
+  font-size: var(--fs-hero);
+  color: #fff;
+}
+
+.accounts-header-bar.amounts-hidden .accounts-sub-value::after {
+  font-size: var(--fs-base);
+}
+
 /* ===== 帳戶列表 ===== */
 .account-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
 }
 
 .account-item {
   background: var(--white);
-  border-radius: var(--radius-sm, 12px);
-  padding: 10px 12px;
+  border-radius: 0;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 1px 6px rgba(200, 150, 180, 0.1);
-  animation: slideIn 0.25s ease;
+  box-shadow: none;
+  animation: none;
   cursor: pointer;
+}
+
+.account-item + .account-item {
+  border-top: 1px solid #f0eeea;
 }
 
 .account-type-icon {
@@ -2491,10 +2597,7 @@ label.account-include-toggle .toggle-switch {
 }
 
 .account-chevron {
-  font-size: var(--fs-xl);
-  color: var(--text-light);
-  font-weight: 300;
-  line-height: 1;
+  display: none;
 }
 
 .edit-btn,
@@ -3113,11 +3216,11 @@ label.account-include-toggle .toggle-switch {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 4px 2px;
-  font-size: var(--fs-sm);
-  font-weight: 700;
+  padding: 14px 6px 8px;
+  font-size: var(--fs-md);
+  font-weight: 600;
   color: var(--text-mid);
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   user-select: none;
 }
 
@@ -3146,8 +3249,11 @@ label.account-include-toggle .toggle-switch {
 .account-group-wrap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   margin-bottom: 4px;
+  background: var(--white);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .account-group-header.dragging,

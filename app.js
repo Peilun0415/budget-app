@@ -6671,8 +6671,9 @@ function renderAccountTypeGrid() {
   ACCOUNT_TYPES.forEach(t => {
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'cat-item' + (selectedAccountType === t.id ? ' selected' : '');
-    item.innerHTML = `<span class="cat-emoji">${t.emoji}</span><span>${t.name}</span>`;
+    item.className = 'account-type-chip' + (selectedAccountType === t.id ? ' selected' : '');
+    item.dataset.typeId = t.id;
+    item.innerHTML = `<span class="account-type-chip-icon">${t.emoji}</span><span class="account-type-chip-name">${t.name}</span>`;
     item.addEventListener('click', () => { selectedAccountType = t.id; renderAccountTypeGrid(); updateCreditCardFieldsVisibility(); });
     accountTypeGrid.appendChild(item);
   });

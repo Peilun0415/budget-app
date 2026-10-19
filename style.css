@@ -1375,21 +1375,24 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(60, 30, 50, 0.45);
-  backdrop-filter: blur(4px);
   z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s;
+  transition: opacity 0.25s, visibility 0.25s;
   overflow-y: auto;
 }
 
+/* 未開啟時不可帶 backdrop-filter 且須 visibility:hidden，否則手機 GPU 圖層過多會捲動白屏 */
 .modal-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: all;
+  backdrop-filter: blur(4px);
 }
 
 .modal {
@@ -4737,20 +4740,22 @@ input.form-input {
   position: fixed;
   inset: 0;
   background: rgba(60, 30, 50, 0.45);
-  backdrop-filter: blur(4px);
   z-index: 200;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-top: 48px;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s;
+  transition: opacity 0.25s, visibility 0.25s;
   overflow-y: auto;
 }
 .report-filter-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: all;
+  backdrop-filter: blur(4px);
 }
 .report-filter-modal {
   background: var(--white);

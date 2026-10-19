@@ -3814,6 +3814,53 @@ input[type=number]::-webkit-outer-spin-button {
   line-height: 1.5;
 }
 
+.hidden-accounts-modal {
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden-accounts-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+}
+
+.hidden-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--pink-light);
+  border-radius: 12px;
+}
+
+.hidden-account-row-info {
+  min-width: 0;
+}
+
+.hidden-account-row-name {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.hidden-account-row-type {
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+  margin-top: 1px;
+}
+
+.hidden-account-empty {
+  text-align: center;
+  color: var(--text-light);
+  font-size: var(--fs-base);
+  padding: 24px 8px;
+}
+
 /* ===== 首頁條件篩選 ===== */
 .home-filter-modal {
   max-height: min(90vh, 720px);

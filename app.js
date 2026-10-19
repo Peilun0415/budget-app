@@ -746,6 +746,11 @@ const goBudgetBtn       = document.getElementById('goBudget');
 const goRecurringBtn    = document.getElementById('goRecurring');
 const goCategoriesBtn   = document.getElementById('goCategories');
 const goDefaultDebitAccountBtn = document.getElementById('goDefaultDebitAccount');
+const goHiddenAccountsBtn = document.getElementById('goHiddenAccounts');
+const hiddenAccountsOverlay = document.getElementById('hiddenAccountsOverlay');
+const hiddenAccountsListEl = document.getElementById('hiddenAccountsList');
+const hiddenAccountsDesc = document.getElementById('hiddenAccountsDesc');
+const closeHiddenAccountsBtn = document.getElementById('closeHiddenAccountsBtn');
 const themeSwatchGrid = document.getElementById('themeSwatchGrid');
 const metaThemeColor = document.getElementById('metaThemeColor')
   || document.querySelector('meta[name="theme-color"]');
@@ -1501,7 +1506,10 @@ function switchPage(page) {
   }
   if (page === 'budgetStatus')  renderHomeBudget();
   if (page === 'accounts' || page === 'accountDetail') scheduleAccountsRefresh();
-  if (page === 'settings')      renderDefaultDebitAccountSelect();
+  if (page === 'settings') {
+    renderDefaultDebitAccountSelect();
+    updateHiddenAccountsDesc();
+  }
   if (page === 'categories')    renderCategoryMgmtList();
   if (page === 'recurring')     renderRecurringList();
   if (page === 'budget')        renderBudgetPage();
@@ -4468,6 +4476,8 @@ function subscribeAccounts() {
     scheduleAccountsRefresh();
     renderAccountSelect();
     renderDefaultDebitAccountSelect();
+    if (hiddenAccountsOverlay?.classList.contains('active')) renderHiddenAccountsList();
+    else updateHiddenAccountsDesc();
     renderAll();
     // 若目前在帳戶明細頁，即時更新
     if (currentPage === 'accountDetail' && detailAccountId) {
@@ -5337,7 +5347,7 @@ recWeekdayPicker.querySelectorAll('.weekday-btn').forEach(btn => {
 
 function renderRecAccountSelect() {
   recAccountSel.innerHTML = '';
-  const sorted = sortAccountsLikeList(allAccounts);
+  const sorted = accountsForSelect([recAccountSel.value]);
   sorted.forEach(acc => {
     const opt = document.createElement('option');
     opt.value = acc.docId;
@@ -5347,8 +5357,8 @@ function renderRecAccountSelect() {
 }
 
 function renderRecTransferSelects() {
-  const sorted = sortAccountsLikeList(allAccounts);
   const prevFrom = recTransferFrom.value;
+  const sorted = accountsForSelect([prevFrom, recTransferTo.value]);
   const prevTo   = recTransferTo.value;
   [recTransferFrom, recTransferTo].forEach(sel => {
     sel.innerHTML = '';
@@ -5700,13 +5710,14 @@ function populateHomeFilterLists() {
   }
   if (homeFilterAccountList) {
     const accs = sortAccountsLikeList(allAccounts);
+    // 篩選保留已隱藏帳戶，方便查舊紀錄
     if (!accs.length) {
       homeFilterAccountList.innerHTML = '<div class="home-filter-check-empty">尚無帳戶</div>';
     } else {
       homeFilterAccountList.innerHTML = accs.map(a => `
         <label class="home-filter-check-item">
           <input type="checkbox" value="${a.docId}" ${homeFilter.accountIds.includes(a.docId) ? 'checked' : ''} />
-          <span>${a.emoji || ''} ${a.name}</span>
+          <span>${a.emoji || ''} ${a.name}${isAccountHidden(a) ? '（已隱藏）' : ''}</span>
         </label>
       `).join('');
     }
@@ -5871,16 +5882,17 @@ function openModal(record = null, newRecordOptions = null) {
     recordModalTitle.textContent = '新增記帳';
     submitBtn.textContent = '記下來！';
     deleteRecordBtn.style.display = 'none';
+    const shown = visibleAccounts();
     const preset = newRecordOptions?.presetAccountId;
-    const presetOk = preset && allAccounts.some(a => a.docId === preset);
-    const defaultAcc = allAccounts.find(a => a.isDefault);
-    const fallbackId = defaultAcc ? defaultAcc.docId : (allAccounts[0]?.docId || '');
+    const presetOk = preset && shown.some(a => a.docId === preset);
+    const defaultAcc = shown.find(a => a.isDefault);
+    const fallbackId = defaultAcc ? defaultAcc.docId : (shown[0]?.docId || '');
     const chosenId   = presetOk ? preset : fallbackId;
     accountSelect.value = chosenId;
     if (currentType === 'transfer' && chosenId) {
       transferFrom.value = chosenId;
       if (transferTo.value === chosenId) {
-        const alt = allAccounts.find(a => a.docId !== chosenId);
+        const alt = shown.find(a => a.docId !== chosenId);
         if (alt) transferTo.value = alt.docId;
       }
     }
@@ -6108,6 +6120,19 @@ function renderCategoryGrid() {
   }
 }
 
+function isAccountHidden(account) {
+  return account?.hidden === true;
+}
+
+function visibleAccounts() {
+  return allAccounts.filter(a => !isAccountHidden(a));
+}
+
+function accountsForSelect(keepIds = []) {
+  const keep = new Set((keepIds || []).filter(Boolean));
+  return sortAccountsLikeList(allAccounts.filter(a => !isAccountHidden(a) || keep.has(a.docId)));
+}
+
 function accountTypeKey(account) {
   return account.typeName || '其他';
 }
@@ -6155,7 +6180,7 @@ function renderAccountSelect() {
   optNone.textContent = '無';
   accountSelect.appendChild(optNone);
 
-  const sortedAccounts = sortAccountsLikeList(allAccounts);
+  const sortedAccounts = accountsForSelect([prev, prevFrom, prevTo]);
 
   sortedAccounts.forEach(a => {
     const makeOpt = () => {
@@ -6173,7 +6198,7 @@ function renderAccountSelect() {
   if (prev === '') accountSelect.value = '';
   else if (prev) accountSelect.value = prev;
   else if (sortedAccounts.length > 0) {
-    const defaultAcc = allAccounts.find(a => a.isDefault);
+    const defaultAcc = sortedAccounts.find(a => a.isDefault && !isAccountHidden(a));
     accountSelect.value = defaultAcc ? defaultAcc.docId : sortedAccounts[0].docId;
   }
 
@@ -6189,7 +6214,7 @@ function renderAccountSelect() {
 
 // ===== 設定頁：預設扣款帳戶 =====
 function getDefaultDebitAccountLabel() {
-  const defaultAcc = allAccounts.find(a => a.isDefault);
+  const defaultAcc = visibleAccounts().find(a => a.isDefault);
   if (defaultAcc) return defaultAcc.name;
   return '不指定';
 }
@@ -6203,7 +6228,7 @@ function renderDefaultDebitAccountSelect() {
   updateDefaultDebitAccountDesc();
   if (!defaultDebitAccountSelect) return;
   const defaultAcc = allAccounts.find(a => a.isDefault);
-  const preferred = defaultAcc?.docId || '';
+  const preferred = defaultAcc && !isAccountHidden(defaultAcc) ? defaultAcc.docId : '';
 
   defaultDebitAccountSelect.innerHTML = '';
   const optNone = document.createElement('option');
@@ -6211,7 +6236,7 @@ function renderDefaultDebitAccountSelect() {
   optNone.textContent = '不指定（使用第一個帳戶）';
   defaultDebitAccountSelect.appendChild(optNone);
 
-  const sortedAccounts = sortAccountsLikeList(allAccounts);
+  const sortedAccounts = accountsForSelect([preferred]);
   sortedAccounts.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.docId;
@@ -6263,6 +6288,77 @@ saveDefaultDebitAccountBtn?.addEventListener('click', async () => {
     saveDefaultDebitAccountBtn.disabled = false;
     saveDefaultDebitAccountBtn.textContent = '儲存';
   }
+});
+
+function hiddenAccountsCount() {
+  return allAccounts.filter(isAccountHidden).length;
+}
+
+function updateHiddenAccountsDesc() {
+  if (!hiddenAccountsDesc) return;
+  const n = hiddenAccountsCount();
+  hiddenAccountsDesc.textContent = n ? `已隱藏 ${n} 個` : '無';
+}
+
+function renderHiddenAccountsList() {
+  updateHiddenAccountsDesc();
+  if (!hiddenAccountsListEl) return;
+  if (allAccounts.length === 0) {
+    hiddenAccountsListEl.innerHTML = '<div class="hidden-account-empty">尚未新增帳戶</div>';
+    return;
+  }
+  hiddenAccountsListEl.innerHTML = '';
+  sortAccountsLikeList(allAccounts).forEach(a => {
+    const row = document.createElement('label');
+    row.className = 'hidden-account-row';
+    row.innerHTML = `
+      <div class="hidden-account-row-info">
+        <div class="hidden-account-row-name">${a.emoji || ''} ${a.name}</div>
+        <div class="hidden-account-row-type">${accountTypeKey(a)}</div>
+      </div>
+      <span class="toggle-switch">
+        <input type="checkbox" ${isAccountHidden(a) ? '' : 'checked'} />
+        <span class="toggle-slider"></span>
+      </span>
+    `;
+    const box = row.querySelector('input[type="checkbox"]');
+    box.addEventListener('change', async () => {
+      box.disabled = true;
+      try {
+        await setAccountHidden(a.docId, !box.checked);
+      } catch (err) {
+        console.error(err);
+        alert('更新失敗');
+        box.checked = !isAccountHidden(a);
+      } finally {
+        box.disabled = false;
+      }
+    });
+    hiddenAccountsListEl.appendChild(row);
+  });
+}
+
+function openHiddenAccountsModal() {
+  renderHiddenAccountsList();
+  hiddenAccountsOverlay?.classList.add('active');
+}
+
+function closeHiddenAccountsModal() {
+  hiddenAccountsOverlay?.classList.remove('active');
+}
+
+async function setAccountHidden(accountId, hidden) {
+  if (!currentUser) return;
+  const patch = { hidden: hidden ? true : null };
+  const acc = allAccounts.find(a => a.docId === accountId);
+  if (hidden && acc?.isDefault) patch.isDefault = null;
+  await updateDoc(doc(db, 'accounts', accountId), patch);
+}
+
+goHiddenAccountsBtn?.addEventListener('click', openHiddenAccountsModal);
+closeHiddenAccountsBtn?.addEventListener('click', closeHiddenAccountsModal);
+hiddenAccountsOverlay?.addEventListener('click', (e) => {
+  if (e.target === hiddenAccountsOverlay) closeHiddenAccountsModal();
 });
 
 accountSelect.addEventListener('change', () => {
@@ -7024,6 +7120,7 @@ function renderAccountList() {
   if (allAccounts.length === 0) {
     accountList.appendChild(accountEmptyState);
     accountEmptyState.style.display = '';
+    accountEmptyState.querySelector('p').innerHTML = '還沒有帳戶喔！<br>點下方按鈕新增帳戶吧～';
     accountsNetWorth.textContent       = '$0';
     accountsTotalAsset.textContent     = '$0';
     accountsTotalLiability.textContent = '$0';
@@ -7066,8 +7163,16 @@ function renderAccountList() {
   accountsTotalLiability.textContent = `$${formatMoney(totalLiability)}`;
 
   // 與記帳下拉選單相同：依類型分組（組序取該組第一筆的 typeOrder），組內依 order
+  const shownAccounts = visibleAccounts();
+  if (shownAccounts.length === 0) {
+    accountList.appendChild(accountEmptyState);
+    accountEmptyState.style.display = '';
+    accountEmptyState.querySelector('p').innerHTML = '帳戶都已隱藏<br>可到設定 → 隱藏帳戶還原';
+    return;
+  }
+
   const sortedGroups = [];
-  sortAccountsLikeList(allAccounts).forEach(a => {
+  sortAccountsLikeList(shownAccounts).forEach(a => {
     const typeName = accountTypeKey(a);
     const last = sortedGroups[sortedGroups.length - 1];
     if (!last || last.typeName !== typeName) sortedGroups.push({ typeName, accounts: [a] });
@@ -8119,6 +8224,7 @@ async function finishGroupDrag(srcHeader, targetHeader) {
   try {
     await Promise.all(allAccounts.map(a => {
       const newTypeOrder = typeOrder.indexOf(a.typeName ?? '其他');
+      if (newTypeOrder === -1) return Promise.resolve();
       return updateDoc(doc(db, 'accounts', a.docId), { typeOrder: newTypeOrder });
     }));
   } catch (err) { console.error(err); }

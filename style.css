@@ -692,6 +692,113 @@ body {
   font-weight: 500;
 }
 
+/* ===== 預算狀況頁：信用卡回饋 ===== */
+.cb-section {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cb-section-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.cb-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cb-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cb-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cb-card-name {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cb-card-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cb-card-total-label {
+  font-size: var(--fs-xs);
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.cb-card-total-val {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--pink-dark);
+}
+
+.cb-card-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+  line-height: 1.5;
+}
+
+.cb-card-sub strong {
+  color: var(--text-dark);
+}
+
+.cb-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.cb-tier-rate {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--pink-dark);
+  background: var(--pink-light);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+
+.hb-bar-fill.cb-bar-fill.full {
+  background: #3aa76d;
+}
+
+.cb-tier-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-light);
+}
+
+.cb-tier-hint.full {
+  color: #3aa76d;
+  font-weight: 700;
+}
+
 .hb-extra-row {
   text-align: center;
   font-size: var(--fs-sm);
@@ -5750,6 +5857,52 @@ input.form-input {
   justify-content: center;
 }
 .reward-del-btn:hover { background: #ffd6d6; color: var(--red-main); }
+
+/* ===== 信用卡回饋規則（帳戶 modal）===== */
+.reward-tier-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.reward-tier-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 96px;
+  min-width: 0;
+}
+.reward-tier-field-cap { flex: 1; }
+.reward-tier-field .form-input {
+  min-width: 0;
+  font-size: var(--fs-base);
+}
+.reward-tier-unit {
+  flex-shrink: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.reward-tier-base-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 0;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.reward-tier-base-tag {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--pink-dark);
+  background: var(--pink-light);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+.reward-del-btn-spacer {
+  flex-shrink: 0;
+  width: 30px;
+}
 
 /* ===== 回饋追蹤卡片（專案詳情）===== */
 .project-reward-empty {

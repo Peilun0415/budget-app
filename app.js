@@ -4303,6 +4303,40 @@ function getAccountRewardPeriodRange(account) {
   return getCurrentCalendarMonthRange();
 }
 
+/** 信用卡本期回饋：各層 = min(已刷 × 費率, 上限)，各層相加 */
+function calcCreditCardReward(account) {
+  const tiers = (account?.rewardTiers || []).filter(t => Number(t.rate) > 0);
+  if (account?.typeId !== 'credit' || tiers.length === 0) return null;
+  const range = getAccountRewardPeriodRange(account);
+  const spent = allRecords
+    .filter(r =>
+      r.accountId === account.docId &&
+      r.type === 'expense' &&
+      !isTransferRecord(r) &&
+      !r.isSettlement &&
+      r.date >= range.start && r.date <= range.end
+    )
+    .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const tierResults = tiers.map(t => {
+    const rate = Number(t.rate);
+    const cap  = Number(t.cap) > 0 ? Number(t.cap) : null;
+    const raw  = Math.max(spent, 0) * rate / 100;
+    const earned = cap != null ? Math.min(raw, cap) : raw;
+    const full = cap != null && raw >= cap;
+    const remainReward = cap != null ? Math.max(cap - earned, 0) : null;
+    const remainSpend  = cap != null ? Math.max(cap / (rate / 100) - spent, 0) : null;
+    return { ...t, rate, cap, earned, full, remainReward, remainSpend };
+  });
+
+  return {
+    range,
+    spent,
+    totalEarned: tierResults.reduce((s, t) => s + t.earned, 0),
+    tiers: tierResults,
+  };
+}
+
 function updateAccountDetailRewardPeriod(account) {
   if (!detailRewardPeriod) return;
   if (account?.typeId !== 'credit') {
@@ -6703,6 +6737,90 @@ const billingDayGroup   = document.getElementById('billingDayGroup');
 const accountBillingDay = document.getElementById('accountBillingDay');
 const rewardPeriodGroup = document.getElementById('rewardPeriodGroup');
 const accountRewardPeriod = document.getElementById('accountRewardPeriod');
+const rewardTiersGroup  = document.getElementById('rewardTiersGroup');
+const rewardTiersList   = document.getElementById('rewardTiersList');
+const addRewardTierBtn  = document.getElementById('addRewardTierBtn');
+
+let tempRewardTiers = [];
+
+const BASE_REWARD_TIER_ID = 'base';
+const BASE_REWARD_TIER_NAME = '基本回饋';
+
+function newRewardTierId() {
+  return `t_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** 基本回饋固定排第一層；舊資料若第一層名為「基本回饋」視為基本層 */
+function withBaseRewardTier(tiers) {
+  const list = (tiers || []).map(t => ({ ...t }));
+  let idx = list.findIndex(t => t.id === BASE_REWARD_TIER_ID);
+  if (idx < 0) idx = list.findIndex(t => (t.name || '').trim() === BASE_REWARD_TIER_NAME);
+  const base = idx >= 0 ? list.splice(idx, 1)[0] : { rate: null, cap: null };
+  return [
+    { ...base, id: BASE_REWARD_TIER_ID, name: BASE_REWARD_TIER_NAME },
+    ...list,
+  ];
+}
+
+function renderRewardTiersEditor() {
+  if (!rewardTiersList) return;
+  rewardTiersList.innerHTML = '';
+  tempRewardTiers.forEach((tier, idx) => {
+    const isBase = tier.id === BASE_REWARD_TIER_ID;
+    const row = document.createElement('div');
+    row.className = 'reward-edit-row' + (isBase ? ' is-base' : '');
+    row.innerHTML = `
+      ${isBase
+        ? `<div class="reward-tier-base-name">${BASE_REWARD_TIER_NAME}<span class="reward-tier-base-tag">固定</span></div>`
+        : `<input type="text" class="reward-edit-name form-input" placeholder="名稱（例：運動獎勵）" value="${escapeHtml(tier.name || '')}" maxlength="20" />`}
+      <div class="reward-edit-right">
+        <div class="reward-tier-field">
+          <input type="number" class="reward-tier-rate form-input" placeholder="費率" value="${tier.rate ?? ''}" min="0" step="any" inputmode="decimal" />
+          <span class="reward-tier-unit">%</span>
+        </div>
+        <div class="reward-tier-field reward-tier-field-cap">
+          <span class="reward-tier-unit">上限 $</span>
+          <input type="number" class="reward-tier-cap form-input" placeholder="無上限" value="${tier.cap ?? ''}" min="0" step="any" inputmode="decimal" />
+        </div>
+        ${isBase
+          ? '<span class="reward-del-btn-spacer" aria-hidden="true"></span>'
+          : '<button type="button" class="reward-del-btn" aria-label="刪除回饋層"><i class="bi bi-x-lg" aria-hidden="true"></i></button>'}
+      </div>
+    `;
+    row.querySelector('.reward-edit-name')?.addEventListener('input', e => {
+      tempRewardTiers[idx].name = e.target.value;
+    });
+    row.querySelector('.reward-tier-rate').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      tempRewardTiers[idx].rate = Number.isFinite(v) ? v : null;
+    });
+    row.querySelector('.reward-tier-cap').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      tempRewardTiers[idx].cap = Number.isFinite(v) && v > 0 ? v : null;
+    });
+    row.querySelector('.reward-del-btn')?.addEventListener('click', () => {
+      tempRewardTiers.splice(idx, 1);
+      renderRewardTiersEditor();
+    });
+    rewardTiersList.appendChild(row);
+  });
+}
+
+addRewardTierBtn?.addEventListener('click', () => {
+  tempRewardTiers.push({ id: newRewardTierId(), name: '', rate: null, cap: null });
+  renderRewardTiersEditor();
+});
+
+function collectRewardTiers() {
+  return tempRewardTiers
+    .filter(t => Number(t.rate) > 0)
+    .map(t => ({
+      id: t.id || newRewardTierId(),
+      name: (t.name || '').trim() || `${t.rate}% 回饋`,
+      rate: Number(t.rate),
+      cap: Number(t.cap) > 0 ? Number(t.cap) : null,
+    }));
+}
 
 // 填入 1~31 選項
 for (let d = 1; d <= 31; d++) {
@@ -6722,6 +6840,8 @@ function openAccountModal(account = null) {
   accountIncludeInTotal.checked   = account ? (account.includeInTotal !== false) : true;
   accountBillingDay.value         = account?.billingDay ?? '';
   accountRewardPeriod.value       = account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
+  tempRewardTiers = withBaseRewardTier(account?.rewardTiers);
+  renderRewardTiersEditor();
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
   updateCreditCardFieldsVisibility();
@@ -6734,6 +6854,7 @@ function updateCreditCardFieldsVisibility() {
   const isCredit = selectedAccountType === 'credit';
   billingDayGroup.style.display = isCredit ? '' : 'none';
   rewardPeriodGroup.style.display = isCredit ? '' : 'none';
+  if (rewardTiersGroup) rewardTiersGroup.style.display = isCredit ? '' : 'none';
   // 動態更新餘額說明
   if (selectedAccountType === 'credit') {
     accountBalanceLabel.textContent = '初始餘額（信用卡欠款請輸入負數，例：-5000）';
@@ -6785,6 +6906,7 @@ accountForm.addEventListener('submit', async (e) => {
   const rewardPeriodMode = selectedAccountType === 'credit'
     ? (accountRewardPeriod.value || REWARD_PERIOD_CALENDAR)
     : null;
+  const rewardTiers = selectedAccountType === 'credit' ? collectRewardTiers() : [];
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
   const editId  = accountEditId.value;
 
@@ -6797,7 +6919,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
+        name, balance, note, billingDay, rewardPeriodMode, rewardTiers, currency, includeInTotal,
       };
       const existing = allAccounts.find(a => a.docId === editId);
       if (existing && accountTypeKey(existing) !== typeObj.name) {
@@ -6811,7 +6933,7 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, currency, includeInTotal,
+        name, balance, note, billingDay, rewardPeriodMode, rewardTiers, currency, includeInTotal,
         order:    nextOrderInType(typeObj.name),
         typeOrder: typeOrderForNewAccount(typeObj.name),
         createdAt: serverTimestamp(),
@@ -7404,8 +7526,10 @@ function renderHomeBudget() {
   if (!homeBudgetWidget || !homeBudgetContent) return;
   const monthBudget = allBudgets.find(b => b.type === 'month');
   const catBudgets  = allBudgets.filter(b => b.type === 'category');
+  const cashbackHtml = renderCreditCardCashbackSection();
   if (!monthBudget && catBudgets.length === 0) {
-    homeBudgetContent.innerHTML = '<div class="hb-empty">尚未設定預算<br>點右上「管理」開始設定</div>';
+    homeBudgetContent.innerHTML =
+      '<div class="hb-empty">尚未設定預算<br>點右上「管理」開始設定</div>' + cashbackHtml;
     return;
   }
 
@@ -7516,7 +7640,87 @@ function renderHomeBudget() {
   }
 
   html += '</div>';
-  homeBudgetContent.innerHTML = html;
+  homeBudgetContent.innerHTML = html + cashbackHtml;
+}
+
+function renderCreditCardCashbackSection() {
+  const cards = sortAccountsLikeList(allAccounts.filter(a => !isAccountHidden(a)))
+    .map(a => ({ acc: a, result: calcCreditCardReward(a) }))
+    .filter(x => x.result);
+  if (cards.length === 0) return '';
+
+  const money = n => `$${formatMoney(Math.round(n))}`;
+
+  const cardHtml = cards.map(({ acc, result }) => {
+    const mode = acc.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
+    const periodLabel = mode === REWARD_PERIOD_BILLING && !acc.billingDay
+      ? '日曆月（帳單週期未設結算日）'
+      : getRewardPeriodModeLabel(mode);
+    const tiersHtml = result.tiers.map(t => {
+      if (t.cap == null) {
+        return `
+          <div class="hb-row">
+            <div class="hb-row-head">
+              <div class="hb-row-title">
+                <span class="hb-row-label">${escapeHtml(t.name)}</span>
+                <span class="cb-tier-rate">${t.rate}%</span>
+              </div>
+              <div class="hb-row-meta">
+                <span class="hb-row-remain">${money(t.earned)}</span>
+                <span class="hb-row-limit">無上限</span>
+              </div>
+            </div>
+          </div>`;
+      }
+      const pct = t.cap > 0 ? Math.min(Math.round(t.earned / t.cap * 100), 100) : 0;
+      const barClass = t.full ? 'full' : (pct >= 80 ? 'warn' : '');
+      const hint = t.full
+        ? '<span class="cb-tier-hint full">已達上限</span>'
+        : `<span class="cb-tier-hint">還可再拿 ${money(t.remainReward)}（約需再刷 ${money(t.remainSpend)}）</span>`;
+      return `
+        <div class="hb-row">
+          <div class="hb-row-head">
+            <div class="hb-row-title">
+              <span class="hb-row-label">${escapeHtml(t.name)}</span>
+              <span class="cb-tier-rate">${t.rate}%</span>
+            </div>
+            <div class="hb-row-meta">
+              <span class="hb-row-remain">${money(t.earned)}</span>
+              <span class="hb-row-limit">/ ${money(t.cap)}</span>
+            </div>
+            <span class="hb-row-pct">${pct}%</span>
+          </div>
+          <div class="hb-bar-track">
+            <div class="hb-bar-fill cb-bar-fill ${barClass}" style="width:${pct}%"></div>
+          </div>
+          ${hint}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="cb-card">
+        <div class="cb-card-head">
+          <div class="cb-card-title">
+            <span class="hb-row-icon">${acc.emoji || '💳'}</span>
+            <span class="cb-card-name">${escapeHtml(acc.name || '')}</span>
+          </div>
+          <div class="cb-card-total">
+            <span class="cb-card-total-label">預估回饋</span>
+            <span class="cb-card-total-val">${money(result.totalEarned)}</span>
+          </div>
+        </div>
+        <div class="cb-card-sub">
+          ${periodLabel} ${result.range.start} ～ ${result.range.end}・本期已刷 <strong>${money(result.spent)}</strong>
+        </div>
+        <div class="cb-tier-list">${tiersHtml}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="cb-section">
+      <div class="cb-section-title">💳 信用卡回饋</div>
+      ${cardHtml}
+    </div>`;
 }
 
 function matchesSearch(r, kw) {

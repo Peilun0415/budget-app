@@ -169,6 +169,7 @@ let allProjects    = [];
 let unsubProjects  = null;
 let currentProjectId = null; // 目前查看的專案 docId
 let projectSearchKeyword = '';
+let projectDateFilter = '';
 let splitMode      = 'equal'; // 'equal' | 'custom'
 /** 專案記帳快取（key = projectId），不與 allRecords 合併，僅在專案頁使用 */
 let sharedProjectRecords = {};
@@ -675,6 +676,7 @@ const projectNameInput      = document.getElementById('projectNameInput');
 const projectMembersInput   = document.getElementById('projectMembersInput');
 const projectCurrencySelect = document.getElementById('projectCurrencySelect');
 const projectRateToTwdInput = document.getElementById('projectRateToTwdInput');
+const projectRateEqLabel    = document.getElementById('projectRateEqLabel');
 const projectInviteEditorsWrap = document.getElementById('projectInviteEditorsWrap');
 const projectInviteEmailInput = document.getElementById('projectInviteEmailInput');
 const projectInviteBtn = document.getElementById('projectInviteBtn');
@@ -693,14 +695,21 @@ const projectRecordList     = document.getElementById('projectRecordList');
 const projectRecordSectionTitle = document.getElementById('projectRecordSectionTitle');
 const projectSearchInput    = document.getElementById('projectSearchInput');
 const projectSearchClearBtn = document.getElementById('projectSearchClearBtn');
+const projectDateFilterSelect = document.getElementById('projectDateFilter');
 const projectActiveHint     = document.getElementById('projectActiveHint');
 const projectActiveToggle   = document.getElementById('projectActiveToggle');
 const projectActiveToggleWrap = document.getElementById('projectActiveToggleWrap');
 const projectActiveSettingWrap = document.getElementById('projectActiveSettingWrap');
 const projectEditBtn        = document.getElementById('projectEditBtn');
 const projectReportBtn      = document.getElementById('projectReportBtn');
+const projectSettleBtn      = document.getElementById('projectSettleBtn');
+const projectRewardBtn      = document.getElementById('projectRewardBtn');
 const projectReportModalOverlay = document.getElementById('projectReportModalOverlay');
 const closeProjectReportModalBtn = document.getElementById('closeProjectReportModalBtn');
+const projectSettleModalOverlay = document.getElementById('projectSettleModalOverlay');
+const closeProjectSettleModalBtn = document.getElementById('closeProjectSettleModalBtn');
+const projectRewardModalOverlay = document.getElementById('projectRewardModalOverlay');
+const closeProjectRewardModalBtn = document.getElementById('closeProjectRewardModalBtn');
 const projectReportMemberSelect = document.getElementById('projectReportMemberSelect');
 const projectReportPayerSelect = document.getElementById('projectReportPayerSelect');
 const projectReportCheckAll = document.getElementById('projectReportCheckAll');
@@ -721,7 +730,6 @@ const rewardActivityModalList     = document.getElementById('rewardActivityModal
 const addRewardInModalBtn         = document.getElementById('addRewardInModalBtn');
 const saveRewardActivityBtn       = document.getElementById('saveRewardActivityBtn');
 const closeRewardActivityModalBtn = document.getElementById('closeRewardActivityModalBtn');
-const projectRewardSection  = document.getElementById('projectRewardSection');
 const projectRewardList     = document.getElementById('projectRewardList');
 const projectRewardManageBtn = document.getElementById('projectRewardManageBtn');
 const splitGroup            = document.getElementById('splitGroup');
@@ -2461,6 +2469,14 @@ function calcProjectTotal(proj) {
 
 addProjectBtn.addEventListener('click', () => openProjectModal());
 
+function updateProjectRateEqLabel() {
+  if (!projectRateEqLabel) return;
+  const code = projectCurrencySelect?.value?.trim();
+  projectRateEqLabel.textContent = `1 ${code || '外幣'} =`;
+}
+
+projectCurrencySelect?.addEventListener('change', updateProjectRateEqLabel);
+
 let projectDateRangePicker = null;
 
 function openProjectModal(proj = null) {
@@ -2482,6 +2498,7 @@ function openProjectModal(proj = null) {
   projectEndInput.value        = proj?.endDate   || '';
   if (projectCurrencySelect) projectCurrencySelect.value = proj?.currency || '';
   if (projectRateToTwdInput) projectRateToTwdInput.value = proj?.rateToTwd != null ? String(proj.rateToTwd) : '';
+  updateProjectRateEqLabel();
   if (projectActiveSettingWrap) {
     projectActiveSettingWrap.style.display = proj && proj.uid === currentUser?.uid ? '' : 'none';
   }
@@ -2798,8 +2815,10 @@ deleteProjectBtn.addEventListener('click', async () => {
 function showProjectDetailView(proj) {
   currentProjectId = proj.docId;
   projectSearchKeyword = '';
+  projectDateFilter = '';
   if (projectSearchInput) projectSearchInput.value = '';
   if (projectSearchClearBtn) projectSearchClearBtn.style.display = 'none';
+  if (projectDateFilterSelect) projectDateFilterSelect.value = '';
   renderProjectDetail();
   switchPage('projectDetail');
 }
@@ -2887,16 +2906,69 @@ function renderProjectDetail() {
   // 結算／回饋用完整資料，不受搜尋影響
   renderProjectSettle(proj, allRecs);
   renderProjectReward(proj, allRecs);
+  fillProjectDateFilter(proj, allRecs);
   renderProjectRecordList(proj, allRecs);
+}
+
+function listProjectRangeDates(startStr, endStr, maxDays = 366) {
+  if (!startStr) return [];
+  const start = new Date(`${startStr}T00:00:00`);
+  const end = new Date(`${endStr || startStr}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  const from = start <= end ? start : end;
+  const to = start <= end ? end : start;
+  const days = Math.round((to - from) / 86400000) + 1;
+  if (days > maxDays) return [formatDate(from), formatDate(to)];
+  const dates = [];
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    dates.push(formatDate(d));
+  }
+  return dates;
+}
+
+function getProjectFilterDates(proj, recs) {
+  const set = new Set(listProjectRangeDates(proj?.startDate, proj?.endDate));
+  (recs || []).forEach(r => {
+    if (r.date) set.add(r.date);
+  });
+  return [...set].sort((a, b) => b.localeCompare(a));
+}
+
+function fillProjectDateFilter(proj, recs) {
+  if (!projectDateFilterSelect) return;
+  const dates = getProjectFilterDates(proj, recs);
+  const prev = projectDateFilter;
+  projectDateFilterSelect.innerHTML = '<option value="">全部日期</option>' +
+    dates.map(d => `<option value="${d}">${formatDateDisplay(d)}</option>`).join('');
+  if (prev && dates.includes(prev)) {
+    projectDateFilterSelect.value = prev;
+    projectDateFilter = prev;
+  } else {
+    projectDateFilter = '';
+    projectDateFilterSelect.value = '';
+  }
+}
+
+function getFilteredProjectRecords(proj, allRecs) {
+  const kw = projectSearchKeyword.trim();
+  return (allRecs || []).filter(r => {
+    if (projectDateFilter && r.date !== projectDateFilter) return false;
+    if (kw && !matchesProjectSearch(r, kw, proj)) return false;
+    return true;
+  });
 }
 
 function renderProjectRecordList(proj, allRecs) {
   const kw = projectSearchKeyword.trim();
-  const recs = kw ? allRecs.filter(r => matchesProjectSearch(r, kw, proj)) : allRecs;
+  const recs = getFilteredProjectRecords(proj, allRecs);
+  const dateLabel = projectDateFilter ? formatDateDisplay(projectDateFilter) : '';
 
   if (projectRecordSectionTitle) {
-    if (kw) {
-      projectRecordSectionTitle.textContent = `搜尋「${kw}」的結果（${recs.length}）`;
+    if (kw || dateLabel) {
+      const parts = [];
+      if (kw) parts.push(`搜尋「${kw}」`);
+      if (dateLabel) parts.push(dateLabel);
+      projectRecordSectionTitle.textContent = `${parts.join('・')}的結果（${recs.length}）`;
       projectRecordSectionTitle.classList.add('searching');
     } else {
       projectRecordSectionTitle.textContent = '花費明細';
@@ -2906,9 +2978,12 @@ function renderProjectRecordList(proj, allRecs) {
 
   projectRecordList.innerHTML = '';
   if (recs.length === 0) {
-    projectRecordList.innerHTML = kw
-      ? `<div class="project-empty">找不到「${kw}」的相關花費</div>`
-      : '<div class="project-empty">還沒有相關記帳記錄</div>';
+    const emptyMsg = kw
+      ? `找不到「${kw}」的相關花費`
+      : dateLabel
+        ? `${dateLabel}還沒有記帳記錄`
+        : '還沒有相關記帳記錄';
+    projectRecordList.innerHTML = `<div class="empty-state"><span>📋</span><p>${emptyMsg}</p></div>`;
     return;
   }
   const sorted = [...recs].sort((a, b) => {
@@ -2922,54 +2997,23 @@ function renderProjectRecordList(proj, allRecs) {
     if (!groups[d]) groups[d] = [];
     groups[d].push(r);
   });
-  Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
-    projectRecordList.appendChild(buildDateHeader(date, groups[date], null, proj));
-    groups[date].forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'project-record-item project-record-item-clickable';
-      const recTwd = getProjectRecordTwdAmount(r, proj);
-      const n = r.splitData?.length || 0;
-      const firstUid = n ? normalizeSplitMemberUid(r.splitData[0], proj, r.uid || null) : null;
-      const firstAmt = firstUid ? getMemberShareTwd(r, firstUid, proj) : 0;
-      const isEqual = n > 1 && r.splitData.every(s => {
-        const uid = normalizeSplitMemberUid(s, proj, r.uid || null);
-        return uid ? getMemberShareTwd(r, uid, proj) === firstAmt : false;
-      });
-      const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
-      const payerLabel = payerUid ? getProjectMemberLabelByUid(proj, payerUid) : '';
-      const splitSummary = r.splitPayer && n > 0
-        ? (isEqual ? `${payerLabel} 付 · ${n}人 各 $${formatMoney(firstAmt)}` : `${payerLabel} 付 · ${n}人分攤`)
-        : '';
-      const foreignLine = r.foreignAmount && r.foreignCurrency ? `${r.foreignCurrency} ${formatMoney(r.foreignAmount)}` : '';
-      const creatorText = `建立者：${getRecordCreatorLabel(r, proj)}`;
-      const isCreator = canModifyRecord(r);
-      item.innerHTML = `
-        <div class="project-rec-left">
-          <span class="project-rec-emoji">${r.displayEmoji || r.categoryEmoji || '📦'}</span>
-          <div class="project-rec-info">
-            <div class="project-rec-name">${r.displayName || r.categoryName || '其他'}</div>
-            <div class="project-rec-meta">${r.note || ''}</div>
-            ${splitSummary ? `<div class="project-rec-split-summary">${splitSummary}</div>` : ''}
-          </div>
-        </div>
-        <div class="project-rec-right">
-          <div class="project-rec-amount-wrap">
-            <span class="project-rec-amount">-$${formatMoney(recTwd)}</span>
-            ${foreignLine ? `<span class="project-rec-foreign">${foreignLine}</span>` : ''}
-          </div>
-          <div class="project-rec-badge">
-            <span class="project-rec-edit-icon ${isCreator ? '' : 'is-hidden'}">✏️</span>
-            <span class="project-rec-creator ${isCreator ? 'is-hidden' : ''}">${creatorText}</span>
-          </div>
-        </div>
-        `;
-      item.addEventListener('click', () => {
-        if (canModifyRecord(r)) openModal(r);
-        else openProjectRecordReadOnlyView(r, proj);
-      });
-      projectRecordList.appendChild(item);
-    });
+  appendRecordDayGroups(projectRecordList, groups, null, { project: proj });
+}
+
+function getProjectRecordSplitSummary(r, proj) {
+  const n = r.splitData?.length || 0;
+  if (!(r.splitPayer && n > 0)) return '';
+  const firstUid = normalizeSplitMemberUid(r.splitData[0], proj, r.uid || null);
+  const firstAmt = firstUid ? getMemberShareTwd(r, firstUid, proj) : 0;
+  const isEqual = n > 1 && r.splitData.every(s => {
+    const uid = normalizeSplitMemberUid(s, proj, r.uid || null);
+    return uid ? getMemberShareTwd(r, uid, proj) === firstAmt : false;
   });
+  const payerUid = normalizeSplitPayerUid(r, proj, r.uid || null);
+  const payerLabel = payerUid ? getProjectMemberLabelByUid(proj, payerUid) : '';
+  return isEqual
+    ? `${payerLabel} 付 · ${n}人 各 $${formatMoney(firstAmt)}`
+    : `${payerLabel} 付 · ${n}人分攤`;
 }
 
 function renderProjectSettle(proj, recs) {
@@ -3159,8 +3203,7 @@ async function doUnsettle(proj) {
 }
 
 function renderProjectReward(proj, recs) {
-  if (!projectRewardSection) return;
-  projectRewardSection.style.display = '';
+  if (!projectRewardList) return;
   const acts = (proj.rewardActivities || []).filter(a => a.name);
   projectRewardList.innerHTML = '';
   if (acts.length === 0) {
@@ -3240,6 +3283,14 @@ projectSearchClearBtn?.addEventListener('click', () => {
   projectSearchInput?.focus();
 });
 
+projectDateFilterSelect?.addEventListener('change', () => {
+  projectDateFilter = projectDateFilterSelect.value || '';
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj) return;
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  renderProjectRecordList(proj, allRecs);
+});
+
 projectActiveToggle?.addEventListener('change', () => {
   if (!projectActiveHint) return;
   projectActiveHint.textContent = projectActiveToggle.checked
@@ -3260,6 +3311,39 @@ if (projectReportBtn) {
     if (proj) openProjectReportModal(proj);
   });
 }
+
+function bindProjectPanelModal(overlay, closeBtn) {
+  if (!overlay) return;
+  closeBtn?.addEventListener('click', () => overlay.classList.remove('active'));
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+}
+
+function openProjectSettleModal() {
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj || !projectSettleModalOverlay) return;
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  renderProjectSettle(proj, allRecs);
+  projectSettleModalOverlay.classList.add('active');
+}
+
+function openProjectRewardModal() {
+  const proj = allProjects.find(p => p.docId === currentProjectId);
+  if (!proj || !projectRewardModalOverlay) return;
+  const allRecs = getProjectRecords(proj).filter(isProjectExpenseLikeRecord);
+  renderProjectReward(proj, allRecs);
+  projectRewardModalOverlay.classList.add('active');
+}
+
+if (projectSettleBtn) {
+  projectSettleBtn.addEventListener('click', openProjectSettleModal);
+}
+if (projectRewardBtn) {
+  projectRewardBtn.addEventListener('click', openProjectRewardModal);
+}
+bindProjectPanelModal(projectSettleModalOverlay, closeProjectSettleModalBtn);
+bindProjectPanelModal(projectRewardModalOverlay, closeProjectRewardModalBtn);
 
 function openProjectReportModal(proj) {
   const members = getProjectMemberEntries(proj);
@@ -5817,7 +5901,7 @@ function openModal(record = null, newRecordOptions = null) {
     const transferRecord = isTransferRecord(record);
     recordModalTitle.textContent = transferRecord ? '編輯轉帳' : '編輯記帳';
     submitBtn.textContent = '儲存修改';
-    deleteRecordBtn.style.display = 'inline-flex';
+    deleteRecordBtn.style.display = '';
     switchType(transferRecord ? 'transfer' : record.type);
     let formRecord = record;
     if (transferRecord) {
@@ -6810,7 +6894,7 @@ function openCatModal(catDoc = null, parentDoc = null) {
     catEditIdInput.value  = catDoc.docId;
     catEmojiInput.value   = catDoc.emoji || '';
     catNameInput.value    = catDoc.name  || '';
-    deleteCatBtn.style.display = 'block';
+    deleteCatBtn.style.display = '';
     catSelectedType = catDoc.type || 'expense';
   } else {
     catModalTitle.textContent = isParent ? '新增主分類' : '新增子分類';
@@ -6914,9 +6998,8 @@ function buildCatParentItem(parent) {
     <span class="cat-parent-name">${parent.name}</span>
     <div class="cat-parent-actions">
       <button type="button" class="cat-add-sub-btn">＋ 子分類</button>
-      <button type="button" class="cat-action-btn cat-edit-btn" title="編輯">✏️</button>
+      <button type="button" class="cat-action-btn cat-edit-btn" title="編輯" aria-label="編輯"><i class="bi bi-pencil" aria-hidden="true"></i></button>
     </div>
-    <span class="cat-toggle-arrow open">›</span>
   `;
   header.querySelector('.cat-edit-btn').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -6927,8 +7010,6 @@ function buildCatParentItem(parent) {
     openCatModal(null, parent);
   });
 
-  // 展開/收合
-  const arrow = header.querySelector('.cat-toggle-arrow');
   let subListEl = null;
 
   header.addEventListener('click', (e) => {
@@ -6936,7 +7017,6 @@ function buildCatParentItem(parent) {
     if (subListEl) {
       const isOpen = subListEl.style.display !== 'none';
       subListEl.style.display = isOpen ? 'none' : '';
-      arrow.classList.toggle('open', !isOpen);
     }
   });
 
@@ -6954,7 +7034,7 @@ function buildCatParentItem(parent) {
         <span class="drag-handle cat-sub-drag" title="拖曳排序">⠿</span>
         <span class="cat-sub-emoji">${sub.emoji}</span>
         <span class="cat-sub-name">${sub.name}</span>
-        <button type="button" class="cat-action-btn cat-sub-edit-btn" title="編輯">✏️</button>
+        <button type="button" class="cat-action-btn cat-sub-edit-btn" title="編輯" aria-label="編輯"><i class="bi bi-pencil" aria-hidden="true"></i></button>
       `;
       subItem.querySelector('.cat-sub-edit-btn').addEventListener('click', () => {
         openCatModal(sub, parent);
@@ -7873,24 +7953,25 @@ function foreignHint(r) {
   return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}）</span>`;
 }
 
-function recordAmountMarkup(r, showAccountCurrencyFirst = false) {
+function recordAmountMarkup(r, showAccountCurrencyFirst = false, project = null) {
   const sign = r.type === 'income' ? '+' : '-';
+  const twdAmount = project ? getProjectRecordTwdAmount(r, project) : (r.amount ?? 0);
   const accountCurrency = getRecordAccountCurrency(r);
   if (showAccountCurrencyFirst && accountCurrency) {
     const foreignAmt = typeof r.foreignAmount === 'number' ? r.foreignAmount : r.amount;
     return `
       <span class="record-amount ${r.type}">${sign}${accountCurrency} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}</span>
-      <span class="foreign-hint">≈ ${sign}$${formatMoney(r.amount)}</span>
+      <span class="foreign-hint">≈ ${sign}$${formatMoney(twdAmount)}</span>
     `;
   }
   return `
-    <span class="record-amount ${r.type}">${sign}$${formatMoney(r.amount)}</span>
+    <span class="record-amount ${r.type}">${sign}$${formatMoney(twdAmount)}</span>
     ${foreignHint(r)}
   `;
 }
 
 // ===== 建立記帳卡片（記帳列表 & 帳戶明細共用）=====
-function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
+function buildRecordItem(r, { showAccountCurrencyFirst = false, project = null } = {}) {
   const item = document.createElement('div');
   item.className = 'record-item-wrapper';
 
@@ -7908,6 +7989,10 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
     const toName   = toAccObj?.name   || (r.accountId === r.transferToId   ? r.accountName : parsedTo)   || '?';
     const metaText = r.note || '無備註';
     const transferCurrency = getRecordAccountCurrency(r) || 'TWD';
+    const transferAmount = project ? getProjectRecordTwdAmount(r, project) : r.amount;
+    const transferAmountText = project
+      ? `$${formatMoney(transferAmount)}`
+      : `$${formatMoneyByCurrency(r.amount, transferCurrency)}`;
     content.innerHTML = `
       <div class="record-cat-icon transfer-icon">🔄</div>
       <div class="record-info">
@@ -7915,13 +8000,16 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
         <div class="record-meta">${metaText}</div>
       </div>
       <div class="record-right">
-        <span class="record-amount transfer">$${formatMoneyByCurrency(r.amount, transferCurrency)}</span>
+        <span class="record-amount transfer">${transferAmountText}</span>
         <span class="record-edit-hint">›</span>
       </div>
     `;
   } else {
     const accLabel  = r.accountId ? (r.accountName || '') : '無';
-    const metaText  = [accLabel, r.note].filter(Boolean).join(' · ') || '無備註';
+    const splitSummary = project ? getProjectRecordSplitSummary(r, project) : '';
+    const metaText = project
+      ? ([splitSummary, r.note].filter(Boolean).join(' · ') || accLabel || '無備註')
+      : ([accLabel, r.note].filter(Boolean).join(' · ') || '無備註');
     const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
     const dispName  = r.displayName  || r.categoryName  || '其他';
     content.innerHTML = `
@@ -7932,7 +8020,7 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
       </div>
       <div class="record-right">
         <div class="record-amount-wrap">
-          ${recordAmountMarkup(r, showAccountCurrencyFirst)}
+          ${recordAmountMarkup(r, showAccountCurrencyFirst, project)}
         </div>
         <span class="record-edit-hint">›</span>
       </div>
@@ -7943,6 +8031,10 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false } = {}) {
   content.addEventListener('click', (e) => {
     // 若正在滑動，不觸發點擊
     if (content.dataset.isSwiping === 'true') return;
+    if (project && !canModifyRecord(r)) {
+      openProjectRecordReadOnlyView(r, project);
+      return;
+    }
     openModal(r);
   });
 
@@ -8078,7 +8170,7 @@ function appendRecordDayGroups(container, groups, account = null, itemOpts = {})
   Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
     const card = document.createElement('div');
     card.className = 'record-day-card';
-    card.appendChild(buildDateHeader(date, groups[date], account));
+    card.appendChild(buildDateHeader(date, groups[date], account, itemOpts.project || null));
     groups[date].forEach(r => card.appendChild(buildRecordItem(r, itemOpts)));
     container.appendChild(card);
   });

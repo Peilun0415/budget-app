@@ -42,7 +42,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=9.14" />
+  <link rel="stylesheet" href="style.css?v=9.35" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -163,7 +163,7 @@
         <div class="search-input-wrap">
           <i class="bi bi-search search-icon" aria-hidden="true"></i>
           <input type="text" id="searchInput" class="search-input" placeholder="搜尋備註、分類、帳戶、金額…" />
-          <button class="search-clear-btn" id="searchClearBtn" style="display:none" type="button" aria-label="清除搜尋">✕</button>
+          <button class="search-clear-btn" id="searchClearBtn" style="display:none" type="button" aria-label="清除搜尋"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <button type="button" class="search-filter-btn" id="homeFilterBtn" aria-label="條件篩選">
           <i class="bi bi-funnel" aria-hidden="true"></i>
@@ -447,7 +447,7 @@
       <div class="modal">
         <div class="modal-header">
           <h2>每月總預算</h2>
-          <button class="close-btn" id="closeMonthBudgetBtn">✕</button>
+          <button class="close-btn" id="closeMonthBudgetBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <div class="form-group">
           <label class="form-label">金額（元）</label>
@@ -470,7 +470,7 @@
       <div class="modal">
         <div class="modal-header">
           <h2 id="catBudgetModalTitle">新增類別預算</h2>
-          <button class="close-btn" id="closeCatBudgetBtn">✕</button>
+          <button class="close-btn" id="closeCatBudgetBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <div class="form-group">
           <label class="form-label">支出分類</label>
@@ -492,7 +492,7 @@
       <div class="modal home-filter-modal">
         <div class="modal-header">
           <h2>條件篩選</h2>
-          <button class="close-btn" id="closeHomeFilterBtn" type="button">✕</button>
+          <button class="close-btn" id="closeHomeFilterBtn" type="button" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
 
         <div class="form-group">
@@ -535,7 +535,7 @@
       <div class="modal hidden-accounts-modal">
         <div class="modal-header">
           <h2>隱藏帳戶</h2>
-          <button class="close-btn" id="closeHiddenAccountsBtn" type="button">✕</button>
+          <button class="close-btn" id="closeHiddenAccountsBtn" type="button" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <p class="settings-modal-hint">關閉後，該帳戶不出現在帳戶列表與記帳選單。舊紀錄與淨資產不受影響。</p>
         <div id="hiddenAccountsList" class="hidden-accounts-list"></div>
@@ -547,7 +547,7 @@
       <div class="modal">
         <div class="modal-header">
           <h2>預設扣款帳戶</h2>
-          <button class="close-btn" id="closeDefaultDebitAccountBtn" type="button">✕</button>
+          <button class="close-btn" id="closeDefaultDebitAccountBtn" type="button" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <p class="settings-modal-hint">新增記帳時會自動選此帳戶</p>
         <div class="form-group">
@@ -567,7 +567,7 @@
       <div class="modal clear-data-modal">
         <div class="modal-header">
           <h2>清除所有資料</h2>
-          <button class="close-btn" id="closeClearDataBtn">✕</button>
+          <button class="close-btn" id="closeClearDataBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <p class="clear-data-warning">⚠️ 此操作將永久刪除你的所有記帳紀錄、帳戶、分類、範本及固定收支，<strong>無法復原</strong>。</p>
         <p class="clear-data-confirm-label">請輸入「確認刪除」以繼續：</p>
@@ -703,7 +703,7 @@
       <div class="modal report-filter-modal">
         <div class="modal-header">
           <h2>報表過濾說明</h2>
-          <button type="button" class="close-btn" id="reportFilterCloseBtn">✕</button>
+          <button type="button" class="close-btn" id="reportFilterCloseBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <div class="report-filter-content" id="reportFilterContent">
           <p class="report-filter-intro">以下規則適用於<strong>類別分析</strong>與<strong>收支趨勢</strong>，以下資料<strong>不計入</strong>報表：</p>
@@ -769,7 +769,7 @@
     </div>
 
     <!-- ===== 專案詳情頁 ===== -->
-    <div id="pageProjectDetail" style="display:none; padding-bottom: 30px;">
+    <div id="pageProjectDetail" style="display:none">
       <div class="project-detail-hero">
         <div class="project-detail-hero-inner">
           <div class="project-detail-meta">
@@ -799,22 +799,18 @@
                   <i class="bi bi-bar-chart-line project-edit-btn-icon" aria-hidden="true"></i>
                   <span class="project-edit-btn-label">顯示報表</span>
                 </button>
+                <button type="button" class="project-edit-btn" id="projectSettleBtn" aria-label="結算">
+                  <i class="bi bi-cash-coin project-edit-btn-icon" aria-hidden="true"></i>
+                  <span class="project-edit-btn-label">結算</span>
+                </button>
+                <button type="button" class="project-edit-btn" id="projectRewardBtn" aria-label="回饋追蹤">
+                  <i class="bi bi-gift project-edit-btn-icon" aria-hidden="true"></i>
+                  <span class="project-edit-btn-label">回饋追蹤</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- 結算總覽 -->
-      <div class="project-settle-summary" id="projectSettleSummary"></div>
-
-      <!-- 回饋追蹤 -->
-      <div id="projectRewardSection" style="display:none">
-        <div class="project-section-title-row">
-          <div class="project-section-title">回饋追蹤</div>
-          <button type="button" class="project-reward-manage-btn" id="projectRewardManageBtn">管理回饋活動</button>
-        </div>
-        <div id="projectRewardList"></div>
       </div>
 
       <!-- 花費明細 -->
@@ -823,10 +819,15 @@
         <div class="search-input-wrap">
           <i class="bi bi-search search-icon" aria-hidden="true"></i>
           <input type="text" id="projectSearchInput" class="search-input" placeholder="搜尋備註、分類、付款人…" />
-          <button type="button" class="search-clear-btn" id="projectSearchClearBtn" style="display:none" aria-label="清除搜尋">✕</button>
+          <button type="button" class="search-clear-btn" id="projectSearchClearBtn" style="display:none" aria-label="清除搜尋"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
+        <select id="projectDateFilter" class="form-select project-date-filter" aria-label="依日期篩選">
+          <option value="">全部日期</option>
+        </select>
       </div>
-      <div id="projectRecordList"></div>
+      <section class="list-section">
+        <div id="projectRecordList" class="record-list"></div>
+      </section>
     </div>
 
   </div><!-- /app-screen -->
@@ -836,7 +837,7 @@
     <div class="modal project-report-modal">
       <div class="modal-header">
         <h2 id="projectReportModalTitle">專案消費明細</h2>
-        <button class="close-btn" id="closeProjectReportModalBtn">✕</button>
+        <button class="close-btn" id="closeProjectReportModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="project-report-body">
         <div class="project-report-top">
@@ -878,6 +879,35 @@
     </div>
   </div>
 
+  <!-- 專案結算總覽 -->
+  <div class="modal-overlay" id="projectSettleModalOverlay">
+    <div class="modal project-panel-modal">
+      <div class="modal-header">
+        <h2>結算總覽</h2>
+        <button type="button" class="close-btn" id="closeProjectSettleModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+      </div>
+      <div class="project-panel-modal-body">
+        <div class="project-settle-summary" id="projectSettleSummary"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 專案回饋追蹤 -->
+  <div class="modal-overlay" id="projectRewardModalOverlay">
+    <div class="modal project-panel-modal">
+      <div class="modal-header">
+        <h2>回饋追蹤</h2>
+        <div class="modal-header-actions">
+          <button type="button" class="project-reward-manage-btn" id="projectRewardManageBtn">管理回饋活動</button>
+          <button type="button" class="close-btn" id="closeProjectRewardModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="project-panel-modal-body" id="projectRewardSection">
+        <div id="projectRewardList"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 新增/編輯記帳彈窗 -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
@@ -885,7 +915,7 @@
         <h2 id="recordModalTitle">新增記帳</h2>
         <div class="modal-header-actions">
           <button type="button" class="tpl-apply-btn" id="openTplListBtn" title="套用範本">📋</button>
-          <button class="close-btn" id="closeFormBtn">✕</button>
+          <button class="close-btn" id="closeFormBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
       </div>
 
@@ -1085,8 +1115,9 @@
         <input type="hidden" id="recordEditId" value="" />
         <div class="form-action-row">
           <button type="submit" class="submit-btn" id="submitBtn">記下來！</button>
-          <button type="button" class="delete-record-btn delete-record-icon-btn" id="deleteRecordBtn" style="display:none" aria-label="刪除" title="刪除">
-            <i class="bi bi-trash3-fill" aria-hidden="true"></i>
+          <button type="button" class="btn-delete form-delete-btn" id="deleteRecordBtn" style="display:none">
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            刪除
           </button>
         </div>
         <div class="record-form-secondary-row">
@@ -1103,7 +1134,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="projectModalTitle">新增專案</h2>
-        <button class="close-btn" id="closeProjectModalBtn">✕</button>
+        <button class="close-btn" id="closeProjectModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <form id="projectForm">
         <div class="form-group">
@@ -1160,9 +1191,11 @@
               <option value="THB">THB</option>
               <option value="CNY">CNY</option>
             </select>
-            <span class="project-rate-eq">1 外幣 =</span>
-            <input type="number" id="projectRateToTwdInput" class="form-input" placeholder="0.21" min="0" step="any" inputmode="decimal" />
-            <span class="project-rate-unit">元台幣</span>
+            <div class="project-rate-convert">
+              <span class="project-rate-eq" id="projectRateEqLabel">1 外幣 =</span>
+              <input type="number" id="projectRateToTwdInput" class="form-input" placeholder="0.21" min="0" step="any" inputmode="decimal" />
+              <span class="project-rate-unit">元台幣</span>
+            </div>
           </div>
         </div>
         <input type="hidden" id="projectEditId" value="" />
@@ -1179,7 +1212,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2>回饋活動設定</h2>
-        <button type="button" class="close-btn" id="closeRewardActivityModalBtn">✕</button>
+        <button type="button" class="close-btn" id="closeRewardActivityModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -1200,7 +1233,7 @@
     <div class="modal small-modal">
       <div class="modal-header">
         <h2>匯出記帳資料</h2>
-        <button type="button" class="close-btn" id="closeExportModalBtn">✕</button>
+        <button type="button" class="close-btn" id="closeExportModalBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body">
         <p class="billing-day-hint">匯出目前帳號的記帳紀錄，不含已刪除資料。未選時間範圍時匯出全部。</p>
@@ -1235,7 +1268,7 @@
     <div class="modal cat-picker-modal">
       <div class="modal-header">
         <h2>選擇分類</h2>
-        <button class="close-btn" id="closeCatPickerBtn">✕</button>
+        <button class="close-btn" id="closeCatPickerBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="cat-picker-body">
         <div class="cat-picker-left" id="catPickerParents"></div>
@@ -1249,7 +1282,7 @@
     <div class="modal tpl-list-modal">
       <div class="modal-header">
         <h2>套用範本</h2>
-        <button class="close-btn" id="closeTplListBtn">✕</button>
+        <button class="close-btn" id="closeTplListBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="tpl-tabs">
         <button class="tpl-tab active" data-type="expense">支出</button>
@@ -1266,7 +1299,7 @@
     <div class="modal tpl-name-modal">
       <div class="modal-header">
         <h2 id="tplNameModalTitle">儲存為範本</h2>
-        <button class="close-btn" id="closeTplNameBtn">✕</button>
+        <button class="close-btn" id="closeTplNameBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <div class="form-group">
         <label for="tplNameInput">範本名稱</label>
@@ -1282,7 +1315,7 @@
       <div class="modal-header">
         <h2 id="recurringModalTitle">新增固定項目</h2>
         <div class="modal-header-actions">
-          <button type="button" class="close-btn" id="closeRecurringFormBtn">✕</button>
+          <button type="button" class="close-btn" id="closeRecurringFormBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
       </div>
 
@@ -1435,7 +1468,7 @@
     <div class="modal">
       <div class="modal-header account-modal-header">
         <input type="text" id="accountName" class="account-name-header-input" form="accountForm" placeholder="帳戶名稱" maxlength="20" required />
-        <button class="close-btn" id="closeAccountFormBtn">✕</button>
+        <button class="close-btn" id="closeAccountFormBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
 
       <form id="accountForm">
@@ -1520,7 +1553,7 @@
     <div class="modal delete-account-confirm-modal">
       <div class="modal-header">
         <h2>刪除帳戶</h2>
-        <button type="button" class="close-btn" id="closeDeleteAccountConfirmBtn">✕</button>
+        <button type="button" class="close-btn" id="closeDeleteAccountConfirmBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <p class="delete-account-confirm-msg" id="deleteAccountConfirmMsg">確定要刪除此帳戶嗎？</p>
       <div class="modal-actions modal-actions--row">
@@ -1535,16 +1568,18 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="catModalTitle">新增主分類</h2>
-        <button class="close-btn" id="closeCatFormBtn">✕</button>
+        <button class="close-btn" id="closeCatFormBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
       <form id="catForm">
-        <div class="form-group">
-          <label>圖示（Emoji）</label>
-          <input type="text" id="catEmoji" placeholder="例：🍜" maxlength="4" />
-        </div>
-        <div class="form-group">
-          <label for="catName">名稱</label>
-          <input type="text" id="catName" placeholder="例：飲食" maxlength="12" required />
+        <div class="cat-form-main-row">
+          <div class="form-group cat-emoji-group">
+            <label for="catEmoji">圖示</label>
+            <input type="text" id="catEmoji" placeholder="🍜" maxlength="4" />
+          </div>
+          <div class="form-group cat-name-group">
+            <label for="catName">名稱</label>
+            <input type="text" id="catName" placeholder="例：飲食" maxlength="12" required />
+          </div>
         </div>
         <!-- 子分類時顯示：所屬主分類（唯讀） -->
         <div class="form-group" id="catParentGroup" style="display:none">
@@ -1556,12 +1591,15 @@
         <input type="hidden" id="catIsParent" value="true" />
         <div class="form-action-row">
           <button type="submit" class="submit-btn" id="catSubmitBtn">儲存</button>
-          <button type="button" class="delete-record-btn" id="deleteCatBtn" style="display:none">刪除</button>
+          <button type="button" class="btn-delete form-delete-btn" id="deleteCatBtn" style="display:none">
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            刪除
+          </button>
         </div>
       </form>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=9.14"></script>
+  <script type="module" src="app.js?v=9.35"></script>
 </body>
 </html>

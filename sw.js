@@ -1,9 +1,9 @@
 /* 貓貓記帳 PWA：離線殼＋關鍵靜態資源快取。變更 app 版本時請一併更新 CACHE 與 PRECACHE 路徑 */
-const CACHE = 'nekomemo-pwa-v9.14';
+const CACHE = 'nekomemo-pwa-v9.35';
 const PRECACHE = [
   'index.html',
-  'app.js?v=9.14',
-  'style.css?v=9.14',
+  'app.js?v=9.35',
+  'style.css?v=9.35',
   'icons/cat.png'
 ];
 

@@ -1453,24 +1453,22 @@ body {
   flex-shrink: 0;
 }
 .project-report-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 .report-filter-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 180px;
+  min-width: 0;
 }
 .report-filter-item label {
-  white-space: nowrap;
-  font-size: var(--fs-base);
+  display: block;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text-mid);
+  margin-bottom: 8px;
 }
 .report-filter-item select {
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
 .project-report-table-container {

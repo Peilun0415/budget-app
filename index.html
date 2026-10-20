@@ -42,7 +42,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=9.44" />
+  <link rel="stylesheet" href="style.css?v=9.45" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -1518,16 +1518,6 @@
           <p class="billing-day-hint">設定後，查看明細時會自動顯示本期帳單範圍</p>
         </div>
 
-        <!-- 回饋計算時間（僅信用卡顯示） -->
-        <div class="form-group" id="rewardPeriodGroup" style="display:none">
-          <label for="accountRewardPeriod">回饋計算時間</label>
-          <select id="accountRewardPeriod" class="form-select">
-            <option value="calendar">日曆月（每月 1 日～月底）</option>
-            <option value="billing">帳單週期（依結算日）</option>
-          </select>
-          <p class="billing-day-hint">選「帳單週期」時請一併設定結算日；此設定會顯示於帳戶明細</p>
-        </div>
-
         <!-- 回饋規則（僅信用卡顯示） -->
         <div class="form-group" id="rewardTiersGroup" style="display:none">
           <div class="reward-catalog-update" id="catalogUpdateBanner" hidden>
@@ -1537,6 +1527,14 @@
           <div class="reward-catalog-info" id="catalogCardInfo" hidden></div>
           <label class="reward-tiers-label">回饋規則</label>
           <p class="billing-day-hint">依本期刷卡金額 × 費率計算，可設回饋上限（空白＝無上限）；各層回饋相加</p>
+          <div class="reward-default-period" id="rewardPeriodGroup">
+            <label for="accountRewardPeriod">預設週期</label>
+            <select id="accountRewardPeriod" class="form-select">
+              <option value="calendar">日曆月（每月 1 日～月底）</option>
+              <option value="billing">帳單週期（依結算日）</option>
+            </select>
+            <p class="billing-day-hint">各層預設跟這個週期相同，只有特例才在該層改；選「帳單週期」時請設定結算日</p>
+          </div>
           <div id="rewardTiersList"></div>
           <div class="reward-tier-actions">
             <button type="button" class="reward-add-btn" id="addRewardTierBtn">＋ 新增回饋層</button>          </div>
@@ -1636,6 +1634,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=9.44"></script>
+  <script type="module" src="app.js?v=9.45"></script>
 </body>
 </html>

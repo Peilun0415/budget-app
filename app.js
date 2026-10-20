@@ -28,7 +28,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.44';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.45';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -4437,7 +4437,7 @@ function getAccountRewardPeriodRange(account) {
 }
 
 const REWARD_TIER_PERIOD_LABELS = {
-  card: '依卡片週期',
+  card: '預設週期',
   calendar: '日曆月',
   billing: '帳單週期',
 };
@@ -7067,7 +7067,7 @@ function renderRewardTiersEditor() {
       </button>
       <div class="reward-tier-calc-panel"${expanded ? '' : ' hidden'}>
         <div class="reward-tier-calc-field"><span>週期</span>${rewardTierSelect('reward-tier-period', t.period, [
-          ['card', '依卡片設定'], ['calendar', '日曆月'], ['billing', '帳單週期'],
+          ['card', '跟預設相同'], ['calendar', '日曆月'], ['billing', '帳單週期'],
         ])}</div>
         <div class="reward-tier-calc-field"><span>算法</span>${rewardTierSelect('reward-tier-mode', t.calcMode, [
           ['sum', '週期加總後計算'], ['per', '逐筆計算'],

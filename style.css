@@ -6194,6 +6194,16 @@ input.form-input {
   display: block;
   margin-top: 12px;
 }
+.reward-default-period {
+  margin: 8px 0 10px;
+}
+.reward-default-period > label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-mid);
+}
 
 /* ===== 回饋追蹤卡片（專案詳情）===== */
 .project-reward-empty {

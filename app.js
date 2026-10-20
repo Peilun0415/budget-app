@@ -853,6 +853,8 @@ const saveDefaultDebitAccountBtn = document.getElementById('saveDefaultDebitAcco
 // 主頁預算小卡 DOM
 const homeBudgetWidget     = document.getElementById('homeBudgetWidget');
 const homeBudgetContent    = document.getElementById('homeBudgetContent');
+const homeCashbackWidget   = document.getElementById('homeCashbackWidget');
+const homeCashbackContent  = document.getElementById('homeCashbackContent');
 // 語音記帳 DOM
 const voiceBtn             = document.getElementById('voiceBtn');
 const voiceToast           = document.getElementById('voiceToast');
@@ -7527,9 +7529,18 @@ function renderHomeBudget() {
   const monthBudget = allBudgets.find(b => b.type === 'month');
   const catBudgets  = allBudgets.filter(b => b.type === 'category');
   const cashbackHtml = renderCreditCardCashbackSection();
+  if (homeCashbackWidget && homeCashbackContent) {
+    if (cashbackHtml) {
+      homeCashbackContent.innerHTML = cashbackHtml;
+      homeCashbackWidget.hidden = false;
+    } else {
+      homeCashbackContent.innerHTML = '';
+      homeCashbackWidget.hidden = true;
+    }
+  }
   if (!monthBudget && catBudgets.length === 0) {
     homeBudgetContent.innerHTML =
-      '<div class="hb-empty">尚未設定預算<br>點右上「管理」開始設定</div>' + cashbackHtml;
+      '<div class="hb-empty">尚未設定預算<br>點右上「管理」開始設定</div>';
     return;
   }
 
@@ -7640,7 +7651,7 @@ function renderHomeBudget() {
   }
 
   html += '</div>';
-  homeBudgetContent.innerHTML = html + cashbackHtml;
+  homeBudgetContent.innerHTML = html;
 }
 
 function renderCreditCardCashbackSection() {
@@ -7716,11 +7727,7 @@ function renderCreditCardCashbackSection() {
       </div>`;
   }).join('');
 
-  return `
-    <div class="cb-section">
-      <div class="cb-section-title">💳 信用卡回饋</div>
-      ${cardHtml}
-    </div>`;
+  return `<div class="cb-section">${cardHtml}</div>`;
 }
 
 function matchesSearch(r, kw) {

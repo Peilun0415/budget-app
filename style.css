@@ -552,7 +552,8 @@ body {
 }
 
 /* ===== 預算狀況頁（水平進度） ===== */
-#homeBudgetWidget {
+#homeBudgetWidget,
+#homeCashbackWidget {
   margin: 14px 16px 0;
   background: var(--white);
   border-radius: var(--radius);
@@ -694,17 +695,10 @@ body {
 
 /* ===== 預算狀況頁：信用卡回饋 ===== */
 .cb-section {
-  border-top: 1px solid var(--border);
   padding: 12px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.cb-section-title {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--text-dark);
 }
 
 .cb-card {
@@ -2376,8 +2370,9 @@ input[type="text"]:not(#amount):not(#searchInput):not(#projectSearchInput):not(#
 #pageHome,
 #pageAccounts,
 #pageBudgetStatus,
-#pageProjectDetail {
-  padding-bottom: 88px;
+#pageProjectDetail,
+#pageSettings {
+  padding-bottom: 60px;
 }
 
 /* ===== 帳戶頁面頂部 ===== */

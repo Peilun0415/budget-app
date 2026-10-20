@@ -30,19 +30,24 @@ async function check(url, expectImage) {
   }
 }
 
+const SOON_DAYS = 31;
 const today = new Date().toISOString().slice(0, 10);
+const soon = new Date(Date.now() + SOON_DAYS * 86400000).toISOString().slice(0, 10);
 console.log(`目錄更新日 ${CARD_CATALOG_UPDATED}，檢查日 ${today}\n`);
 
 let problems = 0;
 for (const card of CARD_CATALOG) {
   const [source, image] = await Promise.all([check(card.sourceUrl, false), check(card.image, true)]);
   const expired = card.validUntil && card.validUntil < today;
+  const expiringSoon = !expired && card.validUntil && card.validUntil <= soon;
   const flags = [];
   if (!source.ok) flags.push(`官網：${source.note}`);
   if (!card.image) flags.push('卡面：未設定（顯示替代卡面）');
   else if (!image.ok) flags.push(`卡面：${image.note}`);
   if (expired) flags.push(`規則已過期（validUntil ${card.validUntil}）`);
-  if (flags.length && (card.image || !source.ok || expired)) problems++;
+  if (expiringSoon) flags.push(`規則將在 ${SOON_DAYS} 天內到期（validUntil ${card.validUntil}），留意官網新一期公告`);
+  const imageBroken = card.image && !image.ok;
+  if (!source.ok || imageBroken || expired || expiringSoon) problems++;
   console.log(`${flags.length ? '⚠' : '✓'} ${card.bank} ${card.name}${flags.length ? '\n    ' + flags.join('\n    ') : ''}`);
 }
 

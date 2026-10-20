@@ -1,0 +1,62 @@
+name: Check card catalog monthly
+
+# 每月檢查 card-catalog.js：官網連結、卡面圖片、規則期限、格式。
+# 有需要處理的項目時開 Issue（已有未關閉的提醒就加留言），之後請 Cursor 依 tools/card-catalog-update.md 更新。
+on:
+  schedule:
+    # GitHub Actions 的 cron 使用 UTC：每月 1 號 UTC 01:00 = 台灣時間 09:00
+    - cron: "0 1 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 檢查目錄
+        id: check
+        run: |
+          set +e
+          node tools/check-card-catalog.mjs > report.txt 2>&1
+          check_code=$?
+          node tools/validate-card-catalog.mjs >> report.txt 2>&1
+          validate_code=$?
+          cat report.txt
+          if [ "$check_code" -ne 0 ] || [ "$validate_code" -ne 0 ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 開 Issue 提醒
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: 信用卡目錄需要更新
+        run: |
+          {
+            echo "每月自動檢查發現需要處理的項目（$(date -u +%Y-%m-%d)）。"
+            echo
+            echo "請在 Cursor 跟 AI 說「更新卡片目錄」，依 \`tools/card-catalog-update.md\` 處理。"
+            echo
+            echo '```'
+            cat report.txt
+            echo '```'
+          } > body.md
+          existing=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file body.md
+          else
+            gh issue create --title "$TITLE" --body-file body.md
+          fi

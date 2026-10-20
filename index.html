@@ -42,7 +42,7 @@
     }
     #loginScreen, #appScreen { display: none; }
   </style>
-  <link rel="stylesheet" href="style.css?v=9.42" />
+  <link rel="stylesheet" href="style.css?v=9.44" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -394,6 +394,17 @@
 
     <!-- ===== 預算狀況頁 ===== -->
     <div id="pageBudgetStatus" style="display:none">
+      <!-- 月份導覽（與首頁共用同一個月份） -->
+      <div class="month-nav-bar" id="budgetMonthNav">
+        <button type="button" class="month-btn" id="budgetPrevMonth" aria-label="上個月">
+          <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </button>
+        <span id="budgetMonthLabel"></span>
+        <button type="button" class="month-btn" id="budgetNextMonth" aria-label="下個月">
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="today-btn" id="budgetTodayBtn" style="display:none">今天</button>
+      </div>
       <div id="homeBudgetWidget">
         <div class="home-budget-header">
           <span class="home-budget-title">📊 預算狀況</span>
@@ -403,7 +414,7 @@
       </div>
       <div id="homeCashbackWidget" hidden>
         <div class="home-budget-header">
-          <span class="home-budget-title">💳 信用卡回饋</span>
+          <span class="home-budget-title" id="homeCashbackTitle">💳 信用卡回饋</span>
         </div>
         <div id="homeCashbackContent"></div>
       </div>
@@ -1473,7 +1484,12 @@
   <div class="modal-overlay" id="accountModalOverlay">
     <div class="modal">
       <div class="modal-header account-modal-header">
-        <input type="text" id="accountName" class="account-name-header-input" form="accountForm" placeholder="帳戶名稱" maxlength="20" required />
+        <div class="account-header-main">
+          <select id="accountCatalogCard" class="account-catalog-header-select" aria-label="卡片目錄" hidden>
+            <option value="">選擇卡片</option>
+          </select>
+          <input type="text" id="accountName" class="account-name-header-input" form="accountForm" placeholder="帳戶名稱" maxlength="20" required />
+        </div>
         <button class="close-btn" id="closeAccountFormBtn" aria-label="關閉"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
 
@@ -1514,7 +1530,12 @@
 
         <!-- 回饋規則（僅信用卡顯示） -->
         <div class="form-group" id="rewardTiersGroup" style="display:none">
-          <label>回饋規則</label>
+          <div class="reward-catalog-update" id="catalogUpdateBanner" hidden>
+            <span id="catalogUpdateText"></span>
+            <button type="button" class="reward-catalog-update-btn" id="catalogUpdateBtn">更新規則</button>
+          </div>
+          <div class="reward-catalog-info" id="catalogCardInfo" hidden></div>
+          <label class="reward-tiers-label">回饋規則</label>
           <p class="billing-day-hint">依本期刷卡金額 × 費率計算，可設回饋上限（空白＝無上限）；各層回饋相加</p>
           <div id="rewardTiersList"></div>
           <div class="reward-tier-actions">
@@ -1615,6 +1636,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=9.42"></script>
+  <script type="module" src="app.js?v=9.44"></script>
 </body>
 </html>

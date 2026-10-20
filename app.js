@@ -28,6 +28,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.44';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -164,6 +165,10 @@ let recurringProcessPromise = null;
 let recurringProcessAgain = false;
 let allBudgets     = []; // { docId, type:'month'|'category', amount, categoryId?, categoryName?, categoryEmoji? }
 let unsubBudgets   = null;
+let allCashbackLogs = []; // { docId: `${accountId}_${YYYY-MM}`, accountId, month, spent, estimated, tiers, actual }
+let unsubCashbackLogs = null;
+let cashbackLogsLoaded = false;
+let cashbackAutoFreezeDone = false;
 let editingCatBudgetId = null; // 目前編輯的類別預算 docId
 let allProjects    = [];
 let unsubProjects  = null;
@@ -855,6 +860,7 @@ const homeBudgetWidget     = document.getElementById('homeBudgetWidget');
 const homeBudgetContent    = document.getElementById('homeBudgetContent');
 const homeCashbackWidget   = document.getElementById('homeCashbackWidget');
 const homeCashbackContent  = document.getElementById('homeCashbackContent');
+const homeCashbackTitle    = document.getElementById('homeCashbackTitle');
 // 語音記帳 DOM
 const voiceBtn             = document.getElementById('voiceBtn');
 const voiceToast           = document.getElementById('voiceToast');
@@ -983,6 +989,7 @@ let initialLoadStatus = {
 let initialLoadTimeout = null;
 
 function checkInitialLoad() {
+  void maybeAutoFreezeCashbackLogs();
   if (
     initialLoadStatus.records &&
     initialLoadStatus.accounts &&
@@ -1036,6 +1043,7 @@ onAuthStateChanged(auth, (user) => {
     subscribeTemplates();
     subscribeRecurring();
     subscribeBudgets();
+    subscribeCashbackLogs();
     subscribeProjects();
   } else {
     hideSplash();
@@ -1047,7 +1055,11 @@ onAuthStateChanged(auth, (user) => {
     if (unsubTemplates)   { unsubTemplates();   unsubTemplates   = null; }
     if (unsubRecurring)   { unsubRecurring();   unsubRecurring   = null; }
     if (unsubBudgets)     { unsubBudgets();     unsubBudgets     = null; }
+    if (unsubCashbackLogs) { unsubCashbackLogs(); unsubCashbackLogs = null; }
     if (unsubProjects)    { unsubProjects();    unsubProjects    = null; }
+    allCashbackLogs = [];
+    cashbackLogsLoaded = false;
+    cashbackAutoFreezeDone = false;
     allRecords    = [];
     allAccounts   = [];
     allTemplates  = [];
@@ -1968,13 +1980,17 @@ confirmClearDataBtn.addEventListener('click', async () => {
   // 設 flag 防止 subscribeCategories 在刪除後自動補回預設分類
   window._clearingData = true;
 
-  const collections = ['records', 'accounts', 'categories', 'templates', 'recurring', 'budgets'];
+  const collections = ['records', 'accounts', 'categories', 'templates', 'recurring', 'budgets', 'cashbackLogs'];
   for (const col of collections) {
-    const q = query(collection(db, col), where('uid', '==', currentUser.uid));
-    const snap = await new Promise((res, rej) => {
-      const unsub = onSnapshot(q, (s) => { unsub(); res(s); }, rej);
-    });
-    await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))));
+    try {
+      const q = query(collection(db, col), where('uid', '==', currentUser.uid));
+      const snap = await new Promise((res, rej) => {
+        const unsub = onSnapshot(q, (s) => { unsub(); res(s); }, rej);
+      });
+      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, col, d.id))));
+    } catch (err) {
+      console.warn(`清除 ${col} 失敗`, err);
+    }
   }
 
   window._clearingData = false;
@@ -2003,6 +2019,121 @@ function subscribeBudgets() {
       checkInitialLoad();
     }
   });
+}
+
+// ===== 每月信用卡回饋紀錄 =====
+function subscribeCashbackLogs() {
+  if (unsubCashbackLogs) unsubCashbackLogs();
+  cashbackLogsLoaded = false;
+  const q = query(collection(db, 'cashbackLogs'), where('uid', '==', currentUser.uid));
+  unsubCashbackLogs = onSnapshot(q, snap => {
+    allCashbackLogs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    cashbackLogsLoaded = true;
+    void maybeAutoFreezeCashbackLogs();
+    if (currentPage === 'budgetStatus') renderHomeBudget();
+  }, err => {
+    console.warn('無法讀取 cashbackLogs，請確認 Firestore 安全規則', err);
+  });
+}
+
+function cashbackLogId(accountId, month) {
+  return `${accountId}_${month}`;
+}
+
+function findCashbackLog(accountId, month) {
+  return allCashbackLogs.find(l => l.docId === cashbackLogId(accountId, month)) || null;
+}
+
+function buildCashbackLogData(account, result) {
+  return {
+    uid: currentUser.uid,
+    accountId: account.docId,
+    accountName: account.name || '',
+    month: result.month,
+    spent: result.spent,
+    estimated: result.totalEarned,
+    tiers: result.tiers.map(t => ({
+      name: t.name || '',
+      rate: t.rate,
+      cap: t.cap ?? null,
+      earned: t.earned,
+      enabled: t.enabled,
+      qualified: t.qualified,
+      spent: t.spent,
+      calcMode: t.calcMode,
+      rounding: t.rounding,
+      periodStart: t.periodStart,
+      periodEnd: t.periodEnd,
+    })),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+/** 週期已結束、該期有消費、還沒有紀錄的月份（最多回溯 12 個月）自動存一份 */
+async function maybeAutoFreezeCashbackLogs() {
+  if (cashbackAutoFreezeDone || !currentUser || !cashbackLogsLoaded) return;
+  if (!initialLoadStatus.records || !initialLoadStatus.accounts) return;
+  cashbackAutoFreezeDone = true;
+  const now = new Date();
+  const writes = [];
+  allAccounts.filter(a => a.typeId === 'credit').forEach(acc => {
+    for (let i = 0; i <= 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const result = calcCreditCardReward(acc, d.getFullYear(), d.getMonth());
+      if (!result || !result.periodEnded) continue;
+      if (!result.tiers.some(t => t.spent > 0)) continue;
+      if (findCashbackLog(acc.docId, result.month)) continue;
+      writes.push(setDoc(doc(db, 'cashbackLogs', cashbackLogId(acc.docId, result.month)), {
+        ...buildCashbackLogData(acc, result),
+        actual: null,
+        frozenAt: serverTimestamp(),
+      }));
+    }
+  });
+  if (writes.length === 0) return;
+  try {
+    await Promise.all(writes);
+  } catch (err) {
+    console.warn('自動存檔回饋紀錄失敗', err);
+  }
+}
+
+function cashbackLogErrorMessage(err, fallback) {
+  return err?.code === 'permission-denied'
+    ? '沒有寫入回饋紀錄的權限，請先在 Firebase 主控台加上 cashbackLogs 的安全規則'
+    : fallback;
+}
+
+async function saveCashbackActual(logId, value) {
+  try {
+    await updateDoc(doc(db, 'cashbackLogs', logId), { actual: value, updatedAt: serverTimestamp() });
+  } catch (err) {
+    console.error(err);
+    alert(cashbackLogErrorMessage(err, '儲存實際回饋失敗'));
+  }
+}
+
+async function recalcCashbackLog(accountId, month) {
+  const acc = allAccounts.find(a => a.docId === accountId);
+  if (!acc) return;
+  const [y, m] = month.split('-').map(Number);
+  const result = calcCreditCardReward(acc, y, m - 1);
+  if (!result) {
+    alert('這張卡目前沒有回饋規則，無法重新計算');
+    return;
+  }
+  try {
+    const existing = findCashbackLog(accountId, month);
+    const ref = doc(db, 'cashbackLogs', cashbackLogId(accountId, month));
+    if (existing) {
+      await updateDoc(ref, buildCashbackLogData(acc, result));
+    } else {
+      await setDoc(ref, { ...buildCashbackLogData(acc, result), actual: null, frozenAt: serverTimestamp() });
+    }
+  } catch (err) {
+    console.error(err);
+    alert(cashbackLogErrorMessage(err, '重新計算失敗'));
+  }
 }
 
 // ===== 專案訂閱（自己建立的 + 被邀請的）=====
@@ -4305,36 +4436,133 @@ function getAccountRewardPeriodRange(account) {
   return getCurrentCalendarMonthRange();
 }
 
-/** 信用卡本期回饋：各層 = min(已刷 × 費率, 上限)，各層相加 */
-function calcCreditCardReward(account) {
-  const tiers = (account?.rewardTiers || []).filter(t => Number(t.rate) > 0);
+const REWARD_TIER_PERIOD_LABELS = {
+  card: '依卡片週期',
+  calendar: '日曆月',
+  billing: '帳單週期',
+};
+
+const REWARD_TIER_DEFAULTS = {
+  period: 'card',
+  calcMode: 'sum',
+  rounding: 'round',
+  minSpend: null,
+  maxSpend: null,
+  enabled: true,
+  designated: false,
+  condition: '',
+  catalogKey: null,
+};
+
+function normalizeRewardTier(tier) {
+  const t = { ...REWARD_TIER_DEFAULTS, ...(tier || {}) };
+  t.enabled = tier?.enabled !== false;
+  if (!['card', 'calendar', 'billing'].includes(t.period)) t.period = 'card';
+  if (t.calcMode !== 'per') t.calcMode = 'sum';
+  if (t.rounding !== 'floor') t.rounding = 'round';
+  t.minSpend = Number(t.minSpend) > 0 ? Number(t.minSpend) : null;
+  t.maxSpend = Number(t.maxSpend) > 0 ? Number(t.maxSpend) : null;
+  return t;
+}
+
+function roundReward(value, rounding) {
+  return rounding === 'floor' ? Math.floor(value + 1e-9) : Math.round(value);
+}
+
+function ymKey(year, month) {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+/** 選定月份的回饋週期：日曆月＝該月；帳單週期＝結帳日落在該月的那一期 */
+function getRewardPeriodForMonth(account, periodMode, year, month) {
+  if (periodMode === REWARD_PERIOD_BILLING && account?.billingDay) {
+    const day = Number(account.billingDay);
+    const clamp = (y, m) => Math.min(day, new Date(y, m + 1, 0).getDate());
+    const end = new Date(year, month, clamp(year, month));
+    const prevEnd = new Date(year, month - 1, clamp(year, month - 1));
+    const start = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
+    return { start: toDateStr(start), end: toDateStr(end), mode: REWARD_PERIOD_BILLING };
+  }
+  return {
+    start: toDateStr(new Date(year, month, 1)),
+    end: toDateStr(new Date(year, month + 1, 0)),
+    mode: REWARD_PERIOD_CALENDAR,
+  };
+}
+
+function getTierPeriodMode(account, tier) {
+  return tier.period === 'card'
+    ? (account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR)
+    : tier.period;
+}
+
+function getCardRewardExpenses(account, range) {
+  return allRecords.filter(r =>
+    r.accountId === account.docId &&
+    r.type === 'expense' &&
+    !isTransferRecord(r) &&
+    !r.isSettlement &&
+    r.date >= range.start && r.date <= range.end
+  );
+}
+
+/**
+ * 信用卡回饋（指定月份）：每層依自己的週期取支出，檢查門檻後
+ * 以「加總後取捨」或「逐筆取捨再加總」計算，再對上限取 min
+ */
+function calcCreditCardReward(account, year = new Date().getFullYear(), month = new Date().getMonth()) {
+  const tiers = (account?.rewardTiers || [])
+    .filter(t => Number(t.rate) > 0)
+    .map(normalizeRewardTier);
   if (account?.typeId !== 'credit' || tiers.length === 0) return null;
-  const range = getAccountRewardPeriodRange(account);
-  const spent = allRecords
-    .filter(r =>
-      r.accountId === account.docId &&
-      r.type === 'expense' &&
-      !isTransferRecord(r) &&
-      !r.isSettlement &&
-      r.date >= range.start && r.date <= range.end
-    )
-    .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const today = toDateStr(new Date());
+  const range = getRewardPeriodForMonth(account, account.rewardPeriodMode || REWARD_PERIOD_CALENDAR, year, month);
+  const spent = getCardRewardExpenses(account, range).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  let latestEnd = range.end;
 
   const tierResults = tiers.map(t => {
     const rate = Number(t.rate);
     const cap  = Number(t.cap) > 0 ? Number(t.cap) : null;
-    const raw  = Math.max(spent, 0) * rate / 100;
+    const tierRange = getRewardPeriodForMonth(account, getTierPeriodMode(account, t), year, month);
+    if (tierRange.end > latestEnd) latestEnd = tierRange.end;
+    const recs = getCardRewardExpenses(account, tierRange);
+    const tierSpent = recs.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const base = {
+      ...t, rate, cap,
+      periodStart: tierRange.start,
+      periodEnd: tierRange.end,
+      periodMode: tierRange.mode,
+      samePeriodAsCard: tierRange.start === range.start && tierRange.end === range.end,
+      spent: tierSpent,
+      earned: 0, full: false, remainReward: null, remainSpend: null,
+      qualified: true, needSpend: null, overMax: false,
+    };
+    if (!t.enabled) return base;
+
+    if (t.minSpend != null && tierSpent < t.minSpend) {
+      return { ...base, qualified: false, needSpend: t.minSpend - tierSpent };
+    }
+    if (t.maxSpend != null && tierSpent > t.maxSpend) {
+      return { ...base, qualified: false, overMax: true };
+    }
+
+    const raw = t.calcMode === 'per'
+      ? recs.reduce((s, r) => s + roundReward((Number(r.amount) || 0) * rate / 100, t.rounding), 0)
+      : roundReward(Math.max(tierSpent, 0) * rate / 100, t.rounding);
     const earned = cap != null ? Math.min(raw, cap) : raw;
     const full = cap != null && raw >= cap;
     const remainReward = cap != null ? Math.max(cap - earned, 0) : null;
-    const remainSpend  = cap != null ? Math.max(cap / (rate / 100) - spent, 0) : null;
-    return { ...t, rate, cap, earned, full, remainReward, remainSpend };
+    const remainSpend  = cap != null && remainReward > 0 ? Math.ceil(remainReward / (rate / 100)) : (cap != null ? 0 : null);
+    return { ...base, earned, full, remainReward, remainSpend };
   });
 
   return {
+    month: ymKey(year, month),
     range,
     spent,
-    totalEarned: tierResults.reduce((s, t) => s + t.earned, 0),
+    periodEnded: latestEnd < today,
+    totalEarned: tierResults.filter(t => t.enabled && t.qualified).reduce((s, t) => s + t.earned, 0),
     tiers: tierResults,
   };
 }
@@ -4622,6 +4850,10 @@ async function userHasAnyData(uid) {
     ));
     if (!snap.empty) return true;
   }
+  try {
+    const logs = await getDocs(query(collection(db, 'cashbackLogs'), where('uid', '==', uid), limit(1)));
+    if (!logs.empty) return true;
+  } catch { /* 尚未設定 cashbackLogs 安全規則時略過 */ }
   const ownProjects = await getDocs(query(
     collection(db, 'projects'),
     where('uid', '==', uid),
@@ -5729,14 +5961,22 @@ recDeleteBtn.addEventListener('click', async () => {
 });
 
 // ===== 月份切換 =====
-prevMonthBtn.addEventListener('click', () => changeMonth(-1));
-nextMonthBtn.addEventListener('click', () => changeMonth(1));
-homeTodayBtn?.addEventListener('click', () => {
+const budgetMonthLabel = document.getElementById('budgetMonthLabel');
+const budgetTodayBtn   = document.getElementById('budgetTodayBtn');
+
+function goToCurrentMonth() {
   const now = new Date();
   viewYear = now.getFullYear();
   viewMonth = now.getMonth();
   renderAll();
-});
+}
+
+prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+nextMonthBtn.addEventListener('click', () => changeMonth(1));
+homeTodayBtn?.addEventListener('click', goToCurrentMonth);
+document.getElementById('budgetPrevMonth')?.addEventListener('click', () => changeMonth(-1));
+document.getElementById('budgetNextMonth')?.addEventListener('click', () => changeMonth(1));
+budgetTodayBtn?.addEventListener('click', goToCurrentMonth);
 
 function hasActiveHomeFilter() {
   return homeFilter.types.length > 0
@@ -6764,13 +7004,38 @@ function withBaseRewardTier(tiers) {
   ];
 }
 
+const expandedRewardTierCalc = new Set();
+
+function rewardTierCalcSummary(tier) {
+  const t = normalizeRewardTier(tier);
+  const parts = [
+    REWARD_TIER_PERIOD_LABELS[t.period] || REWARD_TIER_PERIOD_LABELS.card,
+    t.calcMode === 'per' ? '逐筆' : '加總',
+    t.rounding === 'floor' ? '無條件捨去' : '四捨五入',
+  ];
+  if (t.minSpend != null || t.maxSpend != null) {
+    const lo = t.minSpend != null ? `$${formatMoney(t.minSpend)}` : '';
+    const hi = t.maxSpend != null ? `$${formatMoney(t.maxSpend)}` : '';
+    parts.push(`門檻 ${lo || '$0'}～${hi || '不限'}`);
+  }
+  return parts.join('・');
+}
+
+function rewardTierSelect(cls, value, options) {
+  return `<select class="${cls} form-select">${options
+    .map(([v, label]) => `<option value="${v}"${v === value ? ' selected' : ''}>${label}</option>`)
+    .join('')}</select>`;
+}
+
 function renderRewardTiersEditor() {
   if (!rewardTiersList) return;
   rewardTiersList.innerHTML = '';
   tempRewardTiers.forEach((tier, idx) => {
     const isBase = tier.id === BASE_REWARD_TIER_ID;
+    const t = normalizeRewardTier(tier);
+    const expanded = expandedRewardTierCalc.has(tier.id);
     const row = document.createElement('div');
-    row.className = 'reward-edit-row' + (isBase ? ' is-base' : '');
+    row.className = 'reward-edit-row' + (isBase ? ' is-base' : '') + (t.enabled ? '' : ' is-disabled');
     row.innerHTML = `
       ${isBase
         ? `<div class="reward-tier-base-name">${BASE_REWARD_TIER_NAME}<span class="reward-tier-base-tag">固定</span></div>`
@@ -6788,7 +7053,68 @@ function renderRewardTiersEditor() {
           ? '<span class="reward-del-btn-spacer" aria-hidden="true"></span>'
           : '<button type="button" class="reward-del-btn" aria-label="刪除回饋層"><i class="bi bi-x-lg" aria-hidden="true"></i></button>'}
       </div>
+      <div class="reward-tier-meta">
+        <label class="reward-tier-enabled">
+          <input type="checkbox" class="reward-tier-enabled-cb" ${t.enabled ? 'checked' : ''} />
+          <span>計入</span>
+        </label>
+        ${t.designated ? '<span class="reward-tier-designated-tag">限指定通路</span>' : ''}
+        ${t.condition ? `<span class="reward-tier-condition">${escapeHtml(t.condition)}</span>` : ''}
+      </div>
+      <button type="button" class="reward-tier-calc-toggle" aria-expanded="${expanded}">
+        <span class="reward-tier-calc-summary">${escapeHtml(rewardTierCalcSummary(t))}</span>
+        <i class="bi ${expanded ? 'bi-chevron-up' : 'bi-chevron-down'}" aria-hidden="true"></i>
+      </button>
+      <div class="reward-tier-calc-panel"${expanded ? '' : ' hidden'}>
+        <div class="reward-tier-calc-field"><span>週期</span>${rewardTierSelect('reward-tier-period', t.period, [
+          ['card', '依卡片設定'], ['calendar', '日曆月'], ['billing', '帳單週期'],
+        ])}</div>
+        <div class="reward-tier-calc-field"><span>算法</span>${rewardTierSelect('reward-tier-mode', t.calcMode, [
+          ['sum', '週期加總後計算'], ['per', '逐筆計算'],
+        ])}</div>
+        <div class="reward-tier-calc-field"><span>取捨</span>${rewardTierSelect('reward-tier-rounding', t.rounding, [
+          ['round', '四捨五入'], ['floor', '無條件捨去'],
+        ])}</div>
+        <div class="reward-tier-calc-field">
+          <span>門檻</span>
+          <div class="reward-tier-threshold">
+            <input type="number" class="reward-tier-min form-input" placeholder="累積滿 $" value="${t.minSpend ?? ''}" min="0" step="any" inputmode="decimal" />
+            <span class="reward-tier-unit">～</span>
+            <input type="number" class="reward-tier-max form-input" placeholder="不限" value="${t.maxSpend ?? ''}" min="0" step="any" inputmode="decimal" />
+          </div>
+        </div>
+      </div>
     `;
+    const refreshSummary = () => {
+      row.querySelector('.reward-tier-calc-summary').textContent = rewardTierCalcSummary(tempRewardTiers[idx]);
+    };
+    const bindNumber = (sel, key) => {
+      row.querySelector(sel).addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        tempRewardTiers[idx][key] = Number.isFinite(v) && v > 0 ? v : null;
+        refreshSummary();
+      });
+    };
+    const bindSelect = (sel, key) => {
+      row.querySelector(sel).addEventListener('change', e => {
+        tempRewardTiers[idx][key] = e.target.value;
+        refreshSummary();
+      });
+    };
+    row.querySelector('.reward-tier-enabled-cb').addEventListener('change', e => {
+      tempRewardTiers[idx].enabled = e.target.checked;
+      row.classList.toggle('is-disabled', !e.target.checked);
+    });
+    row.querySelector('.reward-tier-calc-toggle').addEventListener('click', () => {
+      if (expandedRewardTierCalc.has(tier.id)) expandedRewardTierCalc.delete(tier.id);
+      else expandedRewardTierCalc.add(tier.id);
+      renderRewardTiersEditor();
+    });
+    bindSelect('.reward-tier-period', 'period');
+    bindSelect('.reward-tier-mode', 'calcMode');
+    bindSelect('.reward-tier-rounding', 'rounding');
+    bindNumber('.reward-tier-min', 'minSpend');
+    bindNumber('.reward-tier-max', 'maxSpend');
     row.querySelector('.reward-edit-name')?.addEventListener('input', e => {
       tempRewardTiers[idx].name = e.target.value;
     });
@@ -6813,15 +7139,179 @@ addRewardTierBtn?.addEventListener('click', () => {
   renderRewardTiersEditor();
 });
 
+// ===== 信用卡目錄 =====
+const accountCatalogCard  = document.getElementById('accountCatalogCard');
+const catalogUpdateBanner = document.getElementById('catalogUpdateBanner');
+const catalogUpdateText   = document.getElementById('catalogUpdateText');
+const catalogUpdateBtn    = document.getElementById('catalogUpdateBtn');
+const catalogCardInfo     = document.getElementById('catalogCardInfo');
+
+let tempCatalogCardId = null;
+let tempCatalogRuleVersion = null;
+
+function findCatalogCard(id) {
+  return id ? CARD_CATALOG.find(c => c.id === id) || null : null;
+}
+
+function catalogCardDisplayName(card) {
+  return `${card.bank} ${card.name}`;
+}
+
+/** 目錄卡的卡面（銀行官網圖片）；沒有圖或載入失敗時顯示銀行名稱替代卡面 */
+function cardFaceHtml(catalogCardId, size = 'sm') {
+  const card = findCatalogCard(catalogCardId);
+  if (!card) return '';
+  const label = escapeHtml(card.bank.replace(/銀行$/, ''));
+  const img = card.image
+    ? `<img class="card-face-img" src="${card.image}" alt="${escapeHtml(catalogCardDisplayName(card))}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('is-broken');this.remove()">`
+    : '';
+  return `<span class="card-face card-face--${size}${card.image ? '' : ' is-broken'}"><span class="card-face-fallback">${label}</span>${img}</span>`;
+}
+
+function isCatalogRuleNewer(account) {
+  const card = findCatalogCard(account?.catalogCardId);
+  return !!card && !!account?.catalogRuleVersion && card.ruleVersion > account.catalogRuleVersion;
+}
+
+(function populateCatalogSelect() {
+  if (!accountCatalogCard) return;
+  const byBank = new Map();
+  CARD_CATALOG.forEach(c => {
+    if (!byBank.has(c.bank)) byBank.set(c.bank, []);
+    byBank.get(c.bank).push(c);
+  });
+  byBank.forEach((cards, bank) => {
+    const group = document.createElement('optgroup');
+    group.label = bank;
+    cards.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `${c.bank} ${c.name}`;
+      group.appendChild(opt);
+    });
+    accountCatalogCard.appendChild(group);
+  });
+})();
+
+/** 依目錄建立回饋層；prevTiers 有同 catalogKey 的層時保留原本的「計入」設定 */
+function buildTiersFromCatalog(card, prevTiers = []) {
+  const prevByKey = new Map(prevTiers.filter(t => t.catalogKey).map(t => [t.catalogKey, t]));
+  const tiers = card.tiers.map(ct => {
+    const prev = prevByKey.get(ct.key);
+    return normalizeRewardTier({
+      id: ct.key === 'base' ? BASE_REWARD_TIER_ID : (prev?.id || newRewardTierId()),
+      name: ct.key === 'base' ? BASE_REWARD_TIER_NAME : ct.name,
+      rate: ct.rate,
+      cap: ct.cap ?? null,
+      period: ct.period || 'card',
+      calcMode: ct.calcMode,
+      rounding: ct.rounding,
+      minSpend: ct.minSpend ?? null,
+      maxSpend: ct.maxSpend ?? null,
+      designated: !!ct.designated,
+      condition: ct.condition || '',
+      catalogKey: ct.key,
+      enabled: prev ? prev.enabled !== false : !ct.designated,
+    });
+  });
+  return withBaseRewardTier(tiers);
+}
+
+function applyCatalogCard(card, prevTiers) {
+  tempRewardTiers = buildTiersFromCatalog(card, prevTiers);
+  tempCatalogCardId = card.id;
+  tempCatalogRuleVersion = card.ruleVersion;
+  accountRewardPeriod.value = card.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
+  expandedRewardTierCalc.clear();
+  renderRewardTiersEditor();
+  renderCatalogCardInfo();
+}
+
+function renderCatalogCardInfo() {
+  const card = findCatalogCard(tempCatalogCardId);
+  if (accountCatalogCard) accountCatalogCard.value = card ? card.id : '';
+  if (catalogCardInfo) {
+    if (card) {
+      const period = card.validUntil ? `${card.ruleVersion}～${card.validUntil}` : `${card.ruleVersion} 起`;
+      catalogCardInfo.innerHTML = `
+        <div class="reward-catalog-face">${cardFaceHtml(card.id, 'lg')}</div>
+        <div>規則期間 ${period}・目錄更新 ${CARD_CATALOG_UPDATED}</div>
+        ${card.note ? `<div>${escapeHtml(card.note)}</div>` : ''}
+        <a href="${card.sourceUrl}" target="_blank" rel="noopener">查看銀行官網</a>`;
+      catalogCardInfo.hidden = false;
+    } else {
+      catalogCardInfo.innerHTML = '';
+      catalogCardInfo.hidden = true;
+    }
+  }
+  if (catalogUpdateBanner) {
+    const newer = card && tempCatalogRuleVersion && card.ruleVersion > tempCatalogRuleVersion;
+    catalogUpdateBanner.hidden = !newer;
+    if (newer && catalogUpdateText) {
+      catalogUpdateText.textContent = `卡片目錄有新規則（生效 ${card.ruleVersion}）`;
+    }
+  }
+  updateAccountNameMode();
+}
+
+/** 信用卡：標題列顯示卡片目錄；選了目錄卡時名稱固定為卡名，選「自訂」才輸入名稱 */
+function updateAccountNameMode() {
+  const isCredit = selectedAccountType === 'credit';
+  const card = isCredit ? findCatalogCard(tempCatalogCardId) : null;
+  if (accountCatalogCard) accountCatalogCard.hidden = !isCredit;
+  accountNameInput.hidden = !!card;
+  accountNameInput.required = !card;
+  if (card) {
+    accountNameInput.value = catalogCardDisplayName(card);
+    accountNameInput.classList.remove('invalid');
+  }
+}
+
+accountCatalogCard?.addEventListener('change', () => {
+  const card = findCatalogCard(accountCatalogCard.value);
+  if (!card) {
+    tempCatalogCardId = null;
+    tempCatalogRuleVersion = null;
+    renderCatalogCardInfo();
+    return;
+  }
+  const hasContent = tempRewardTiers.some(t =>
+    t.id === BASE_REWARD_TIER_ID ? t.rate || t.cap : (t.name || '').trim() || t.rate);
+  if (hasContent && !confirm(`要用「${card.bank} ${card.name}」的目錄規則取代目前的回饋規則嗎？`)) {
+    renderCatalogCardInfo();
+    return;
+  }
+  applyCatalogCard(card, []);
+});
+
+catalogUpdateBtn?.addEventListener('click', () => {
+  const card = findCatalogCard(tempCatalogCardId);
+  if (!card) return;
+  if (!confirm('要換成目錄的新規則嗎？你自訂的回饋層會被取代，「計入」設定會保留。')) return;
+  applyCatalogCard(card, tempRewardTiers);
+});
+
 function collectRewardTiers() {
   return tempRewardTiers
     .filter(t => Number(t.rate) > 0)
-    .map(t => ({
-      id: t.id || newRewardTierId(),
-      name: (t.name || '').trim() || `${t.rate}% 回饋`,
-      rate: Number(t.rate),
-      cap: Number(t.cap) > 0 ? Number(t.cap) : null,
-    }));
+    .map(raw => {
+      const t = normalizeRewardTier(raw);
+      return {
+        id: t.id || newRewardTierId(),
+        name: (t.name || '').trim() || `${t.rate}% 回饋`,
+        rate: Number(t.rate),
+        cap: Number(t.cap) > 0 ? Number(t.cap) : null,
+        period: t.period,
+        calcMode: t.calcMode,
+        rounding: t.rounding,
+        minSpend: t.minSpend,
+        maxSpend: t.maxSpend,
+        enabled: t.enabled,
+        designated: t.designated,
+        condition: t.condition,
+        catalogKey: t.catalogKey,
+      };
+    });
 }
 
 // 填入 1~31 選項
@@ -6843,7 +7333,11 @@ function openAccountModal(account = null) {
   accountBillingDay.value         = account?.billingDay ?? '';
   accountRewardPeriod.value       = account?.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
   tempRewardTiers = withBaseRewardTier(account?.rewardTiers);
+  tempCatalogCardId = account?.catalogCardId || null;
+  tempCatalogRuleVersion = account?.catalogRuleVersion || null;
+  expandedRewardTierCalc.clear();
   renderRewardTiersEditor();
+  renderCatalogCardInfo();
   selectedAccountType       = account ? account.typeId  : null;
   renderAccountTypeGrid();
   updateCreditCardFieldsVisibility();
@@ -6857,6 +7351,7 @@ function updateCreditCardFieldsVisibility() {
   billingDayGroup.style.display = isCredit ? '' : 'none';
   rewardPeriodGroup.style.display = isCredit ? '' : 'none';
   if (rewardTiersGroup) rewardTiersGroup.style.display = isCredit ? '' : 'none';
+  updateAccountNameMode();
   // 動態更新餘額說明
   if (selectedAccountType === 'credit') {
     accountBalanceLabel.textContent = '初始餘額（信用卡欠款請輸入負數，例：-5000）';
@@ -6889,7 +7384,8 @@ function renderAccountTypeGrid() {
 // ===== 提交帳戶 =====
 accountForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const name = accountNameInput.value.trim();
+  const catalogCard = selectedAccountType === 'credit' ? findCatalogCard(tempCatalogCardId) : null;
+  const name = catalogCard ? catalogCardDisplayName(catalogCard) : accountNameInput.value.trim();
   if (!name) {
     accountNameInput.classList.add('invalid');
     shakeEl(accountNameInput);
@@ -6909,6 +7405,8 @@ accountForm.addEventListener('submit', async (e) => {
     ? (accountRewardPeriod.value || REWARD_PERIOD_CALENDAR)
     : null;
   const rewardTiers = selectedAccountType === 'credit' ? collectRewardTiers() : [];
+  const catalogCardId = selectedAccountType === 'credit' ? tempCatalogCardId : null;
+  const catalogRuleVersion = catalogCardId ? tempCatalogRuleVersion : null;
   const typeObj = ACCOUNT_TYPES.find(t => t.id === selectedAccountType);
   const editId  = accountEditId.value;
 
@@ -6921,7 +7419,8 @@ accountForm.addEventListener('submit', async (e) => {
         typeId: selectedAccountType,
         emoji:  typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, rewardTiers, currency, includeInTotal,
+        name, balance, note, billingDay, rewardPeriodMode, rewardTiers,
+        catalogCardId, catalogRuleVersion, currency, includeInTotal,
       };
       const existing = allAccounts.find(a => a.docId === editId);
       if (existing && accountTypeKey(existing) !== typeObj.name) {
@@ -6935,7 +7434,8 @@ accountForm.addEventListener('submit', async (e) => {
         typeId:   selectedAccountType,
         emoji:    typeObj.emoji,
         typeName: typeObj.name,
-        name, balance, note, billingDay, rewardPeriodMode, rewardTiers, currency, includeInTotal,
+        name, balance, note, billingDay, rewardPeriodMode, rewardTiers,
+        catalogCardId, catalogRuleVersion, currency, includeInTotal,
         order:    nextOrderInType(typeObj.name),
         typeOrder: typeOrderForNewAccount(typeObj.name),
         createdAt: serverTimestamp(),
@@ -7427,7 +7927,9 @@ function renderAccountList() {
       item.dataset.docId = a.docId;
       item.innerHTML = `
         <span class="drag-handle item-drag-handle" title="拖曳排序">⠿</span>
-        <div class="account-type-icon">${a.emoji}</div>
+        ${a.typeId === 'credit' && findCatalogCard(a.catalogCardId)
+          ? `<div class="account-type-icon account-card-face">${cardFaceHtml(a.catalogCardId, 'sm')}</div>`
+          : `<div class="account-type-icon">${a.emoji}</div>`}
         <div class="account-info">
           <div class="account-name">
             ${a.name}
@@ -7468,9 +7970,11 @@ function renderAll() {
 
 function renderMonthLabel() {
   currentMonthLabel.textContent = `${viewYear}年${viewMonth + 1}月`;
+  if (budgetMonthLabel) budgetMonthLabel.textContent = currentMonthLabel.textContent;
   const now = new Date();
   const isCurrent = viewYear === now.getFullYear() && viewMonth === now.getMonth();
   if (homeTodayBtn) homeTodayBtn.style.display = isCurrent ? 'none' : '';
+  if (budgetTodayBtn) budgetTodayBtn.style.display = isCurrent ? 'none' : '';
 }
 
 function getMonthRecordsFor(year, month) {
@@ -7654,81 +8158,230 @@ function renderHomeBudget() {
   homeBudgetContent.innerHTML = html;
 }
 
+
+function cashbackMoney(n) {
+  return `$${formatMoney(Math.round(n || 0))}`;
+}
+
+function cashbackCalcTag(t) {
+  return `${t.calcMode === 'per' ? '逐筆' : '加總'}・${t.rounding === 'floor' ? '捨去' : '四捨五入'}`;
+}
+
+function renderLiveCashbackTier(t) {
+  const tag = `<span class="cb-tier-calc">${cashbackCalcTag(t)}</span>`;
+  const periodLine = t.samePeriodAsCard ? '' : `
+    <span class="cb-tier-period">${getRewardPeriodModeLabel(t.periodMode)} ${t.periodStart} ～ ${t.periodEnd}・已刷 ${cashbackMoney(t.spent)}</span>`;
+  const head = (meta, pct = '') => `
+    <div class="hb-row-head">
+      <div class="hb-row-title">
+        <span class="hb-row-label">${escapeHtml(t.name)}</span>
+        <span class="cb-tier-rate">${t.rate}%</span>
+        ${tag}
+      </div>
+      <div class="hb-row-meta">${meta}</div>
+      ${pct}
+    </div>`;
+
+  if (!t.qualified) {
+    const hint = t.overMax
+      ? `已超過門檻上限 ${cashbackMoney(t.maxSpend)}，本層不適用`
+      : `還差 ${cashbackMoney(t.needSpend)} 達門檻 ${cashbackMoney(t.minSpend)}`;
+    return `
+      <div class="hb-row">
+        ${head('<span class="hb-row-limit">未達門檻</span>')}
+        ${periodLine}
+        <span class="cb-tier-hint">${hint}</span>
+      </div>`;
+  }
+  if (t.cap == null) {
+    return `
+      <div class="hb-row">
+        ${head(`<span class="hb-row-remain">${cashbackMoney(t.earned)}</span><span class="hb-row-limit">無上限</span>`)}
+        ${periodLine}
+      </div>`;
+  }
+  const pct = t.cap > 0 ? Math.min(Math.round(t.earned / t.cap * 100), 100) : 0;
+  const barClass = t.full ? 'full' : (pct >= 80 ? 'warn' : '');
+  const hint = t.full
+    ? '<span class="cb-tier-hint full">已達上限</span>'
+    : `<span class="cb-tier-hint">還可再拿 ${cashbackMoney(t.remainReward)}（約需再刷 ${cashbackMoney(t.remainSpend)}）</span>`;
+  return `
+    <div class="hb-row">
+      ${head(
+        `<span class="hb-row-remain">${cashbackMoney(t.earned)}</span><span class="hb-row-limit">/ ${cashbackMoney(t.cap)}</span>`,
+        `<span class="hb-row-pct">${pct}%</span>`
+      )}
+      <div class="hb-bar-track">
+        <div class="hb-bar-fill cb-bar-fill ${barClass}" style="width:${pct}%"></div>
+      </div>
+      ${periodLine}
+      ${hint}
+    </div>`;
+}
+
+function renderFrozenCashbackTier(t) {
+  const meta = t.qualified === false
+    ? '<span class="hb-row-limit">未達門檻</span>'
+    : `<span class="hb-row-remain">${cashbackMoney(t.earned)}</span><span class="hb-row-limit">${t.cap != null ? `/ ${cashbackMoney(t.cap)}` : '無上限'}</span>`;
+  return `
+    <div class="hb-row">
+      <div class="hb-row-head">
+        <div class="hb-row-title">
+          <span class="hb-row-label">${escapeHtml(t.name || '')}</span>
+          <span class="cb-tier-rate">${t.rate}%</span>
+          <span class="cb-tier-calc">${cashbackCalcTag(t)}</span>
+        </div>
+        <div class="hb-row-meta">${meta}</div>
+      </div>
+    </div>`;
+}
+
+function renderDisabledTiersLine(tiers) {
+  const off = tiers.filter(t => t.enabled === false);
+  if (off.length === 0) return '';
+  return `<div class="cb-tier-disabled">未計入：${off.map(t => `${escapeHtml(t.name || '')} ${t.rate}%`).join('、')}</div>`;
+}
+
+/** 選定年份每月：有紀錄用紀錄（有實際用實際），沒有紀錄的月份用即時預估 */
+function calcCashbackYearTotal(acc, year) {
+  const now = new Date();
+  let actualSum = 0;
+  let estimateSum = 0;
+  for (let m = 0; m < 12; m++) {
+    if (year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth())) break;
+    const log = findCashbackLog(acc.docId, ymKey(year, m));
+    if (log) {
+      if (log.actual != null) actualSum += Number(log.actual) || 0;
+      else estimateSum += Number(log.estimated) || 0;
+      continue;
+    }
+    const live = calcCreditCardReward(acc, year, m);
+    if (live) estimateSum += live.totalEarned;
+  }
+  return { actualSum, estimateSum, total: actualSum + estimateSum };
+}
+
 function renderCreditCardCashbackSection() {
-  const cards = sortAccountsLikeList(allAccounts.filter(a => !isAccountHidden(a)))
-    .map(a => ({ acc: a, result: calcCreditCardReward(a) }))
-    .filter(x => x.result);
+  const year = viewYear;
+  const month = viewMonth;
+  const monthKey = ymKey(year, month);
+  if (homeCashbackTitle) homeCashbackTitle.textContent = `💳 信用卡回饋・${year}年${month + 1}月`;
+
+  const cards = sortAccountsLikeList(allAccounts.filter(a => a.typeId === 'credit' && !isAccountHidden(a)))
+    .map(acc => ({
+      acc,
+      live: calcCreditCardReward(acc, year, month),
+      log: findCashbackLog(acc.docId, monthKey),
+    }))
+    .filter(x => x.live || x.log);
   if (cards.length === 0) return '';
 
-  const money = n => `$${formatMoney(Math.round(n))}`;
+  const cardHtml = cards.map(({ acc, live, log }) => {
+    const updateTag = isCatalogRuleNewer(acc) ? '<span class="cb-update-tag">規則有更新</span>' : '';
+    const yearTotal = calcCashbackYearTotal(acc, year);
+    const yearLine = yearTotal.total > 0 ? `
+      <div class="cb-year-total">
+        ${year} 年累計 <strong>${cashbackMoney(yearTotal.total)}</strong>
+        <span>（實際 ${cashbackMoney(yearTotal.actualSum)}・預估 ${cashbackMoney(yearTotal.estimateSum)}）</span>
+      </div>` : '';
+    const head = (label, value) => `
+      <div class="cb-card-head">
+        <div class="cb-card-title">
+          ${findCatalogCard(acc.catalogCardId)
+            ? cardFaceHtml(acc.catalogCardId, 'md')
+            : `<span class="hb-row-icon">${acc.emoji || '💳'}</span>`}
+          <span class="cb-card-name">${escapeHtml(acc.name || '')}</span>
+          ${updateTag}
+        </div>
+        <div class="cb-card-total">
+          <span class="cb-card-total-label">${label}</span>
+          <span class="cb-card-total-val">${value}</span>
+        </div>
+      </div>`;
 
-  const cardHtml = cards.map(({ acc, result }) => {
-    const mode = acc.rewardPeriodMode || REWARD_PERIOD_CALENDAR;
-    const periodLabel = mode === REWARD_PERIOD_BILLING && !acc.billingDay
-      ? '日曆月（帳單週期未設結算日）'
-      : getRewardPeriodModeLabel(mode);
-    const tiersHtml = result.tiers.map(t => {
-      if (t.cap == null) {
-        return `
-          <div class="hb-row">
-            <div class="hb-row-head">
-              <div class="hb-row-title">
-                <span class="hb-row-label">${escapeHtml(t.name)}</span>
-                <span class="cb-tier-rate">${t.rate}%</span>
-              </div>
-              <div class="hb-row-meta">
-                <span class="hb-row-remain">${money(t.earned)}</span>
-                <span class="hb-row-limit">無上限</span>
-              </div>
-            </div>
-          </div>`;
-      }
-      const pct = t.cap > 0 ? Math.min(Math.round(t.earned / t.cap * 100), 100) : 0;
-      const barClass = t.full ? 'full' : (pct >= 80 ? 'warn' : '');
-      const hint = t.full
-        ? '<span class="cb-tier-hint full">已達上限</span>'
-        : `<span class="cb-tier-hint">還可再拿 ${money(t.remainReward)}（約需再刷 ${money(t.remainSpend)}）</span>`;
+    const ongoing = live && !live.periodEnded;
+    if (!ongoing && log) {
+      const diff = log.actual != null ? Number(log.actual) - Number(log.estimated || 0) : null;
+      const diffText = diff == null ? ''
+        : diff === 0 ? '與預估相同'
+        : `實際比預估${diff > 0 ? '多' : '少'} ${cashbackMoney(Math.abs(diff))}`;
+      const firstTier = (log.tiers || [])[0];
+      const range = firstTier ? `${firstTier.periodStart} ～ ${firstTier.periodEnd}・` : '';
       return `
-        <div class="hb-row">
-          <div class="hb-row-head">
-            <div class="hb-row-title">
-              <span class="hb-row-label">${escapeHtml(t.name)}</span>
-              <span class="cb-tier-rate">${t.rate}%</span>
+        <div class="cb-card">
+          ${head('預估回饋', cashbackMoney(log.estimated))}
+          <div class="cb-card-sub">已存檔・${range}已刷 <strong>${cashbackMoney(log.spent)}</strong></div>
+          <div class="cb-tier-list">${(log.tiers || []).filter(t => t.enabled !== false).map(renderFrozenCashbackTier).join('')}</div>
+          ${renderDisabledTiersLine(log.tiers || [])}
+          <div class="cb-actual-row">
+            <label class="cb-actual-label" for="cbActual_${log.docId}">銀行實際回饋</label>
+            <div class="cb-actual-input-wrap">
+              <span>$</span>
+              <input type="number" id="cbActual_${log.docId}" class="cb-actual-input form-input" data-log-id="${log.docId}"
+                value="${log.actual ?? ''}" placeholder="未填" min="0" step="any" inputmode="decimal" />
             </div>
-            <div class="hb-row-meta">
-              <span class="hb-row-remain">${money(t.earned)}</span>
-              <span class="hb-row-limit">/ ${money(t.cap)}</span>
-            </div>
-            <span class="hb-row-pct">${pct}%</span>
+            <span class="cb-actual-diff">${diffText}</span>
           </div>
-          <div class="hb-bar-track">
-            <div class="hb-bar-fill cb-bar-fill ${barClass}" style="width:${pct}%"></div>
+          <div class="cb-card-actions">
+            <button type="button" class="cb-recalc-btn" data-account-id="${acc.docId}" data-month="${monthKey}">重新計算</button>
           </div>
-          ${hint}
+          ${yearLine}
         </div>`;
-    }).join('');
+    }
+
+    if (live && (ongoing || live.tiers.some(t => t.spent > 0))) {
+      const modeLabel = getRewardPeriodModeLabel(live.range.mode);
+      const unsaved = !ongoing ? `
+        <div class="cb-card-actions">
+          <span class="cb-tier-hint">這個月還沒有存檔</span>
+          <button type="button" class="cb-recalc-btn" data-account-id="${acc.docId}" data-month="${monthKey}">存檔</button>
+        </div>` : '';
+      return `
+        <div class="cb-card">
+          ${head('預估回饋', cashbackMoney(live.totalEarned))}
+          <div class="cb-card-sub">
+            ${modeLabel} ${live.range.start} ～ ${live.range.end}・${ongoing ? '本期' : ''}已刷 <strong>${cashbackMoney(live.spent)}</strong>
+          </div>
+          <div class="cb-tier-list">${live.tiers.filter(t => t.enabled).map(renderLiveCashbackTier).join('')}</div>
+          ${renderDisabledTiersLine(live.tiers)}
+          ${unsaved}
+          ${yearLine}
+        </div>`;
+    }
 
     return `
       <div class="cb-card">
-        <div class="cb-card-head">
-          <div class="cb-card-title">
-            <span class="hb-row-icon">${acc.emoji || '💳'}</span>
-            <span class="cb-card-name">${escapeHtml(acc.name || '')}</span>
-          </div>
-          <div class="cb-card-total">
-            <span class="cb-card-total-label">預估回饋</span>
-            <span class="cb-card-total-val">${money(result.totalEarned)}</span>
-          </div>
-        </div>
-        <div class="cb-card-sub">
-          ${periodLabel} ${result.range.start} ～ ${result.range.end}・本期已刷 <strong>${money(result.spent)}</strong>
-        </div>
-        <div class="cb-tier-list">${tiersHtml}</div>
+        ${head('預估回饋', '—')}
+        <div class="cb-card-sub">這個月沒有回饋紀錄</div>
+        ${yearLine}
       </div>`;
   }).join('');
 
   return `<div class="cb-section">${cardHtml}</div>`;
 }
+
+homeCashbackContent?.addEventListener('change', e => {
+  const input = e.target.closest('.cb-actual-input');
+  if (!input) return;
+  const raw = input.value.trim();
+  const v = raw === '' ? null : parseFloat(raw);
+  if (raw !== '' && !Number.isFinite(v)) return;
+  void saveCashbackActual(input.dataset.logId, v);
+});
+
+homeCashbackContent?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.closest('.cb-actual-input')) e.target.blur();
+});
+
+homeCashbackContent?.addEventListener('click', e => {
+  const btn = e.target.closest('.cb-recalc-btn');
+  if (!btn) return;
+  const { accountId, month } = btn.dataset;
+  const exists = !!findCashbackLog(accountId, month);
+  if (exists && !confirm('要用目前的回饋規則和帳目重新計算這個月嗎？已填的實際回饋不會變動。')) return;
+  btn.disabled = true;
+  void recalcCashbackLog(accountId, month).finally(() => { btn.disabled = false; });
+});
 
 function matchesSearch(r, kw) {
   if (!kw) return true;

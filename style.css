@@ -793,6 +793,104 @@ body {
   font-weight: 700;
 }
 
+.cb-tier-calc {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-light);
+  white-space: nowrap;
+}
+
+.cb-tier-period {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+
+.cb-tier-disabled {
+  font-size: var(--fs-xs);
+  color: var(--text-light);
+}
+
+.cb-update-tag {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #b26a00;
+  background: #fff3df;
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+
+.cb-actual-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.cb-actual-label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.cb-actual-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+
+.cb-actual-input-wrap .form-input {
+  width: 110px;
+  padding: 6px 10px;
+  font-size: var(--fs-base);
+}
+
+.cb-actual-diff {
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+
+.cb-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cb-recalc-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--pink-dark);
+  cursor: pointer;
+}
+
+.cb-recalc-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cb-year-total {
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+
+.cb-year-total strong {
+  color: var(--text-dark);
+}
+
+.cb-year-total span {
+  font-size: var(--fs-xs);
+  color: var(--text-light);
+}
+
 .hb-extra-row {
   text-align: center;
   font-size: var(--fs-sm);
@@ -1562,6 +1660,82 @@ body {
 .account-modal-header {
   gap: 10px;
   margin-bottom: 16px;
+}
+.account-header-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.account-catalog-header-select {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text-dark);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  padding: 4px 2px;
+  outline: none;
+}
+.account-catalog-header-select:focus {
+  border-bottom-color: var(--pink-main);
+}
+.account-catalog-header-select[hidden],
+.account-name-header-input[hidden] {
+  display: none;
+}
+
+/* ===== 信用卡卡面 ===== */
+.card-face {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  aspect-ratio: 1.586;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.card-face--sm { width: 44px; }
+.card-face--md { width: 56px; }
+.card-face--lg { width: 180px; border-radius: 10px; }
+.card-face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.card-face-fallback {
+  display: none;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+.card-face.is-broken {
+  background: linear-gradient(135deg, var(--pink-main), var(--pink-dark));
+}
+.card-face.is-broken .card-face-fallback {
+  display: block;
+}
+.card-face--sm.is-broken .card-face-fallback {
+  font-size: 9px;
+}
+.account-type-icon.account-card-face {
+  width: 44px;
+  border-radius: 0;
+  background: transparent;
+}
+.reward-catalog-face {
+  margin-bottom: 6px;
+}
+#budgetMonthNav {
+  margin-bottom: 2px;
 }
 .account-name-header-input {
   flex: 1;
@@ -5900,6 +6074,125 @@ input.form-input {
 .reward-del-btn-spacer {
   flex-shrink: 0;
   width: 30px;
+}
+.reward-edit-row.is-disabled .reward-edit-right,
+.reward-edit-row.is-disabled .reward-edit-name,
+.reward-edit-row.is-disabled .reward-tier-base-name {
+  opacity: 0.5;
+}
+.reward-tier-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+.reward-tier-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-dark);
+  cursor: pointer;
+}
+.reward-tier-designated-tag {
+  font-weight: 700;
+  color: #b26a00;
+  background: #fff3df;
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+.reward-tier-condition {
+  color: var(--text-light);
+  line-height: 1.4;
+}
+.reward-tier-calc-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  cursor: pointer;
+  text-align: left;
+}
+.reward-tier-calc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reward-tier-calc-panel[hidden] { display: none; }
+.reward-tier-calc-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+}
+.reward-tier-calc-field > span:first-child {
+  flex: 0 0 32px;
+}
+.reward-tier-calc-field .form-select {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  padding: 6px 8px;
+}
+.reward-tier-threshold {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.reward-tier-threshold .form-input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+.reward-catalog-info {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  line-height: 1.5;
+}
+.reward-catalog-info a {
+  color: var(--pink-dark);
+}
+.reward-catalog-update {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff3df;
+  font-size: var(--fs-sm);
+  color: #8a5300;
+}
+.reward-catalog-update[hidden],
+.reward-catalog-info[hidden] { display: none; }
+.reward-catalog-update-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 99px;
+  padding: 4px 12px;
+  background: #b26a00;
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+.reward-tiers-label {
+  display: block;
+  margin-top: 12px;
 }
 
 /* ===== 回饋追蹤卡片（專案詳情）===== */

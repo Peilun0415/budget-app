@@ -28,7 +28,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.45';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.46';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -1029,11 +1029,12 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     resetInitialLoad();
     currentUser = user;
-    // 寫入/更新 users 集合，供專案邀請時以 email 查詢
+    // users 只有本人可讀；userLookup 以 email 為文件 ID，供專案邀請時以完整 Email 取得 uid
     const email = (user.email || '').trim().toLowerCase();
     const displayName = (user.displayName || user.email || '').trim() || '使用者';
     if (email) {
       setDoc(doc(db, 'users', user.uid), { uid: user.uid, email, displayName }, { merge: true }).catch(() => {});
+      setDoc(doc(db, 'userLookup', email), { uid: user.uid, displayName }).catch(() => {});
     }
     void loadThemeFromCloud(user.uid);
     showApp(user);
@@ -1104,6 +1105,11 @@ function setGuestMode(mode) {
 guestLoginBtn.addEventListener('click', () => doGuestAuth());
 guestPassInput.addEventListener('keydown', e => { if (e.key === 'Enter') doGuestAuth(); });
 
+/** 暱稱帳號轉成 Firebase Auth 用的 email；登入與專案邀請必須用同一套轉換 */
+function guestNameToEmail(name) {
+  return `${encodeURIComponent(name.trim()).toLowerCase()}@guest.app`;
+}
+
 async function doGuestAuth() {
   const name = guestNameInput.value.trim();
   const pass = guestPassInput.value;
@@ -1119,8 +1125,7 @@ async function doGuestAuth() {
     return;
   }
 
-  // 暱稱轉成合法 email 格式
-  const email = `${encodeURIComponent(name).toLowerCase()}@guest.app`;
+  const email = guestNameToEmail(name);
   guestLoginWarn.textContent = '';
   guestLoginBtn.disabled = true;
   guestLoginBtn.textContent = guestMode === 'login' ? '登入中...' : '註冊中...';
@@ -2243,11 +2248,11 @@ function renderProjectList() {
     card.innerHTML = `
       <div class="project-card-main">
         <div class="project-card-name-row">
-          <div class="project-card-name">${proj.name}</div>
+          <div class="project-card-name">${escapeHtml(proj.name)}</div>
           ${active ? '' : '<span class="project-card-badge is-closed">已結束</span>'}
         </div>
-        ${dateStr ? `<div class="project-card-date">📅 ${dateStr}</div>` : ''}
-        ${members ? `<div class="project-card-members">👥 ${members}</div>` : ''}
+        ${dateStr ? `<div class="project-card-date">📅 ${escapeHtml(dateStr)}</div>` : ''}
+        ${members ? `<div class="project-card-members">👥 ${escapeHtml(members)}</div>` : ''}
       </div>
       <div class="project-card-right">
         <div class="project-card-amount">$${formatMoney(total)}</div>
@@ -2428,7 +2433,8 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function recordReadonlyRow(label, text) {
@@ -2683,9 +2689,9 @@ function renderRewardActivityEditor(container) {
     const row = document.createElement('div');
     row.className = 'reward-edit-row';
     row.innerHTML = `
-      <input type="text" class="reward-edit-name form-input" placeholder="活動名稱" value="${act.name || ''}" maxlength="30" />
+      <input type="text" class="reward-edit-name form-input" placeholder="活動名稱" value="${escapeHtml(act.name || '')}" maxlength="30" />
       <div class="reward-edit-right">
-        <input type="number" class="reward-edit-limit form-input" placeholder="刷卡上限金額" value="${act.limit || ''}" min="0" inputmode="decimal" />
+        <input type="number" class="reward-edit-limit form-input" placeholder="刷卡上限金額" value="${escapeHtml(act.limit || '')}" min="0" inputmode="decimal" />
         <select class="reward-edit-currency form-select">
           <option value="TWD" ${act.currency === 'TWD' || !act.currency ? 'selected' : ''}>TWD</option>
           <option value="JPY" ${act.currency === 'JPY' ? 'selected' : ''}>JPY</option>
@@ -2775,31 +2781,17 @@ if (projectInviteBtn) {
     const raw = (projectInviteEmailInput?.value || '').trim();
     if (!raw) return;
     try {
-      let snap;
-      if (raw.includes('@')) {
-        const email = raw.toLowerCase();
-        snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
-        if (snap.empty) {
-          alert('找不到此 Email 的帳號，請對方先用此 Email 登入過本 App 一次');
-          return;
-        }
-      } else {
-        const name = raw;
-        snap = await getDocs(query(collection(db, 'users'), where('displayName', '==', name)));
-        if (snap.empty) {
-          alert('找不到此顯示名稱的帳號，請對方先登入過本 App 一次，或改用 Email 邀請');
-          return;
-        }
-        if (snap.size > 1) {
-          const emails = snap.docs.map(d => d.data().email || d.id).join('、');
-          alert(`有多人使用「${name}」，請改用 Email 邀請：\n${emails}`);
-          return;
-        }
+      const isGuest = !raw.includes('@');
+      const email = isGuest ? guestNameToEmail(raw) : raw.toLowerCase();
+      const lookupSnap = await getDoc(doc(db, 'userLookup', email));
+      if (!lookupSnap.exists()) {
+        alert(isGuest
+          ? '找不到此暱稱帳號，請對方先登入過本 App 一次；Google 帳號請改輸入 Email'
+          : '找不到此 Email 的帳號，請對方先用此 Email 登入過本 App 一次');
+        return;
       }
-      const userDoc = snap.docs[0];
-      const uid = userDoc.id;
-      const data = userDoc.data();
-      const email = data.email || '';
+      const data = lookupSnap.data();
+      const uid = data.uid;
       const displayName = (data.displayName || email || uid).trim() || '使用者';
       if (uid === currentUser?.uid) {
         alert('不能邀請自己');
@@ -3072,7 +3064,7 @@ function fillProjectDateFilter(proj, recs) {
   const dates = getProjectFilterDates(proj, recs);
   const prev = projectDateFilter;
   projectDateFilterSelect.innerHTML = '<option value="">全部日期</option>' +
-    dates.map(d => `<option value="${d}">${formatDateDisplay(d)}</option>`).join('');
+    dates.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(formatDateDisplay(d))}</option>`).join('');
   if (prev && dates.includes(prev)) {
     projectDateFilterSelect.value = prev;
     projectDateFilter = prev;
@@ -3116,7 +3108,7 @@ function renderProjectRecordList(proj, allRecs) {
       : dateLabel
         ? `${dateLabel}還沒有記帳記錄`
         : '還沒有相關記帳記錄';
-    projectRecordList.innerHTML = `<div class="empty-state"><span>📋</span><p>${emptyMsg}</p></div>`;
+    projectRecordList.innerHTML = `<div class="empty-state"><span>📋</span><p>${escapeHtml(emptyMsg)}</p></div>`;
     return;
   }
   const sorted = [...recs].sort((a, b) => {
@@ -3192,7 +3184,7 @@ function renderProjectSettle(proj, recs) {
         const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : '';
         const netStr = n > 0 ? `+$${formatMoney(n)}` : n < 0 ? `-$${formatMoney(Math.abs(n))}` : '$0';
         return `<div class="settle-member-table-row">
-          <span class="settle-m-name">${label}</span>
+          <span class="settle-m-name">${escapeHtml(label)}</span>
           <span class="settle-m-val">$${formatMoney(Math.round(paid[m.uid] || 0))}</span>
           <span class="settle-m-val">$${formatMoney(Math.round(owed[m.uid] || 0))}</span>
           <span class="settle-m-net ${cls}">${netStr}</span>
@@ -3371,8 +3363,8 @@ function renderProjectReward(proj, recs) {
     card.className = 'reward-track-card';
     card.innerHTML = `
       <div class="reward-track-header">
-        <span class="reward-track-name">${act.name}</span>
-        <span class="reward-track-currency">${currency}</span>
+        <span class="reward-track-name">${escapeHtml(act.name)}</span>
+        <span class="reward-track-currency">${escapeHtml(currency)}</span>
         ${over ? '<span class="reward-track-badge over">已達上限</span>' : warn ? '<span class="reward-track-badge warn">⚠️ 接近上限</span>' : ''}
       </div>
       <div class="reward-track-bar-wrap">
@@ -3770,8 +3762,8 @@ function updateRewardActivitySelect(savedIds = []) {
     const row = document.createElement('label');
     row.className = 'reward-activity-item';
     row.innerHTML = `
-      <input type="checkbox" class="reward-activity-cb" value="${a.id}" ${idSet.has(a.id) ? 'checked' : ''} />
-      <span class="reward-activity-label">${a.name}（上限 ${a.currency || 'TWD'} ${formatMoney(a.limit)}）</span>
+      <input type="checkbox" class="reward-activity-cb" value="${escapeHtml(a.id)}" ${idSet.has(a.id) ? 'checked' : ''} />
+      <span class="reward-activity-label">${escapeHtml(a.name)}（上限 ${escapeHtml(a.currency || 'TWD')} ${formatMoney(a.limit)}）</span>
     `;
     rewardActivityChecklist?.appendChild(row);
   });
@@ -3851,11 +3843,11 @@ function renderSplitUI(proj, record = null) {
     const row = document.createElement('label');
     row.className = 'split-card-row';
     row.innerHTML = `
-      <input type="checkbox" class="split-member-cb" data-member-uid="${m.uid}" ${shouldCheck ? 'checked' : ''} />
-      <span class="split-card-name">${m.label}</span>
+      <input type="checkbox" class="split-member-cb" data-member-uid="${escapeHtml(m.uid)}" ${shouldCheck ? 'checked' : ''} />
+      <span class="split-card-name">${escapeHtml(m.label)}</span>
       <div class="amount-input-wrap split-card-input-wrap">
         <span class="currency-sign">$</span>
-        <input type="number" class="split-card-amount" data-member-uid="${m.uid}" placeholder="0" inputmode="decimal" value="${savedAmt}" />
+        <input type="number" class="split-card-amount" data-member-uid="${escapeHtml(m.uid)}" placeholder="0" inputmode="decimal" value="${escapeHtml(savedAmt)}" />
       </div>`;
     row.querySelector('.split-member-cb').addEventListener('change', syncSelectAllAndAmounts);
     row.querySelector('.split-card-amount').addEventListener('input', syncEqualAmounts);
@@ -4064,9 +4056,9 @@ function renderCatBudgetList() {
     const item = document.createElement('div');
     item.className = 'cat-budget-item';
     item.innerHTML = `
-      <div class="cat-budget-emoji">${displayEmoji}</div>
+      <div class="cat-budget-emoji">${escapeHtml(displayEmoji)}</div>
       <div class="cat-budget-info">
-        <div class="cat-budget-name">${displayName}</div>
+        <div class="cat-budget-name">${escapeHtml(displayName)}</div>
         <div class="cat-budget-bar-row">
           <div class="cat-budget-progress-wrap">
             <div class="cat-budget-progress-bar${over ? ' danger' : warn ? ' warning' : ''}" style="width:${pct}%"></div>
@@ -4111,8 +4103,8 @@ function renderExcludeCatGrid(excluded = []) {
       const header = document.createElement('div');
       header.className = 'exclude-group-header';
       header.innerHTML = `
-        <span class="exclude-group-emoji">${cat.emoji}</span>
-        <span class="exclude-group-name">${cat.name}</span>
+        <span class="exclude-group-emoji">${escapeHtml(cat.emoji)}</span>
+        <span class="exclude-group-name">${escapeHtml(cat.name)}</span>
         ${anyChecked ? `<span class="exclude-group-badge">${cat.subs.filter(s => excluded.includes(`${cat.docId}::${s.docId}`)).length}</span>` : ''}
         <span class="exclude-group-arrow">›</span>`;
 
@@ -4126,8 +4118,8 @@ function renderExcludeCatGrid(excluded = []) {
         item.className = 'exclude-cat-item' + (checked ? ' checked' : '');
         item.innerHTML = `
           <input type="checkbox" value="${id}" ${checked ? 'checked' : ''} />
-          <span class="exclude-cat-emoji">${sub.emoji || cat.emoji}</span>
-          <span class="exclude-cat-name">${sub.name}</span>`;
+          <span class="exclude-cat-emoji">${escapeHtml(sub.emoji || cat.emoji)}</span>
+          <span class="exclude-cat-name">${escapeHtml(sub.name)}</span>`;
         item.querySelector('input').addEventListener('change', () => {
           item.classList.toggle('checked', item.querySelector('input').checked);
           // 更新 badge
@@ -4156,8 +4148,8 @@ function renderExcludeCatGrid(excluded = []) {
       item.className = 'exclude-cat-item' + (checked ? ' checked' : '');
       item.innerHTML = `
         <input type="checkbox" value="${cat.docId}" ${checked ? 'checked' : ''} />
-        <span class="exclude-cat-emoji">${cat.emoji}</span>
-        <span class="exclude-cat-name">${cat.name}</span>`;
+        <span class="exclude-cat-emoji">${escapeHtml(cat.emoji)}</span>
+        <span class="exclude-cat-name">${escapeHtml(cat.name)}</span>`;
       item.querySelector('input').addEventListener('change', () => {
         item.classList.toggle('checked', item.querySelector('input').checked);
       });
@@ -4261,7 +4253,7 @@ function renderCatBudgetSelectedTags() {
     return;
   }
   tagsEl.innerHTML = catBudgetSelectedItems.map(i =>
-    `<span class="cat-budget-tag">${i.emoji} ${i.label} <span class="cat-budget-tag-x" data-key="${catItemKey(i.catId, i.subId)}">✕</span></span>`
+    `<span class="cat-budget-tag">${escapeHtml(i.emoji)} ${escapeHtml(i.label)} <span class="cat-budget-tag-x" data-key="${escapeHtml(catItemKey(i.catId, i.subId))}">✕</span></span>`
   ).join('');
   tagsEl.querySelectorAll('.cat-budget-tag-x').forEach(x => {
     x.addEventListener('click', e => {
@@ -4288,8 +4280,8 @@ function renderCatBudgetCatGrid() {
       const header = document.createElement('div');
       header.className = 'exclude-group-header';
       header.innerHTML = `
-        <span class="exclude-group-emoji">${cat.emoji}</span>
-        <span class="exclude-group-name">${cat.name}</span>
+        <span class="exclude-group-emoji">${escapeHtml(cat.emoji)}</span>
+        <span class="exclude-group-name">${escapeHtml(cat.name)}</span>
         ${isAnySel ? `<span class="exclude-group-badge">${selCount}</span>` : ''}
         <span class="exclude-group-arrow">›</span>`;
       header.addEventListener('click', () => group.classList.toggle('open'));
@@ -4301,7 +4293,7 @@ function renderCatBudgetCatGrid() {
       const isParentSel = isCatItemSelected(cat.docId, null);
       const parentItem = document.createElement('div');
       parentItem.className = 'cat-budget-pick-item cat-budget-pick-parent' + (isParentSel ? ' selected' : '');
-      parentItem.innerHTML = `<span>${cat.emoji}</span><span>${cat.name}（全部）</span>`;
+      parentItem.innerHTML = `<span>${escapeHtml(cat.emoji)}</span><span>${escapeHtml(cat.name)}（全部）</span>`;
       parentItem.addEventListener('click', () => toggleCatItem(cat.docId, null, cat.emoji, cat.name));
       body.appendChild(parentItem);
 
@@ -4309,7 +4301,7 @@ function renderCatBudgetCatGrid() {
         const isSel = isCatItemSelected(cat.docId, sub.docId);
         const item = document.createElement('div');
         item.className = 'cat-budget-pick-item' + (isSel ? ' selected' : '');
-        item.innerHTML = `<span>${sub.emoji || cat.emoji}</span><span>${sub.name}</span>`;
+        item.innerHTML = `<span>${escapeHtml(sub.emoji || cat.emoji)}</span><span>${escapeHtml(sub.name)}</span>`;
         item.addEventListener('click', () => {
           const label = `${cat.name}・${sub.name}`;
           toggleCatItem(cat.docId, sub.docId, sub.emoji || cat.emoji, label);
@@ -4324,7 +4316,7 @@ function renderCatBudgetCatGrid() {
       const isSel = isCatItemSelected(cat.docId, null);
       const item = document.createElement('div');
       item.className = 'cat-budget-pick-item' + (isSel ? ' selected' : '');
-      item.innerHTML = `<span>${cat.emoji}</span><span>${cat.name}</span>`;
+      item.innerHTML = `<span>${escapeHtml(cat.emoji)}</span><span>${escapeHtml(cat.name)}</span>`;
       item.addEventListener('click', () => toggleCatItem(cat.docId, null, cat.emoji, cat.name));
       catBudgetCatGrid.appendChild(item);
     }
@@ -5181,12 +5173,12 @@ function renderTplList() {
     const amountClass = tpl.amount ? tpl.type : 'none';
 
     item.innerHTML = `
-      <div class="tpl-item-icon">${icon}</div>
+      <div class="tpl-item-icon">${escapeHtml(icon)}</div>
       <div class="tpl-item-info">
-        <div class="tpl-item-name">${tpl.name}</div>
-        <div class="tpl-item-desc">${descParts.join('・')}</div>
+        <div class="tpl-item-name">${escapeHtml(tpl.name)}</div>
+        <div class="tpl-item-desc">${escapeHtml(descParts.join('・'))}</div>
       </div>
-      <div class="tpl-item-amount ${amountClass}">${amountDisplay}</div>
+      <div class="tpl-item-amount ${escapeHtml(amountClass)}">${escapeHtml(amountDisplay)}</div>
       <div class="tpl-item-actions">
         <button type="button" class="tpl-edit-btn" data-id="${tpl.docId}" title="編輯範本" aria-label="編輯範本">
           <i class="bi bi-pencil" aria-hidden="true"></i>
@@ -5509,16 +5501,16 @@ function renderRecurringList() {
 
     div.style.cursor = 'pointer';
     div.innerHTML = `
-      <div class="recurring-item-icon">${emoji}</div>
+      <div class="recurring-item-icon">${escapeHtml(emoji)}</div>
       <div class="recurring-item-info">
-        <div class="recurring-item-name">${item.name}</div>
-        ${catLabel ? `<div class="recurring-item-cat">${catLabel}</div>` : ''}
-        <div class="recurring-item-meta">${meta}</div>
-        <span class="recurring-next-badge">下次：${nextDate}</span>
+        <div class="recurring-item-name">${escapeHtml(item.name)}</div>
+        ${catLabel ? `<div class="recurring-item-cat">${escapeHtml(catLabel)}</div>` : ''}
+        <div class="recurring-item-meta">${escapeHtml(meta)}</div>
+        <span class="recurring-next-badge">下次：${escapeHtml(nextDate)}</span>
       </div>
       <div class="recurring-item-right">
-        <span class="recurring-item-amount ${item.type}">
-          ${amountLabel}
+        <span class="recurring-item-amount ${escapeHtml(item.type)}">
+          ${escapeHtml(amountLabel)}
         </span>
         <label class="recurring-toggle" title="開啟/關閉">
           <input type="checkbox" ${item.enabled ? 'checked' : ''} data-id="${item.docId}" />
@@ -5731,9 +5723,9 @@ function updateRecCatPickBtn() {
   if (recSelectedCategory) {
     recCatPickEmoji.textContent = recSelectedSubCategory?.emoji || recSelectedCategory.emoji || '📦';
     if (recSelectedSubCategory) {
-      recCatPickName.innerHTML = `${recSelectedCategory.name}<br><span class="cat-pick-sub-label">${recSelectedSubCategory.name}</span>`;
+      recCatPickName.innerHTML = `${escapeHtml(recSelectedCategory.name)}<br><span class="cat-pick-sub-label">${escapeHtml(recSelectedSubCategory.name)}</span>`;
     } else {
-      recCatPickName.innerHTML = recSelectedCategory.name;
+      recCatPickName.textContent = recSelectedCategory.name;
     }
   } else {
     recCatPickEmoji.textContent = '📦';
@@ -6063,7 +6055,7 @@ function populateHomeFilterLists() {
       homeFilterCategoryList.innerHTML = cats.map(c => `
         <label class="home-filter-check-item">
           <input type="checkbox" value="${c.docId}" ${homeFilter.categoryIds.includes(c.docId) ? 'checked' : ''} />
-          <span>${c.emoji || ''} ${c.name}</span>
+          <span>${escapeHtml(c.emoji || '')} ${escapeHtml(c.name)}</span>
         </label>
       `).join('');
     }
@@ -6077,7 +6069,7 @@ function populateHomeFilterLists() {
       homeFilterAccountList.innerHTML = accs.map(a => `
         <label class="home-filter-check-item">
           <input type="checkbox" value="${a.docId}" ${homeFilter.accountIds.includes(a.docId) ? 'checked' : ''} />
-          <span>${a.emoji || ''} ${a.name}${isAccountHidden(a) ? '（已隱藏）' : ''}</span>
+          <span>${escapeHtml(a.emoji || '')} ${escapeHtml(a.name)}${isAccountHidden(a) ? '（已隱藏）' : ''}</span>
         </label>
       `).join('');
     }
@@ -6381,7 +6373,7 @@ function renderCatPickerParents(forceType = null) {
   parents.forEach(cat => {
     const item = document.createElement('div');
     item.className = 'cat-picker-parent' + (cat === activeParent ? ' active' : '');
-    item.innerHTML = `<span class="cat-picker-parent-emoji">${cat.emoji}</span><span>${cat.name}</span>`;
+    item.innerHTML = `<span class="cat-picker-parent-emoji">${escapeHtml(cat.emoji)}</span><span>${escapeHtml(cat.name)}</span>`;
     item.addEventListener('click', () => {
       catPickerParents.querySelectorAll('.cat-picker-parent').forEach(el => el.classList.remove('active'));
       item.classList.add('active');
@@ -6416,8 +6408,8 @@ function renderCatPickerSubs(parentCat) {
       const item = document.createElement('div');
       item.className = 'cat-picker-sub' + (curSub === sub.docId ? ' selected' : '');
       item.innerHTML = sub.emoji
-        ? `<span class="cat-picker-sub-emoji">${sub.emoji}</span><span>${sub.name}</span>`
-        : sub.name;
+        ? `<span class="cat-picker-sub-emoji">${escapeHtml(sub.emoji)}</span><span>${escapeHtml(sub.name)}</span>`
+        : escapeHtml(sub.name);
       item.addEventListener('click', () => {
         if (window._recCatPickMode) {
           recSelectedCategory    = parentCat;
@@ -6458,9 +6450,9 @@ function updateCatPickBtn(parentCat, subCat) {
   }
   catPickEmoji.textContent = (subCat?.emoji) || parentCat.emoji;
   if (subCat) {
-    catPickName.innerHTML = `${parentCat.name}<br><span class="cat-pick-sub-label">${subCat.name}</span>`;
+    catPickName.innerHTML = `${escapeHtml(parentCat.name)}<br><span class="cat-pick-sub-label">${escapeHtml(subCat.name)}</span>`;
   } else {
-    catPickName.innerHTML = parentCat.name;
+    catPickName.textContent = parentCat.name;
   }
 }
 
@@ -6673,8 +6665,8 @@ function renderHiddenAccountsList() {
     row.className = 'hidden-account-row';
     row.innerHTML = `
       <div class="hidden-account-row-info">
-        <div class="hidden-account-row-name">${a.emoji || ''} ${a.name}</div>
-        <div class="hidden-account-row-type">${accountTypeKey(a)}</div>
+        <div class="hidden-account-row-name">${escapeHtml(a.emoji || '')} ${escapeHtml(a.name)}</div>
+        <div class="hidden-account-row-type">${escapeHtml(accountTypeKey(a))}</div>
       </div>
       <span class="toggle-switch">
         <input type="checkbox" ${isAccountHidden(a) ? '' : 'checked'} />
@@ -7618,8 +7610,8 @@ function buildCatParentItem(parent) {
   header.className = 'cat-parent-header';
   header.innerHTML = `
     <span class="drag-handle cat-drag" title="拖曳排序">⠿</span>
-    <span class="cat-parent-emoji">${parent.emoji}</span>
-    <span class="cat-parent-name">${parent.name}</span>
+    <span class="cat-parent-emoji">${escapeHtml(parent.emoji)}</span>
+    <span class="cat-parent-name">${escapeHtml(parent.name)}</span>
     <div class="cat-parent-actions">
       <button type="button" class="cat-add-sub-btn">＋ 子分類</button>
       <button type="button" class="cat-action-btn cat-edit-btn" title="編輯" aria-label="編輯"><i class="bi bi-pencil" aria-hidden="true"></i></button>
@@ -7656,8 +7648,8 @@ function buildCatParentItem(parent) {
       subItem.dataset.docId = sub.docId;
       subItem.innerHTML = `
         <span class="drag-handle cat-sub-drag" title="拖曳排序">⠿</span>
-        <span class="cat-sub-emoji">${sub.emoji}</span>
-        <span class="cat-sub-name">${sub.name}</span>
+        <span class="cat-sub-emoji">${escapeHtml(sub.emoji)}</span>
+        <span class="cat-sub-name">${escapeHtml(sub.name)}</span>
         <button type="button" class="cat-action-btn cat-sub-edit-btn" title="編輯" aria-label="編輯"><i class="bi bi-pencil" aria-hidden="true"></i></button>
       `;
       subItem.querySelector('.cat-sub-edit-btn').addEventListener('click', () => {
@@ -7891,7 +7883,7 @@ function renderAccountList() {
     header.dataset.typeName = typeName;
     header.innerHTML = `
       <span class="drag-handle group-drag-handle" title="拖曳移動類別">⠿</span>
-      <span class="account-group-label">${typeName}</span>
+      <span class="account-group-label">${escapeHtml(typeName)}</span>
     `;
     accountList.appendChild(header);
 
@@ -7929,18 +7921,18 @@ function renderAccountList() {
         <span class="drag-handle item-drag-handle" title="拖曳排序">⠿</span>
         ${a.typeId === 'credit' && findCatalogCard(a.catalogCardId)
           ? `<div class="account-type-icon account-card-face">${cardFaceHtml(a.catalogCardId, 'sm')}</div>`
-          : `<div class="account-type-icon">${a.emoji}</div>`}
+          : `<div class="account-type-icon">${escapeHtml(a.emoji)}</div>`}
         <div class="account-info">
           <div class="account-name">
-            ${a.name}
-            ${a.currency ? `<span class="account-currency-tag">${a.currency}</span>` : ''}
+            ${escapeHtml(a.name)}
+            ${a.currency ? `<span class="account-currency-tag">${escapeHtml(a.currency)}</span>` : ''}
             ${a.includeInTotal === false ? `<span class="account-exclude-tag">不計入</span>` : ''}
           </div>
-          ${a.note ? `<div class="account-note">${a.note}</div>` : ''}
+          ${a.note ? `<div class="account-note">${escapeHtml(a.note)}</div>` : ''}
         </div>
         <div class="account-right">
           <div class="account-balance-stack">
-            <span class="account-balance" style="color:${balColor}">${balText}</span>
+            <span class="account-balance" style="color:${balColor}">${escapeHtml(balText)}</span>
             ${twdHintHtml}
           </div>
           <span class="account-chevron" aria-hidden="true">›</span>
@@ -8069,8 +8061,8 @@ function renderHomeBudget() {
       <div class="hb-row${over ? ' is-over' : ''}">
         <div class="hb-row-head">
           <div class="hb-row-title">
-            <span class="hb-row-icon">${icon}</span>
-            <span class="hb-row-label">${label}</span>
+            <span class="hb-row-icon">${escapeHtml(icon)}</span>
+            <span class="hb-row-label">${escapeHtml(label)}</span>
           </div>
           <div class="hb-row-meta">
             <span class="hb-row-remain${over ? ' over' : ''}">${remainTxt}</span>
@@ -8170,12 +8162,12 @@ function cashbackCalcTag(t) {
 function renderLiveCashbackTier(t) {
   const tag = `<span class="cb-tier-calc">${cashbackCalcTag(t)}</span>`;
   const periodLine = t.samePeriodAsCard ? '' : `
-    <span class="cb-tier-period">${getRewardPeriodModeLabel(t.periodMode)} ${t.periodStart} ～ ${t.periodEnd}・已刷 ${cashbackMoney(t.spent)}</span>`;
+    <span class="cb-tier-period">${escapeHtml(getRewardPeriodModeLabel(t.periodMode))} ${escapeHtml(t.periodStart)} ～ ${escapeHtml(t.periodEnd)}・已刷 ${cashbackMoney(t.spent)}</span>`;
   const head = (meta, pct = '') => `
     <div class="hb-row-head">
       <div class="hb-row-title">
         <span class="hb-row-label">${escapeHtml(t.name)}</span>
-        <span class="cb-tier-rate">${t.rate}%</span>
+        <span class="cb-tier-rate">${escapeHtml(t.rate)}%</span>
         ${tag}
       </div>
       <div class="hb-row-meta">${meta}</div>
@@ -8228,7 +8220,7 @@ function renderFrozenCashbackTier(t) {
       <div class="hb-row-head">
         <div class="hb-row-title">
           <span class="hb-row-label">${escapeHtml(t.name || '')}</span>
-          <span class="cb-tier-rate">${t.rate}%</span>
+          <span class="cb-tier-rate">${escapeHtml(t.rate)}%</span>
           <span class="cb-tier-calc">${cashbackCalcTag(t)}</span>
         </div>
         <div class="hb-row-meta">${meta}</div>
@@ -8289,7 +8281,7 @@ function renderCreditCardCashbackSection() {
         <div class="cb-card-title">
           ${findCatalogCard(acc.catalogCardId)
             ? cardFaceHtml(acc.catalogCardId, 'md')
-            : `<span class="hb-row-icon">${acc.emoji || '💳'}</span>`}
+            : `<span class="hb-row-icon">${escapeHtml(acc.emoji || '💳')}</span>`}
           <span class="cb-card-name">${escapeHtml(acc.name || '')}</span>
           ${updateTag}
         </div>
@@ -8482,7 +8474,7 @@ function renderList() {
     recordList.appendChild(emptyState);
     emptyState.style.display = '';
     emptyState.querySelector('p').innerHTML = (kw || hasActiveHomeFilter())
-      ? (kw ? `找不到「${kw}」的相關記錄` : '沒有符合篩選條件的記錄')
+      ? (kw ? `找不到「${escapeHtml(kw)}」的相關記錄` : '沒有符合篩選條件的記錄')
       : '還沒有記帳喔！<br>點下方中央按鈕開始記帳吧～';
     return;
   }
@@ -8498,7 +8490,7 @@ function renderList() {
 }
 
 function formatMoney(n) {
-  return n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+  return Number(n).toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 }
 
 function getRecordAccountCurrency(r) {
@@ -8811,10 +8803,10 @@ function foreignHint(r) {
   const accountCurrency = getRecordAccountCurrency(r);
   if (accountCurrency) {
     const foreignAmt = typeof r.foreignAmount === 'number' ? r.foreignAmount : r.amount;
-    return `<span class="foreign-hint">（${accountCurrency} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}）</span>`;
+    return `<span class="foreign-hint">（${escapeHtml(accountCurrency)} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}）</span>`;
   }
   if (!r.foreignAmount || !r.foreignCurrency) return '';
-  return `<span class="foreign-hint">（${r.foreignCurrency} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}）</span>`;
+  return `<span class="foreign-hint">（${escapeHtml(r.foreignCurrency)} ${formatMoneyByCurrency(r.foreignAmount, r.foreignCurrency)}）</span>`;
 }
 
 function recordAmountMarkup(r, showAccountCurrencyFirst = false, project = null) {
@@ -8824,12 +8816,12 @@ function recordAmountMarkup(r, showAccountCurrencyFirst = false, project = null)
   if (showAccountCurrencyFirst && accountCurrency) {
     const foreignAmt = typeof r.foreignAmount === 'number' ? r.foreignAmount : r.amount;
     return `
-      <span class="record-amount ${r.type}">${sign}${accountCurrency} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}</span>
+      <span class="record-amount ${escapeHtml(r.type)}">${sign}${escapeHtml(accountCurrency)} ${formatMoneyByCurrency(foreignAmt, accountCurrency)}</span>
       <span class="foreign-hint">≈ ${sign}$${formatMoney(twdAmount)}</span>
     `;
   }
   return `
-    <span class="record-amount ${r.type}">${sign}$${formatMoney(twdAmount)}</span>
+    <span class="record-amount ${escapeHtml(r.type)}">${sign}$${formatMoney(twdAmount)}</span>
     ${foreignHint(r)}
   `;
 }
@@ -8860,8 +8852,8 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false, project = null }
     content.innerHTML = `
       <div class="record-cat-icon transfer-icon">🔄</div>
       <div class="record-info">
-        <div class="record-cat-name">${fromName} → ${toName}</div>
-        <div class="record-meta">${metaText}</div>
+        <div class="record-cat-name">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>
+        <div class="record-meta">${escapeHtml(metaText)}</div>
       </div>
       <div class="record-right">
         <span class="record-amount transfer">${transferAmountText}</span>
@@ -8877,10 +8869,10 @@ function buildRecordItem(r, { showAccountCurrencyFirst = false, project = null }
     const dispEmoji = r.displayEmoji || r.categoryEmoji || '📦';
     const dispName  = r.displayName  || r.categoryName  || '其他';
     content.innerHTML = `
-      <div class="record-cat-icon ${r.type}-icon">${dispEmoji}</div>
+      <div class="record-cat-icon ${escapeHtml(r.type)}-icon">${escapeHtml(dispEmoji)}</div>
       <div class="record-info">
-        <div class="record-cat-name">${dispName}</div>
-        <div class="record-meta">${metaText}</div>
+        <div class="record-cat-name">${escapeHtml(dispName)}</div>
+        <div class="record-meta">${escapeHtml(metaText)}</div>
       </div>
       <div class="record-right">
         <div class="record-amount-wrap">
@@ -9698,10 +9690,10 @@ function renderMainCategories(recs, total) {
     const item = document.createElement('div');
     item.className = `report-cat-item ${reportType}${hasSubs ? '' : ' no-drill'}`;
     item.innerHTML = `
-      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${cat.emoji}</div>
+      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${escapeHtml(cat.emoji)}</div>
       <div class="report-cat-info">
         <div class="report-cat-top">
-          <div class="report-cat-name">${cat.name}</div>
+          <div class="report-cat-name">${escapeHtml(cat.name)}</div>
           <div class="report-cat-amount ${reportType}">NT$ ${formatMoney(cat.amount)}</div>
         </div>
         <div class="report-cat-bar-wrap">
@@ -9766,10 +9758,10 @@ function renderDrillDown(recs, totalAll) {
     const item  = document.createElement('div');
     item.className = `report-cat-item ${reportType}`;
     item.innerHTML = `
-      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${sub.emoji || cat?.emoji || '📦'}</div>
+      <div class="report-cat-emoji" style="background:${color}22;color:${color}">${escapeHtml(sub.emoji || cat?.emoji || '📦')}</div>
       <div class="report-cat-info">
         <div class="report-cat-top">
-          <div class="report-cat-name">${sub.name}</div>
+          <div class="report-cat-name">${escapeHtml(sub.name)}</div>
           <div class="report-cat-amount ${reportType}">NT$ ${formatMoney(sub.amount)}</div>
         </div>
         <div class="report-cat-bar-wrap">
@@ -9808,10 +9800,10 @@ function renderSubRecordDetail(parentItem, records, subName) {
     const el = document.createElement('div');
     el.className = 'report-record-item';
     el.innerHTML = `
-      <div class="report-record-date">${r.date.slice(5)}</div>
-      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
+      <div class="report-record-date">${escapeHtml(r.date.slice(5))}</div>
+      <div class="report-record-note">${escapeHtml(r.note || r.displayName || r.categoryName || '—')}${splitHint}</div>
       <div class="report-record-amount-wrap">
-        <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+        <div class="report-record-amount ${escapeHtml(r.type)}">$${formatMoney(effAmt)}</div>
         ${foreignHint(r)}
       </div>
     `;
@@ -9827,10 +9819,10 @@ function renderRecordItems(records) {
     const el = document.createElement('div');
     el.className = 'report-record-item';
     el.innerHTML = `
-      <div class="report-record-date">${r.date.slice(5)}</div>
-      <div class="report-record-note">${r.note || r.displayName || r.categoryName || '—'}${splitHint}</div>
+      <div class="report-record-date">${escapeHtml(r.date.slice(5))}</div>
+      <div class="report-record-note">${escapeHtml(r.note || r.displayName || r.categoryName || '—')}${splitHint}</div>
       <div class="report-record-amount-wrap">
-        <div class="report-record-amount ${r.type}">$${formatMoney(effAmt)}</div>
+        <div class="report-record-amount ${escapeHtml(r.type)}">$${formatMoney(effAmt)}</div>
         ${foreignHint(r)}
       </div>
     `;
@@ -10081,10 +10073,10 @@ function renderTrendMonthList(monthData) {
           el.className = 'report-record-item';
           const dispName = r.displayName || r.categoryName || '—';
           el.innerHTML = `
-            <div class="report-record-date">${r.date.slice(5)}</div>
-            <div class="report-record-note">${dispName}${r.note ? ' · ' + r.note : ''}${splitHint}</div>
+            <div class="report-record-date">${escapeHtml(r.date.slice(5))}</div>
+            <div class="report-record-note">${escapeHtml(dispName)}${r.note ? ' · ' + escapeHtml(r.note) : ''}${splitHint}</div>
             <div class="report-record-amount-wrap">
-              <div class="report-record-amount ${r.type}">${r.type === 'income' ? '+' : '-'}$${formatMoney(effAmt)}</div>
+              <div class="report-record-amount ${escapeHtml(r.type)}">${r.type === 'income' ? '+' : '-'}$${formatMoney(effAmt)}</div>
               ${foreignHint(r)}
             </div>
           `;

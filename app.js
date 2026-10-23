@@ -29,7 +29,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.49';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.50';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -1134,6 +1134,10 @@ pendingRetryBtn?.addEventListener('click', async () => {
   try { await handleSignedIn(auth.currentUser); } finally { pendingRetryBtn.disabled = false; }
 });
 pendingLogoutBtn?.addEventListener('click', () => signOut(auth));
+// 斷線時帳號狀態查詢會失敗而停在「無法確認」，恢復連線後自動重查
+window.addEventListener('online', () => {
+  if (auth.currentUser && pendingScreen.style.display === 'flex') void handleSignedIn(auth.currentUser);
+});
 
 let unsubAccessRequests = null;
 let accessRequests = [];

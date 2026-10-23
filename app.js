@@ -1,4 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 import {
   getAuth,
   GoogleAuthProvider,
@@ -28,7 +29,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.47';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.49';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -41,6 +42,20 @@ const firebaseConfig = {
 };
 
 const app  = initializeApp(firebaseConfig);
+
+// App Check：只接受從本 App 發出的 Firebase 請求。site key 來自 Google Cloud reCAPTCHA；留空則不啟用
+const APP_CHECK_SITE_KEY = '6Lebn_wtAAAAAAtuOC1u83R2vS4sF0ubappXlgm8';
+if (APP_CHECK_SITE_KEY) {
+  // 本機開發用除錯權杖：第一次會在 console 印出，需到 Firebase 後台 App Check 登記
+  if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
+
 const auth = getAuth(app);
 const db   = getFirestore(app);
 

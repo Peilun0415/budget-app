@@ -4243,6 +4243,74 @@ input[type=number]::-webkit-outer-spin-button {
   padding: 24px 8px;
 }
 
+/* ===== 帳號審核 ===== */
+.pending-account {
+  font-size: var(--fs-sm);
+  color: var(--text-light);
+  margin: -16px 0 20px;
+  word-break: break-all;
+}
+.pending-logout-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--primary);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  cursor: pointer;
+}
+.account-review-section {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-mid);
+  margin: 6px 2px 0;
+}
+.account-review-row-info {
+  min-width: 0;
+  flex: 1;
+}
+.account-review-row-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+  margin-top: 1px;
+  word-break: break-all;
+}
+.account-review-warn {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red-light);
+  color: var(--red-main);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.account-review-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.account-review-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--pink-main);
+  color: #fff;
+}
+.account-review-btn.is-secondary {
+  background: var(--white);
+  color: var(--red-main);
+}
+.account-review-btn:disabled {
+  opacity: 0.5;
+}
+
 /* ===== 首頁條件篩選 ===== */
 .home-filter-modal {
   max-height: min(90vh, 720px);

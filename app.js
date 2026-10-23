@@ -28,7 +28,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.46';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.47';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -43,6 +43,9 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+
+// 管理者帳號：免審核、可核准其他帳號；需與 firestore.rules 的 isAdmin() 一致
+const ADMIN_UID = 'BiWF6bxW5NWCuXJG8LgAG7ds4g82';
 
 // ===== 預設分類（首次登入時寫入 Firestore）=====
 // 子分類不設 emoji，寫入時沿用主分類 emoji
@@ -764,6 +767,18 @@ const hiddenAccountsOverlay = document.getElementById('hiddenAccountsOverlay');
 const hiddenAccountsListEl = document.getElementById('hiddenAccountsList');
 const hiddenAccountsDesc = document.getElementById('hiddenAccountsDesc');
 const closeHiddenAccountsBtn = document.getElementById('closeHiddenAccountsBtn');
+const pendingScreen = document.getElementById('pendingScreen');
+const pendingTitle = document.getElementById('pendingTitle');
+const pendingDesc = document.getElementById('pendingDesc');
+const pendingAccount = document.getElementById('pendingAccount');
+const pendingRetryBtn = document.getElementById('pendingRetryBtn');
+const pendingLogoutBtn = document.getElementById('pendingLogoutBtn');
+const adminSettingsGroup = document.getElementById('adminSettingsGroup');
+const goAccountReviewBtn = document.getElementById('goAccountReview');
+const accountReviewDesc = document.getElementById('accountReviewDesc');
+const accountReviewOverlay = document.getElementById('accountReviewOverlay');
+const accountReviewList = document.getElementById('accountReviewList');
+const closeAccountReviewBtn = document.getElementById('closeAccountReviewBtn');
 const themeSwatchGrid = document.getElementById('themeSwatchGrid');
 const metaThemeColor = document.getElementById('metaThemeColor')
   || document.querySelector('meta[name="theme-color"]');
@@ -1025,31 +1040,226 @@ function resetInitialLoad() {
   }, 5000);
 }
 
+// ===== 帳號審核 =====
+function getSignInProvider(user) {
+  return user.providerData?.[0]?.providerId || 'unknown';
+}
+
+function isGuestEmail(email) {
+  return (email || '').endsWith('@guest.app');
+}
+
+function guestEmailToName(email) {
+  try { return decodeURIComponent(email.replace(/@guest\.app$/, '')); } catch { return email; }
+}
+
+/** 回傳 'approved' | 'pending' | 'rejected'；未核准時同時建立或更新自己的申請 */
+async function checkAccountAccess(user) {
+  if (user.uid === ADMIN_UID) return 'approved';
+  const approvedSnap = await getDoc(doc(db, 'approvedUsers', user.uid));
+  if (approvedSnap.exists()) return 'approved';
+
+  const email = (user.email || '').trim().toLowerCase();
+  const info = {
+    email,
+    displayName: isGuestEmail(email) ? guestEmailToName(email) : ((user.displayName || email).trim() || '使用者'),
+    provider: getSignInProvider(user),
+    updatedAt: serverTimestamp(),
+  };
+  const reqRef = doc(db, 'accessRequests', user.uid);
+  const reqSnap = await getDoc(reqRef);
+  if (!reqSnap.exists()) {
+    await setDoc(reqRef, { ...info, status: 'pending', createdAt: serverTimestamp() });
+    return 'pending';
+  }
+  await updateDoc(reqRef, info);
+  return reqSnap.data().status === 'rejected' ? 'rejected' : 'pending';
+}
+
+function showPending(user, state) {
+  hideSplash();
+  loginScreen.style.display = 'none';
+  appScreen.style.display = 'none';
+  pendingScreen.style.display = 'flex';
+  const email = user.email || '';
+  pendingAccount.textContent = isGuestEmail(email) ? `暱稱帳號：${guestEmailToName(email)}` : email;
+  if (state === 'rejected') {
+    pendingTitle.textContent = '無法使用';
+    pendingDesc.textContent = '此帳號未通過審核或已被停用，請聯絡管理者。';
+  } else if (state === 'error') {
+    pendingTitle.textContent = '無法確認帳號狀態';
+    pendingDesc.textContent = '請檢查網路後按「重新檢查」。';
+  } else {
+    pendingTitle.textContent = '等待審核';
+    pendingDesc.textContent = '帳號已送出申請，管理者核准後即可使用。';
+  }
+}
+
+async function handleSignedIn(user) {
+  currentUser = user;
+  let state;
+  try {
+    state = await checkAccountAccess(user);
+  } catch (err) {
+    console.error(err);
+    state = 'error';
+  }
+  if (auth.currentUser?.uid !== user.uid) return;
+  if (state !== 'approved') {
+    showPending(user, state);
+    return;
+  }
+  pendingScreen.style.display = 'none';
+  enterApp(user);
+}
+
+pendingRetryBtn?.addEventListener('click', async () => {
+  if (!auth.currentUser) return;
+  pendingRetryBtn.disabled = true;
+  try { await handleSignedIn(auth.currentUser); } finally { pendingRetryBtn.disabled = false; }
+});
+pendingLogoutBtn?.addEventListener('click', () => signOut(auth));
+
+let unsubAccessRequests = null;
+let accessRequests = [];
+
+function subscribeAccessRequests() {
+  if (unsubAccessRequests) unsubAccessRequests();
+  unsubAccessRequests = onSnapshot(collection(db, 'accessRequests'), snap => {
+    accessRequests = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    const pendingCount = accessRequests.filter(r => r.status === 'pending').length;
+    if (accountReviewDesc) accountReviewDesc.textContent = pendingCount ? `${pendingCount} 筆待審` : '無待審';
+    if (accountReviewOverlay?.classList.contains('active')) renderAccountReviewList();
+  }, err => console.error(err));
+}
+
+function accountProviderLabel(r) {
+  if (r.provider === 'google.com') return 'Google';
+  if (r.provider === 'password' && isGuestEmail(r.email)) return '暱稱帳號';
+  if (r.provider === 'password') return 'Email 密碼';
+  return r.provider || '未知';
+}
+
+function renderAccountReviewList() {
+  if (!accountReviewList) return;
+  accountReviewList.innerHTML = '';
+  const groups = [
+    { status: 'pending', title: '待審核' },
+    { status: 'approved', title: '已核准' },
+    { status: 'rejected', title: '已拒絕／停用' },
+  ];
+  const sortByTime = (a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0);
+  let any = false;
+  groups.forEach(({ status, title }) => {
+    const items = accessRequests.filter(r => (r.status || 'pending') === status).sort(sortByTime);
+    if (!items.length) return;
+    any = true;
+    const heading = document.createElement('div');
+    heading.className = 'account-review-section';
+    heading.textContent = `${title}（${items.length}）`;
+    accountReviewList.appendChild(heading);
+    items.forEach(r => accountReviewList.appendChild(buildAccountReviewRow(r)));
+  });
+  if (!any) {
+    accountReviewList.innerHTML = '<div class="hidden-account-empty">目前沒有申請</div>';
+  }
+}
+
+function buildAccountReviewRow(r) {
+  const row = document.createElement('div');
+  row.className = 'hidden-account-row';
+  const providerLabel = accountProviderLabel(r);
+  const suspicious = r.provider === 'password' && !isGuestEmail(r.email);
+  const subText = isGuestEmail(r.email) ? providerLabel : `${providerLabel}・${r.email || '無 Email'}`;
+  row.innerHTML = `
+    <div class="account-review-row-info">
+      <div class="hidden-account-row-name">${escapeHtml(r.displayName || r.email || r.uid)}</div>
+      <div class="account-review-row-sub">${escapeHtml(subText)}${suspicious ? '<span class="account-review-warn">非本 App 註冊</span>' : ''}</div>
+    </div>
+    <div class="account-review-actions"></div>
+  `;
+  const actions = row.querySelector('.account-review-actions');
+  const addBtn = (label, secondary, fn) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'account-review-btn' + (secondary ? ' is-secondary' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await fn(); } catch (err) { console.error(err); alert('更新失敗'); btn.disabled = false; }
+    });
+    actions.appendChild(btn);
+  };
+  const status = r.status || 'pending';
+  if (status !== 'approved') addBtn('核准', false, () => approveAccount(r));
+  if (status === 'pending') addBtn('拒絕', true, () => rejectAccount(r));
+  if (status === 'approved') {
+    addBtn('停用', true, () => {
+      if (!confirm(`確定要停用「${r.displayName || r.email}」？停用後對方無法讀寫任何資料。`)) return Promise.resolve();
+      return rejectAccount(r);
+    });
+  }
+  return row;
+}
+
+async function approveAccount(r) {
+  await setDoc(doc(db, 'approvedUsers', r.uid), {
+    email: r.email || '',
+    displayName: r.displayName || '',
+    approvedAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'accessRequests', r.uid), { status: 'approved', reviewedAt: serverTimestamp() });
+}
+
+async function rejectAccount(r) {
+  await deleteDoc(doc(db, 'approvedUsers', r.uid));
+  await updateDoc(doc(db, 'accessRequests', r.uid), { status: 'rejected', reviewedAt: serverTimestamp() });
+}
+
+goAccountReviewBtn?.addEventListener('click', () => {
+  renderAccountReviewList();
+  accountReviewOverlay?.classList.add('active');
+});
+closeAccountReviewBtn?.addEventListener('click', () => accountReviewOverlay?.classList.remove('active'));
+accountReviewOverlay?.addEventListener('click', (e) => {
+  if (e.target === accountReviewOverlay) accountReviewOverlay.classList.remove('active');
+});
+
+function enterApp(user) {
+  resetInitialLoad();
+  currentUser = user;
+  if (adminSettingsGroup) adminSettingsGroup.style.display = user.uid === ADMIN_UID ? '' : 'none';
+  if (user.uid === ADMIN_UID) subscribeAccessRequests();
+  // users 只有本人可讀；userLookup 以 email 為文件 ID，供專案邀請時以完整 Email 取得 uid
+  const email = (user.email || '').trim().toLowerCase();
+  const displayName = (user.displayName || user.email || '').trim() || '使用者';
+  if (email) {
+    setDoc(doc(db, 'users', user.uid), { uid: user.uid, email, displayName }, { merge: true }).catch(() => {});
+    setDoc(doc(db, 'userLookup', email), { uid: user.uid, displayName }).catch(() => {});
+  }
+  void loadThemeFromCloud(user.uid);
+  showApp(user);
+  subscribeRecords();
+  subscribeAccounts();
+  subscribeCategories();
+  subscribeTemplates();
+  subscribeRecurring();
+  subscribeBudgets();
+  subscribeCashbackLogs();
+  subscribeProjects();
+}
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    resetInitialLoad();
-    currentUser = user;
-    // users 只有本人可讀；userLookup 以 email 為文件 ID，供專案邀請時以完整 Email 取得 uid
-    const email = (user.email || '').trim().toLowerCase();
-    const displayName = (user.displayName || user.email || '').trim() || '使用者';
-    if (email) {
-      setDoc(doc(db, 'users', user.uid), { uid: user.uid, email, displayName }, { merge: true }).catch(() => {});
-      setDoc(doc(db, 'userLookup', email), { uid: user.uid, displayName }).catch(() => {});
-    }
-    void loadThemeFromCloud(user.uid);
-    showApp(user);
-    subscribeRecords();
-    subscribeAccounts();
-    subscribeCategories();
-    subscribeTemplates();
-    subscribeRecurring();
-    subscribeBudgets();
-    subscribeCashbackLogs();
-    subscribeProjects();
+    void handleSignedIn(user);
   } else {
     hideSplash();
     currentUser = null;
+    pendingScreen.style.display = 'none';
     showLogin();
+    if (unsubAccessRequests) { unsubAccessRequests(); unsubAccessRequests = null; }
+    accessRequests = [];
+    accountReviewOverlay?.classList.remove('active');
     if (unsubRecords)     { unsubRecords();     unsubRecords     = null; }
     if (unsubAccounts)    { unsubAccounts();    unsubAccounts    = null; }
     if (unsubCategories)  { unsubCategories();  unsubCategories  = null; }

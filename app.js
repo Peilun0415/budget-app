@@ -29,7 +29,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.51';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.52';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -4718,13 +4718,13 @@ function getTierPeriodMode(account, tier) {
 }
 
 function getCardRewardExpenses(account, range) {
-  return allRecords.filter(r =>
-    r.accountId === account.docId &&
-    r.type === 'expense' &&
-    !isTransferRecord(r) &&
-    !r.isSettlement &&
-    r.date >= range.start && r.date <= range.end
-  );
+  return allRecords.filter(r => {
+    if (r.accountId !== account.docId) return false;
+    if (r.date < range.start || r.date > range.end) return false;
+    // 從這張卡轉出視為消費；轉入（還款）不算
+    if (r.type === 'transfer') return r.transferFromId === account.docId;
+    return r.type === 'expense' && !isTransferRecord(r) && !r.isSettlement;
+  });
 }
 
 /**

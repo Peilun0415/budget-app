@@ -29,7 +29,7 @@ import {
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.50';
+import { CARD_CATALOG, CARD_CATALOG_UPDATED } from './card-catalog.js?v=9.51';
 
 // ===== Firebase 設定 =====
 const firebaseConfig = {
@@ -5648,6 +5648,17 @@ async function processRecurringItems() {
     const fromAcc = allAccounts.find(a => a.docId === item.transferFromId);
     const toAcc   = allAccounts.find(a => a.docId === item.transferToId);
 
+    // 子分類 emoji 與顯示名稱（與一般記帳一致：主分類・子分類）
+    const parentCat = item.categoryId ? allCategories.find(c => c.docId === item.categoryId) : null;
+    const subCat = item.subCategoryId && parentCat
+      ? (parentCat.subs || []).find(s => s.docId === item.subCategoryId)
+      : null;
+    const subName = item.subCategoryName || subCat?.name || null;
+    const recDisplayEmoji = subCat?.emoji || item.categoryEmoji || '🔁';
+    const recDisplayName = subName
+      ? `${item.categoryName ? item.categoryName + '・' : ''}${subName}`
+      : (item.categoryName || item.name);
+
     // 連續補齊所有到期的執行次數
     while (nextDate <= today) {
       if (item.type === 'transfer') {
@@ -5680,9 +5691,10 @@ async function processRecurringItems() {
           categoryName: item.categoryName || null,
           categoryEmoji:item.categoryEmoji || null,
           subCategoryId:   item.subCategoryId   || null,
-          subCategoryName: item.subCategoryName || null,
-          displayEmoji: item.categoryEmoji || '🔁',
-          displayName:  item.categoryName  || item.name,
+          subCategoryName: subName,
+          subCategoryEmoji: subCat?.emoji || null,
+          displayEmoji: recDisplayEmoji,
+          displayName:  recDisplayName,
           recurringId:  item.docId,
           createdAt:    serverTimestamp(),
         });
